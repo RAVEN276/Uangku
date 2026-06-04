@@ -1,0 +1,32 @@
+package com.example.data.model
+
+import androidx.room.Entity
+import androidx.room.PrimaryKey
+
+@Entity(tableName = "transactions")
+data class Transaction(
+    @PrimaryKey(autoGenerate = true) val id: Int = 0,
+    val title: String,
+    val amount: Double,
+    val type: String, // "INCOME" or "EXPENSE"
+    val category: String, // "Makanan", "Sewa", "Transportasi", "Gaji", "Investasi", "Belanja", "Koneksi Bank", "Lainnya"
+    val timestamp: Long = System.currentTimeMillis(),
+    val bankSource: String? = null // e.g. "BCA Sandbox" if synced
+)
+
+@Entity(tableName = "budgets")
+data class Budget(
+    @PrimaryKey val category: String, // "ALL" or specific categories
+    val limitAmount: Double,
+    val alertThresholdPercent: Int = 80 // alert trigger percentage (e.g. 80%)
+)
+
+@Entity(tableName = "bank_connections")
+data class BankConnection(
+    @PrimaryKey val bankId: String, // e.g., "bca", "mandiri", "bni", "bri"
+    val bankName: String, // e.g., "BCA", "Bank Mandiri"
+    val accountNumber: String,
+    val balance: Double,
+    val isConnected: Boolean = false,
+    val lastSyncTime: Long = 0
+)
