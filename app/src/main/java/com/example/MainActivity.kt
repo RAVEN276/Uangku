@@ -39,6 +39,7 @@ import com.example.ui.FinanceViewModel
 import com.example.ui.screens.AuthScreen
 import com.example.ui.screens.BudgetScreen
 import com.example.ui.screens.DashboardScreen
+import com.example.ui.screens.OnboardingScreen
 import com.example.ui.screens.SettingsScreen
 import com.example.ui.screens.TransactionsScreen
 import com.example.ui.theme.MyApplicationTheme
@@ -56,9 +57,12 @@ class MainActivity : FragmentActivity() {
             val useDarkTheme = themeDarkOverride || systemDark
 
             MyApplicationTheme(darkTheme = useDarkTheme) {
+                val isOnboarded by viewModel.isOnboarded.collectAsState()
                 val isLocked by viewModel.isLocked.collectAsState()
 
-                if (isLocked) {
+                if (!isOnboarded) {
+                    OnboardingScreen(viewModel = viewModel)
+                } else if (isLocked) {
                     AuthScreen(
                         viewModel = viewModel,
                         onTriggerBiometric = {

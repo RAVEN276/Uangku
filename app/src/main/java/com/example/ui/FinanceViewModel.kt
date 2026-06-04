@@ -18,6 +18,10 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
+import android.content.ContentValues
+import android.os.Build
+import android.os.Environment
+import android.provider.MediaStore
 import kotlinx.coroutines.launch
 import java.io.File
 import java.io.FileWriter
@@ -35,20 +39,33 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     val allBudgets: StateFlow<List<Budget>>
     val allBankConnections: StateFlow<List<BankConnection>>
 
+    private val prefs = application.getSharedPreferences("uangku_prefs", Context.MODE_PRIVATE)
+
     // UI Interactive States
     private val _isSyncing = MutableStateFlow(false)
     val isSyncing = _isSyncing.asStateFlow()
 
-    private val _isLocked = MutableStateFlow(true) // Startup lock
+    private val _userName = MutableStateFlow(prefs.getString("user_name", "User") ?: "User")
+    val userName = _userName.asStateFlow()
+
+    private val _isOnboarded = MutableStateFlow(prefs.getBoolean("is_onboarded", false))
+    val isOnboarded = _isOnboarded.asStateFlow()
+
+    private val _isPinEnabled = MutableStateFlow(prefs.getBoolean("is_pin_enabled", false))
+    val isPinEnabled = _isPinEnabled.asStateFlow()
+
+    private val _isLocked = MutableStateFlow(
+        prefs.getBoolean("is_onboarded", false) && prefs.getBoolean("is_pin_enabled", false)
+    )
     val isLocked = _isLocked.asStateFlow()
 
-    private val _biometricsEnabled = MutableStateFlow(true)
+    private val _biometricsEnabled = MutableStateFlow(prefs.getBoolean("biometrics_enabled", false))
     val biometricsEnabled = _biometricsEnabled.asStateFlow()
 
-    private val _userPin = MutableStateFlow("1234") // Default unlocking code
+    private val _userPin = MutableStateFlow(prefs.getString("user_pin", "1234") ?: "1234")
     val userPin = _userPin.asStateFlow()
 
-    private val _themeDark = MutableStateFlow(false) // Custom dark mode override
+    private val _themeDark = MutableStateFlow(prefs.getBoolean("theme_dark", false))
     val themeDark = _themeDark.asStateFlow()
 
     // Alert message for Budget triggers
@@ -134,21 +151,57 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
         _isLocked.value = true
     }
 
+    fun setUserName(name: String) {
+        prefs.edit().putString("user_name", name).apply()
+        _userName.value = name
+    }
+
+    fun setOnboardingCompleted(name: String, pinEnabled: Boolean, pin: String, biomEnabled: Boolean) {
+        prefs.edit().apply {
+            putString("user_name", name)
+            putBoolean("is_onboarded", true)
+            putBoolean("is_pin_enabled", pinEnabled)
+            putString("user_pin", if (pinEnabled) pin else "")
+            putBoolean("biometrics_enabled", biomEnabled)
+            apply()
+        }
+        _userName.value = name
+        _isOnboarded.value = true
+        _isPinEnabled.value = pinEnabled
+        _userPin.value = if (pinEnabled) pin else ""
+        _biometricsEnabled.value = biomEnabled
+        _isLocked.value = false
+    }
+
     fun toggleBiometrics(enabled: Boolean) {
+        prefs.edit().putBoolean("biometrics_enabled", enabled).apply()
         _biometricsEnabled.value = enabled
     }
 
     fun setPin(newPin: String) {
         if (newPin.length == 4 && newPin.all { it.isDigit() }) {
+            prefs.edit().putString("user_pin", newPin).apply()
             _userPin.value = newPin
         }
     }
 
+    fun togglePinEnabled(enabled: Boolean) {
+        prefs.edit().putBoolean("is_pin_enabled", enabled).apply()
+        _isPinEnabled.value = enabled
+        if (!enabled) {
+            _userPin.value = ""
+            prefs.edit().remove("user_pin").apply()
+        }
+    }
+
     fun toggleTheme() {
-        _themeDark.value = !_themeDark.value
+        val nextVal = !_themeDark.value
+        prefs.edit().putBoolean("theme_dark", nextVal).apply()
+        _themeDark.value = nextVal
     }
 
     fun setTheme(dark: Boolean) {
+        prefs.edit().putBoolean("theme_dark", dark).apply()
         _themeDark.value = dark
     }
 
@@ -337,32 +390,76 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     }
 
     // --- Financial Reports & Data Exporting (PDF / Excel Format Report) ---
+    private fun saveToDownloadFolder(context: Context, fileName: String, content: String, mimeType: String): String? {
+        val resolver = context.contentResolver
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            val contentValues = ContentValues().apply {
+                put(MediaStore.MediaColumns.DISPLAY_NAME, fileName)
+                put(MediaStore.MediaColumns.MIME_TYPE, mimeType)
+                put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
+            }
+            try {
+                val uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, contentValues)
+                if (uri != null) {
+                    resolver.openOutputStream(uri)?.use { outputStream ->
+                        outputStream.write(content.toByteArray(Charsets.UTF_8))
+                    }
+                    return "Download/$fileName"
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        } else {
+            val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+            if (!downloadsDir.exists()) {
+                downloadsDir.mkdirs()
+            }
+            val file = File(downloadsDir, fileName)
+            try {
+                FileWriter(file).use { writer ->
+                    writer.write(content)
+                }
+                return file.absolutePath
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+        return null
+    }
+
     fun generateCSVExport(context: Context): String {
         val format = SimpleDateFormat("yyyy-MM-dd_HH-mm-ss", Locale.getDefault())
         val fileName = "Laporan_Keuangan_Uangku_${format.format(Date())}.csv"
+        
+        val csvBuilder = StringBuilder()
+        csvBuilder.append("ID,Deskripsi,Jumlah,Tipe,Kategori,Sumber,Selesai Tanggal\n")
+
+        val txs = allTransactions.value
+        val sdf = SimpleDateFormat("dd-MM-yyyy HH:mm", Locale.getDefault())
+
+        for (tx in txs) {
+            csvBuilder.append("${tx.id},")
+            csvBuilder.append("\"${tx.title.replace("\"", "\"\"")}\",")
+            csvBuilder.append("${tx.amount},")
+            csvBuilder.append("${tx.type},")
+            csvBuilder.append("${tx.category},")
+            csvBuilder.append(if (tx.bankSource != null) "\"${tx.bankSource}\"," else "Dompet Manual,")
+            csvBuilder.append("${sdf.format(Date(tx.timestamp))}\n")
+        }
+
+        val content = csvBuilder.toString()
+        val downloadPath = saveToDownloadFolder(context, fileName, content, "text/csv")
+        
+        if (downloadPath != null) {
+            return downloadPath
+        }
+
+        // Fallback to cache directory
         val file = File(context.cacheDir, fileName)
-
         try {
-            val writer = FileWriter(file)
-            writer.append("ID,Deskripsi,Jumlah,Tipe,Kategori,Sumber,Selesai Tanggal\n")
-
-            val txs = allTransactions.value
-            val valFormat = NumberFormat.getNumberInstance(Locale.getDefault())
-
-            val sdf = SimpleDateFormat("dd-MM-yyyy HH:mm", Locale.getDefault())
-
-            for (tx in txs) {
-                writer.append("${tx.id},")
-                writer.append("\"${tx.title.replace("\"", "\"\"")}\",")
-                writer.append("${tx.amount},")
-                writer.append("${tx.type},")
-                writer.append("${tx.category},")
-                writer.append(if (tx.bankSource != null) "\"${tx.bankSource}\"," else "Dompet Manual,")
-                writer.append("${sdf.format(Date(tx.timestamp))}\n")
+            FileWriter(file).use { writer ->
+                writer.write(content)
             }
-
-            writer.flush()
-            writer.close()
             return file.absolutePath
         } catch (e: Exception) {
             e.printStackTrace()
@@ -430,19 +527,28 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
         txReport.append("           Dibuat secara aman di Uangku   \n")
         txReport.append("=========================================\n")
 
-        // Write to local cache for physical saving if needed
-        val fileName = "Laporan_Uangku_PDF_${System.currentTimeMillis()}.txt"
-        val file = File(context.cacheDir, fileName)
-        try {
-            val writer = FileWriter(file)
-            writer.write(txReport.toString())
-            writer.flush()
-            writer.close()
-        } catch (e: Exception) {
-            e.printStackTrace()
+        val reportStr = txReport.toString()
+        val fileFormat = SimpleDateFormat("yyyy-MM-dd_HH-mm-ss", Locale.getDefault())
+        val fileName = "Laporan_Uangku_PDF_${fileFormat.format(Date())}.txt"
+        
+        // Save to Download folder
+        val downloadPath = saveToDownloadFolder(context, fileName, reportStr, "text/plain")
+        if (downloadPath != null) {
+            Toast.makeText(context, "Laporan PDF disimpan di folder Download: $downloadPath", Toast.LENGTH_LONG).show()
+        } else {
+            // Fallback to local cache
+            val file = File(context.cacheDir, fileName)
+            try {
+                val writer = FileWriter(file)
+                writer.write(reportStr)
+                writer.flush()
+                writer.close()
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
         }
 
-        return txReport.toString()
+        return reportStr
     }
 
     // --- Private Initializer & Seeds ---

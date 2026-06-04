@@ -26,6 +26,7 @@ import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.Fingerprint
 import androidx.compose.material.icons.filled.ListAlt
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PictureAsPdf
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Sync
@@ -72,9 +73,14 @@ fun SettingsScreen(
     val themeDark by viewModel.themeDark.collectAsState()
     val isSyncing by viewModel.isSyncing.collectAsState()
     val currentPin by viewModel.userPin.collectAsState()
+    val currentName by viewModel.userName.collectAsState()
+    val isPinEnabled by viewModel.isPinEnabled.collectAsState()
 
     var showPinDialog by remember { mutableStateOf(false) }
     var pinInputValue by remember { mutableStateOf(currentPin) }
+
+    var showNameDialog by remember { mutableStateOf(false) }
+    var nameInputValue by remember { mutableStateOf(currentName) }
 
     var showPdfReportDialog by remember { mutableStateOf(false) }
     var pdfReportText by remember { mutableStateOf("") }
@@ -101,6 +107,43 @@ fun SettingsScreen(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+
+            // --- PROFIL PENGGUNA SECTION ---
+            Text(
+                text = "Profil Pengguna",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.padding(top = 8.dp)
+            )
+
+            Card(
+                modifier = Modifier.fillMaxWidth().testTag("user_profile_card"),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                shape = RoundedCornerShape(20.dp),
+                border = CardDefaults.outlinedCardBorder()
+            ) {
+                Column(modifier = Modifier.padding(4.dp)) {
+                    SecuritySettingRow(
+                        title = "Nama Panggilan",
+                        subtitle = "Nama Anda yang dicantumkan di halaman Utama: $currentName",
+                        icon = {
+                            Icon(
+                                imageVector = Icons.Default.Person,
+                                contentDescription = "Nama Pengguna",
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                        },
+                        onClick = {
+                            nameInputValue = currentName
+                            showNameDialog = true
+                        },
+                        trailing = {
+                            Icon(imageVector = Icons.Default.ChevronRight, contentDescription = "Ubah Nama")
+                        }
+                    )
+                }
+            }
 
             // --- DEPART SHEET SECTION: EXPORTS OF REPORTS ---
             Text(
@@ -150,7 +193,7 @@ fun SettingsScreen(
                             onClick = {
                                 val path = viewModel.generateCSVExport(context)
                                 if (path.isNotEmpty()) {
-                                    Toast.makeText(context, "Laporan Excel/CSV tersimpan di cache: $path", Toast.LENGTH_LONG).show()
+                                    Toast.makeText(context, "Laporan Excel/CSV disimpan di folder Download: $path", Toast.LENGTH_LONG).show()
                                 } else {
                                     Toast.makeText(context, "Gagal mengeskpor data", Toast.LENGTH_SHORT).show()
                                 }
@@ -184,6 +227,26 @@ fun SettingsScreen(
                 border = CardDefaults.outlinedCardBorder()
             ) {
                 Column(modifier = Modifier.padding(4.dp)) {
+                    // PIN Lock toggle
+                    SecuritySettingRow(
+                        title = "Aktifkan Kunci PIN Keamanan",
+                        subtitle = "Wajibkan entry PIN 4-digit saat startup aplikasi.",
+                        icon = {
+                            Icon(
+                                imageVector = Icons.Default.Lock,
+                                contentDescription = "PIN Lock Toggle",
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                        },
+                        trailing = {
+                            Switch(
+                                checked = isPinEnabled,
+                                onCheckedChange = { viewModel.togglePinEnabled(it) },
+                                modifier = Modifier.testTag("pin_lock_enabled_switch")
+                            )
+                        }
+                    )
+
                     // Biometrics switch
                     SecuritySettingRow(
                         title = "Uji Sidik Jari (Biometrik)",
@@ -205,41 +268,45 @@ fun SettingsScreen(
                     )
 
                     // Pin changes
-                    SecuritySettingRow(
-                        title = "Kode PIN Pengaman",
-                        subtitle = "Ubah 4 digit kode PIN default. PIN saat ini: $currentPin",
-                        icon = {
-                            Icon(
-                                imageVector = Icons.Default.Lock,
-                                contentDescription = "Security PIN",
-                                tint = MaterialTheme.colorScheme.primary
-                            )
-                        },
-                        onClick = {
-                            pinInputValue = currentPin
-                            showPinDialog = true
-                        },
-                        trailing = {
-                            Icon(imageVector = Icons.Default.ChevronRight, contentDescription = "Change")
-                        }
-                    )
+                    if (isPinEnabled) {
+                        SecuritySettingRow(
+                            title = "Ubah Kode PIN Pengaman",
+                            subtitle = "Ubah 4 digit kode PIN Anda. PIN saat ini: $currentPin",
+                            icon = {
+                                Icon(
+                                    imageVector = Icons.Default.Lock,
+                                    contentDescription = "Security PIN",
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                            },
+                            onClick = {
+                                pinInputValue = currentPin
+                                showPinDialog = true
+                            },
+                            trailing = {
+                                Icon(imageVector = Icons.Default.ChevronRight, contentDescription = "Change")
+                            }
+                        )
+                    }
 
                     // App locking
-                    SecuritySettingRow(
-                        title = "Kunci Aplikasi Sekarang",
-                        subtitle = "Keluar secara aman untuk memverifikasi halaman autentikasi biometric PIN anda.",
-                        icon = {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.ExitToApp,
-                                contentDescription = "Lock App",
-                                tint = MaterialTheme.colorScheme.error
-                            )
-                        },
-                        onClick = { viewModel.lockApp() },
-                        trailing = {
-                            Text("Keluar", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
-                        }
-                    )
+                    if (isPinEnabled) {
+                        SecuritySettingRow(
+                            title = "Kunci Aplikasi Sekarang",
+                            subtitle = "Keluar secara aman untuk memverifikasi halaman autentikasi biometric PIN anda.",
+                            icon = {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.ExitToApp,
+                                    contentDescription = "Lock App",
+                                    tint = MaterialTheme.colorScheme.error
+                                )
+                            },
+                            onClick = { viewModel.lockApp() },
+                            trailing = {
+                                Text("Keluar", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
+                            }
+                        )
+                    }
                 }
             }
 
@@ -282,6 +349,56 @@ fun SettingsScreen(
             }
 
             Spacer(modifier = Modifier.height(60.dp))
+        }
+    }
+
+    // Name Change configuration dialog
+    if (showNameDialog) {
+        Dialog(onDismissRequest = { showNameDialog = false }) {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                shape = RoundedCornerShape(24.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(24.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    Text(text = "Ubah Nama Panggilan", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+
+                    OutlinedTextField(
+                        value = nameInputValue,
+                        onValueChange = { nameInputValue = it },
+                        label = { Text("Nama Panggilan") },
+                        singleLine = true,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("new_username_input")
+                    )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End
+                    ) {
+                        TextButton(onClick = { showNameDialog = false }) {
+                            Text("Batal")
+                        }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Button(
+                            onClick = {
+                                if (nameInputValue.isNotBlank()) {
+                                    viewModel.setUserName(nameInputValue.trim())
+                                    showNameDialog = false
+                                    Toast.makeText(context, "Nama berhasil diubah ke: ${nameInputValue.trim()}", Toast.LENGTH_SHORT).show()
+                                } else {
+                                    Toast.makeText(context, "Nama tidak boleh kosong!", Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                        ) {
+                            Text("Simpan")
+                        }
+                    }
+                }
+            }
         }
     }
 

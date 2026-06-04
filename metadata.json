@@ -1,6 +1,6 @@
 {
   "name": "Uangku",
-  "description": "Aplikasi manajemen keuangan pribadi dengan grafik visual, notifikasi anggaran, ekspor PDF/Excel, mode gelap, sinkronisasi otomatis, dan biometrik.",
+  "description": "Aplikasi manajemen keuangan pribadi dengan pencatatan transaksi praktis, grafik visual interaktif, pembatasan anggaran, ekspor laporan PDF/Excel langsung ke folder Download, serta keamanan PIN dan autentikasi biometrik.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

@@ -85,6 +85,7 @@ fun DashboardScreen(
     val transactions by viewModel.allTransactions.collectAsState()
     val isSyncing by viewModel.isSyncing.collectAsState()
     val budgetAlert by viewModel.budgetAlert.collectAsState()
+    val userName by viewModel.userName.collectAsState()
 
     var showQuickAddDialog by remember { mutableStateOf(false) }
 
@@ -123,7 +124,7 @@ fun DashboardScreen(
                 ) {
                     Column {
                         Text(
-                            text = "Halo, Lintar Arya",
+                            text = "Halo, $userName",
                             style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.Black,
                             color = MaterialTheme.colorScheme.onSurface
