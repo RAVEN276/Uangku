@@ -1,21 +1,43 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://ai.google.dev/static/site-assets/images/share-ais-513315318.png" />
-</div>
+# Uangku - Aplikasi Pencatat Keuangan Pintar & Otomatis
 
-# Run and deploy your AI Studio app
+**Uangku** adalah aplikasi manajemen keuangan pribadi berbasis Android yang dirancang modern, cepat, dan intuitif menggunakan **Jetpack Compose** dan **Material Design 3**. Aplikasi ini membantu Anda memantau arus kas secara otomatis maupun manual dengan presisi tinggi.
 
-This contains everything you need to run your app locally.
+---
 
-View your app in AI Studio: https://ai.studio/apps/944f74ce-1da4-4326-94ce-4a2ae49a68cd
+## 🚀 Fitur Unggulan
 
-## Run Locally
+### 1. 🔔 Auto-Detect Mutasi dari Notifikasi (Notif Listener)
+Membaca dan merekam transaksi masuk atau keluar secara instan dari notifikasi aplikasi keuangan dan *m-banking* favorit seperti **BCA, Mandiri, BRI, BNI, OVO, GoPay,** dan lain-lain.
+*   **Akurasi Tinggi**: Memakai algoritma ekstraksi nominal pintar yang mampu menangani beragam format angka perbankan Indonesia (mencegah salah deteksi nominal karena angka sen `,00` atau `.00`).
+*   **Keamanan Terjamin**: Bekerja sepenuhnya secara lokal di perangkat Anda melalui izin *Notification Listener Service*.
 
-**Prerequisites:**  [Android Studio](https://developer.android.com/studio)
+### 2. ✏️ Kelola Transaksi dengan Fleksibel (Edit & Hapus)
+Semua transaksi (baik yang ditangkap otomatis maupun dicatat manual) dapat dikelola kembali demi kerapihan data:
+*   Ketuk transaksi apa pun untuk membuka **Dialog Edit Transaksi**.
+*   Ubah keterangan, kategori, jenis transaksi (*Pengeluaran* atau *Pemasukan*), serta nominalnya.
+*   Tombol hapus cepat memudahkan Anda merapikan entri yang tidak sengaja tercatat.
 
+### 3. ✍️ Input Anggaran & Nominal dengan Separator Otomatis (Auto-Thousand Separator)
+Saat menambahkan atau mengedit transaksi, Anda tidak perlu lagi menebak jumlah nol yang dimasukkan:
+*   Format titik ribuan (`.`) otomatis ditambahkan saat Anda mengetik angka di kolom input (misal penulisan `4000` otomatis berubah visual menjadi `4.000` secara dinamis).
+*   Membantu meminimalisir kesalahan pelaporan keuangan akibat kurang atau kelebihan menekan angka nol.
 
-1. Open Android Studio
-2. Select **Open** and choose the directory containing this project
-3. Allow Android Studio to fix any incompatibilities as it imports the project.
-4. Create a file named `.env` in the project directory and set `GEMINI_API_KEY` in that file to your Gemini API key (see `.env.example` for an example)
-5. Remove this line from the app's `build.gradle.kts` file: `signingConfig = signingConfigs.getByName("debugConfig")`
-6. Run the app on an emulator or physical device
+### 4. 📊 Grafik Visualisasi Finansial yang Kaya
+*   **Grafik Donat Kategori**: Melihat alokasi pengeluaran bulanan berdasarkan kategori (Makanan, Belanja, Transportasi, dsb).
+*   **Grafik Tren Mingguan & Bulanan**: Memantau perputaran arus kas secara dinamis.
+
+### 5. 🎯 Rencana Masa Depan (Budget & Saving Goals)
+*   **Batas Anggaran (Budgeting)**: Set target reguler per kategori dengan peringatan progres kuota persen terpakai.
+*   **Rencana Impian (Saving Goals)**: Tabung uang secara terstruktur untuk mewujudkan impian finansial Anda.
+
+### 6. 📄 Ekspor Laporan Instan
+*   Unduh rangkuman keuangan Anda langsung ke format ekspor **PDF** atau **CSV** untuk kebutuhan pengarsipan maupun analisis tingkat lanjut.
+
+---
+
+## 🏗️ Teknologi yang Digunakan
+*   **Bahasa Pemrograman**: Kotlin
+*   **UI Framework**: Jetpack Compose (Material Design 3)
+*   **Database Lokal**: Room Database (SQLite) untuk performa luring (*offline-first*) yang tangguh
+*   **Arsitektur**: MVVM (Model-View-ViewModel) dengan StateFlow & Coroutines yang reaktif
+*   **Ekspor Data**: Android PDF Canvas Writer & CSV Buffer Streamer

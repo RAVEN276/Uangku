@@ -3,13 +3,17 @@ package com.example.ui.screens
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -71,14 +75,16 @@ fun TransactionsScreen(
     var showAddDialog by remember { mutableStateOf(false) }
 
     // List filtration
-    val filteredTransactions = transactions.filter { tx ->
-        val matchesSearch = tx.title.contains(searchQuery, ignoreCase = true) ||
-                tx.category.contains(searchQuery, ignoreCase = true)
+    val filteredTransactions = remember(transactions, searchQuery, selectedTypeFilter, selectedCategoryFilter) {
+        transactions.filter { tx ->
+            val matchesSearch = tx.title.contains(searchQuery, ignoreCase = true) ||
+                    tx.category.contains(searchQuery, ignoreCase = true)
 
-        val matchesType = selectedTypeFilter == "ALL" || tx.type == selectedTypeFilter
-        val matchesCategory = selectedCategoryFilter == "ALL" || tx.category == selectedCategoryFilter
+            val matchesType = selectedTypeFilter == "ALL" || tx.type == selectedTypeFilter
+            val matchesCategory = selectedCategoryFilter == "ALL" || tx.category == selectedCategoryFilter
 
-        matchesSearch && matchesType && matchesCategory
+            matchesSearch && matchesType && matchesCategory
+        }
     }
 
     Scaffold(
@@ -167,9 +173,12 @@ fun TransactionsScreen(
                 val categoriesList = listOf("ALL", "Makanan", "Belanja", "Transportasi", "Gaji", "Investasi", "Sewa", "Lainnya")
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier
+                        .weight(1f)
+                        .horizontalScroll(rememberScrollState())
+                        .padding(vertical = 4.dp)
                 ) {
-                    categoriesList.take(4).forEach { cat ->
+                    categoriesList.forEach { cat ->
                         val isSelected = selectedCategoryFilter == cat
                         Box(
                             modifier = Modifier
@@ -216,7 +225,11 @@ fun TransactionsScreen(
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     items(filteredTransactions, key = { it.id }) { tx ->
-                        TransactionItemRow(tx = tx, onDelete = { viewModel.deleteTransaction(it) })
+                        TransactionItemRow(
+                            tx = tx,
+                            onDelete = { viewModel.deleteTransaction(it) },
+                            onUpdate = { viewModel.updateTransaction(it) }
+                        )
                     }
                 }
             }
@@ -247,18 +260,56 @@ fun TransactionsScreen(
                         fontWeight = FontWeight.Bold
                     )
 
+                    // Segmented capsule toggler
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(16.dp)
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(44.dp)
+                            .background(
+                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                shape = RoundedCornerShape(22.dp)
+                            )
+                            .padding(4.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.clickable { type = "EXPENSE" }) {
-                            RadioButton(selected = type == "EXPENSE", onClick = { type = "EXPENSE" })
-                            Text("Keluar")
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxHeight()
+                                .clip(RoundedCornerShape(18.dp))
+                                .background(
+                                    color = if (type == "EXPENSE") MaterialTheme.colorScheme.errorContainer else Color.Transparent
+                                )
+                                .clickable { type = "EXPENSE" },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "Pengeluaran",
+                                color = if (type == "EXPENSE") MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.onSurfaceVariant,
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1
+                            )
                         }
 
-                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.clickable { type = "INCOME" }) {
-                            RadioButton(selected = type == "INCOME", onClick = { type = "INCOME" })
-                            Text("Masuk")
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxHeight()
+                                .clip(RoundedCornerShape(18.dp))
+                                .background(
+                                    color = if (type == "INCOME") MaterialTheme.colorScheme.primaryContainer else Color.Transparent
+                                )
+                                .clickable { type = "INCOME" },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "Pemasukan",
+                                color = if (type == "INCOME") MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1
+                            )
                         }
                     }
 
@@ -271,7 +322,21 @@ fun TransactionsScreen(
 
                     OutlinedTextField(
                         value = amount,
-                        onValueChange = { amount = it },
+                        onValueChange = { input ->
+                            val clean = input.filter { it.isDigit() }
+                            if (clean.length <= 15) {
+                                val sb = StringBuilder()
+                                var count = 0
+                                for (i in clean.length - 1 downTo 0) {
+                                    sb.append(clean[i])
+                                    count++
+                                    if (count % 3 == 0 && i > 0) {
+                                        sb.append('.')
+                                    }
+                                }
+                                amount = sb.reverse().toString()
+                            }
+                        },
                         label = { Text("Jumlah (IDR)") },
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -280,9 +345,12 @@ fun TransactionsScreen(
                     val catRows = listOf("Makanan", "Belanja", "Transportasi", "Gaji", "Investasi", "Sewa", "Lainnya")
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState())
+                            .padding(vertical = 4.dp)
                     ) {
-                        catRows.take(4).forEach { cat ->
+                        catRows.forEach { cat ->
                             val isSelected = category == cat
                             Box(
                                 modifier = Modifier
@@ -313,7 +381,8 @@ fun TransactionsScreen(
                         Spacer(modifier = Modifier.width(8.dp))
                         Button(
                             onClick = {
-                                val dAmount = amount.toDoubleOrNull() ?: 0.0
+                                val cleanAmt = amount.filter { it.isDigit() }
+                                val dAmount = cleanAmt.toDoubleOrNull() ?: 0.0
                                 if (title.isNotBlank() && dAmount > 0) {
                                     viewModel.addTransaction(
                                         title = title,
@@ -324,7 +393,7 @@ fun TransactionsScreen(
                                     showAddDialog = false
                                 }
                             },
-                            enabled = title.isNotBlank() && amount.toDoubleOrNull() != null
+                            enabled = title.isNotBlank() && amount.filter { it.isDigit() }.isNotEmpty()
                         ) {
                             Text("Simpan")
                         }

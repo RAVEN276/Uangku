@@ -1,9 +1,13 @@
 package com.example.data.model
 
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.PrimaryKey
 
-@Entity(tableName = "transactions")
+@Entity(
+    tableName = "transactions",
+    indices = [Index(value = ["timestamp"])]
+)
 data class Transaction(
     @PrimaryKey(autoGenerate = true) val id: Int = 0,
     val title: String,
@@ -29,4 +33,25 @@ data class BankConnection(
     val balance: Double,
     val isConnected: Boolean = false,
     val lastSyncTime: Long = 0
+)
+
+@Entity(tableName = "saving_goals")
+data class SavingGoal(
+    @PrimaryKey(autoGenerate = true) val id: Int = 0,
+    val title: String,
+    val targetAmount: Double,
+    val currentAmount: Double,
+    val targetDate: String, // e.g. "Desember 2026"
+    val category: String // "Liburan", "Gawai", "Dana Darurat", "Kendaraan", "Lainnya"
+)
+
+@Entity(tableName = "recurring_bills")
+data class RecurringBill(
+    @PrimaryKey(autoGenerate = true) val id: Int = 0,
+    val title: String,
+    val amount: Double,
+    val category: String, // "Makanan", "Hiburan", "Sewa", "Transportasi", "Lainnya"
+    val billingCycle: String, // "Bulanan", "Mingguan", "Tahunan"
+    val dueDate: String, // "Tanggal 10" atau "Setiap tanggal 5"
+    val lastClaimedTimestamp: Long = 0
 )

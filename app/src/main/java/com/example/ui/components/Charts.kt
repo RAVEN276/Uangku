@@ -11,7 +11,9 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -34,13 +36,239 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.model.Transaction
 import java.text.NumberFormat
+import java.text.SimpleDateFormat
+import java.util.Calendar
+import java.util.Date
 import java.util.Locale
+
+data class MonthlyData(
+    val monthName: String,
+    val income: Float,
+    val expense: Float
+)
+
+@Composable
+fun MonthlyBarComparisonChart(
+    transactions: List<Transaction>,
+    modifier: Modifier = Modifier
+) {
+    val monthlyDataList = remember(transactions) {
+        val sdf = SimpleDateFormat("MMM", Locale("id", "ID"))
+        val list = mutableListOf<MonthlyData>()
+        
+        for (i in 4 downTo 0) {
+            val cal = Calendar.getInstance()
+            cal.add(Calendar.MONTH, -i)
+            val monthStart = cal.clone() as Calendar
+            monthStart.set(Calendar.DAY_OF_MONTH, 1)
+            monthStart.set(Calendar.HOUR_OF_DAY, 0)
+            monthStart.set(Calendar.MINUTE, 0)
+            monthStart.set(Calendar.SECOND, 0)
+            monthStart.set(Calendar.MILLISECOND, 0)
+            
+            val monthEnd = cal.clone() as Calendar
+            monthEnd.set(Calendar.DAY_OF_MONTH, cal.getActualMaximum(Calendar.DAY_OF_MONTH))
+            monthEnd.set(Calendar.HOUR_OF_DAY, 23)
+            monthEnd.set(Calendar.MINUTE, 59)
+            monthEnd.set(Calendar.SECOND, 59)
+            monthEnd.set(Calendar.MILLISECOND, 999)
+            
+            val startTs = monthStart.timeInMillis
+            val endTs = monthEnd.timeInMillis
+            
+            val monthTxs = transactions.filter { it.timestamp in startTs..endTs }
+            val incomeSum = monthTxs.filter { it.type == "INCOME" }.sumOf { it.amount }.toFloat()
+            val expenseSum = monthTxs.filter { it.type == "EXPENSE" }.sumOf { it.amount }.toFloat()
+            
+            list.add(
+                MonthlyData(
+                    monthName = sdf.format(cal.time),
+                    income = incomeSum,
+                    expense = expenseSum
+                )
+            )
+        }
+        list
+    }
+
+    val maxBarValue = remember(monthlyDataList) {
+        val maxVal = monthlyDataList.maxOfOrNull { maxOf(it.income, it.expense) } ?: 0f
+        if (maxVal == 0f) 1000000f else maxVal * 1.15f
+    }
+
+    val scaleProgress = remember { Animatable(0f) }
+    LaunchedEffect(monthlyDataList) {
+        scaleProgress.animateTo(
+            targetValue = 1f,
+            animationSpec = tween(durationMillis = 1000)
+        )
+    }
+
+    val incomeColor = Color(0xFF2ECC71) 
+    val expenseColor = Color(0xFFE74C3C) 
+
+    Card(
+        modifier = modifier
+            .fillMaxWidth()
+            .testTag("monthly_bar_chart_card"),
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+        )
+    ) {
+        Column(
+            modifier = Modifier.padding(20.dp),
+            horizontalAlignment = Alignment.Start
+        ) {
+            Text(
+                text = "Perbandingan Keuangan Bulanan",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Text(
+                text = "Visualisasi Pemasukan vs Pengeluaran 5 bulan terakhir",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(200.dp)
+            ) {
+                Canvas(modifier = Modifier.fillMaxSize()) {
+                    val lineCount = 5
+                    val stepHeight = size.height / lineCount
+                    for (i in 0 until lineCount) {
+                        val y = i * stepHeight
+                        drawLine(
+                            color = Color.Gray.copy(alpha = 0.2f),
+                            start = Offset(0f, y),
+                            end = Offset(size.width, y),
+                            strokeWidth = 2f,
+                            pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(10f, 10f), 0f)
+                        )
+                    }
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxSize(),
+                    horizontalArrangement = Arrangement.SpaceAround,
+                    verticalAlignment = Alignment.Bottom
+                ) {
+                    monthlyDataList.forEach { data ->
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Bottom,
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxHeight()
+                        ) {
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                verticalAlignment = Alignment.Bottom,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .padding(bottom = 8.dp)
+                            ) {
+                                val incomeRatio = (data.income / maxBarValue).coerceIn(0f, 1f)
+                                val animatedIncomeHeight = incomeRatio * scaleProgress.value
+                                Box(
+                                    modifier = Modifier
+                                        .width(14.dp)
+                                        .fillMaxHeight(animatedIncomeHeight.coerceAtLeast(0.01f))
+                                        .clip(RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp))
+                                        .background(
+                                            Brush.verticalGradient(
+                                                colors = listOf(incomeColor, incomeColor.copy(alpha = 0.7f))
+                                            )
+                                        )
+                                )
+
+                                val expenseRatio = (data.expense / maxBarValue).coerceIn(0f, 1f)
+                                val animatedExpenseHeight = expenseRatio * scaleProgress.value
+                                Box(
+                                    modifier = Modifier
+                                        .width(14.dp)
+                                        .fillMaxHeight(animatedExpenseHeight.coerceAtLeast(0.01f))
+                                        .clip(RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp))
+                                        .background(
+                                            Brush.verticalGradient(
+                                                colors = listOf(expenseColor, expenseColor.copy(alpha = 0.7f))
+                                            )
+                                        )
+                                )
+                            }
+
+                            Text(
+                                text = data.monthName.uppercase(Locale.getDefault()),
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.padding(horizontal = 12.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(12.dp)
+                            .clip(RoundedCornerShape(3.dp))
+                            .background(incomeColor)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "Pemasukan",
+                        style = MaterialTheme.typography.bodySmall,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.padding(horizontal = 12.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(12.dp)
+                            .clip(RoundedCornerShape(3.dp))
+                            .background(expenseColor)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "Pengeluaran",
+                        style = MaterialTheme.typography.bodySmall,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+            }
+        }
+    }
+}
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable

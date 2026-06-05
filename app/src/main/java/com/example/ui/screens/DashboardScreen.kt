@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -31,7 +32,14 @@ import androidx.compose.material.icons.filled.CloudQueue
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.CreditCard
+import androidx.compose.material.icons.filled.AccountBalanceWallet
+import androidx.compose.material.icons.filled.CalendarToday
+import androidx.compose.material.icons.filled.ListAlt
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -62,15 +70,74 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.border
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.window.Dialog
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.foundation.BorderStroke
+import android.content.Intent
+import android.widget.Toast
 import com.example.data.model.Transaction
 import com.example.ui.FinanceViewModel
+import com.example.ui.components.MonthlyBarComparisonChart
 import com.example.ui.components.TransactionCategoryDonutChart
 import com.example.ui.components.TransactionWeeklyTrendLineChart
 import java.text.NumberFormat
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.TrendingDown
+import androidx.compose.material.icons.filled.Lightbulb
+import androidx.compose.material.icons.filled.Storage
+
+fun parseMarkdownToAnnotatedString(text: String, primaryColor: Color): AnnotatedString {
+    return buildAnnotatedString {
+        var cursor = 0
+        val l = text.length
+        while (cursor < l) {
+            val nextBoldStart = text.indexOf("**", cursor)
+            if (nextBoldStart != -1) {
+                // Append text before bold
+                append(text.substring(cursor, nextBoldStart))
+                val nextBoldEnd = text.indexOf("**", nextBoldStart + 2)
+                if (nextBoldEnd != -1) {
+                    // Span bold style
+                    withStyle(style = SpanStyle(fontWeight = FontWeight.Bold, color = primaryColor)) {
+                        append(text.substring(nextBoldStart + 2, nextBoldEnd))
+                    }
+                    cursor = nextBoldEnd + 2
+                } else {
+                    append("**")
+                    cursor = nextBoldStart + 2
+                }
+            } else {
+                append(text.substring(cursor, l))
+                cursor = l
+            }
+        }
+    }
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -86,8 +153,15 @@ fun DashboardScreen(
     val isSyncing by viewModel.isSyncing.collectAsState()
     val budgetAlert by viewModel.budgetAlert.collectAsState()
     val userName by viewModel.userName.collectAsState()
+    val themeDark by viewModel.themeDark.collectAsState()
+    val context = androidx.compose.ui.platform.LocalContext.current
+
+    val recurringBills by viewModel.allRecurringBills.collectAsState()
+    val recentTxs = remember(transactions) { transactions.take(5) }
 
     var showQuickAddDialog by remember { mutableStateOf(false) }
+    var showAddBillDialog by remember { mutableStateOf(false) }
+    var showMlReportDialog by remember { mutableStateOf(false) }
 
     val rubelFormat = NumberFormat.getCurrencyInstance(Locale("id", "ID"))
     rubelFormat.maximumFractionDigits = 0
@@ -95,15 +169,36 @@ fun DashboardScreen(
     Scaffold(
         modifier = modifier.fillMaxSize(),
         floatingActionButton = {
-            FloatingActionButton(
-                onClick = { showQuickAddDialog = true },
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = MaterialTheme.colorScheme.onPrimary,
-                modifier = Modifier
-                    .testTag("quick_add_transaction_fab")
-                    .padding(bottom = 8.dp)
+            Column(
+                horizontalAlignment = Alignment.End,
+                verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                Icon(imageVector = Icons.Default.Add, contentDescription = "Quick Add Expense")
+                // BUTTON FOR PRIVATE LOCAL ML ENGINE REPORT
+                FloatingActionButton(
+                    onClick = { showMlReportDialog = true },
+                    containerColor = if (themeDark) Color(0xFF5B21B6) else Color(0xFFDDD6FE),
+                    contentColor = if (themeDark) Color(0xFFF3E8FF) else Color(0xFF5B21B6),
+                    modifier = Modifier
+                        .testTag("ml_report_fab")
+                        .size(48.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.AutoAwesome, 
+                        contentDescription = "Buka Analisis ML",
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+
+                FloatingActionButton(
+                    onClick = { showQuickAddDialog = true },
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary,
+                    modifier = Modifier
+                        .testTag("quick_add_transaction_fab")
+                        .padding(bottom = 8.dp)
+                ) {
+                    Icon(imageVector = Icons.Default.Add, contentDescription = "Quick Add Expense")
+                }
             }
         }
     ) { innerPadding ->
@@ -192,23 +287,28 @@ fun DashboardScreen(
             // Elegant Metallic Wallet Balance Card (Material M3 Expressive Card with visual gradients)
             item {
                 val premiumGradient = Brush.linearGradient(
-                    colors = listOf(
-                        MaterialTheme.colorScheme.primary,
-                        MaterialTheme.colorScheme.tertiary
-                    )
+                    colors = if (themeDark) {
+                        listOf(Color(0xFF2E1065), Color(0xFF6D28D9), Color(0xFFBD287C))
+                    } else {
+                        listOf(Color(0xFF6D28D9), Color(0xFF8B5CF6), Color(0xFFEC4899))
+                    }
                 )
 
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()
                         .testTag("wallet_balance_gradient_card"),
-                    shape = RoundedCornerShape(28.dp),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+                    shape = RoundedCornerShape(24.dp),
+                    border = BorderStroke(
+                        width = 1.6.dp,
+                        color = if (themeDark) Color(0xFF4A2B8F) else Color(0xFFDDD6FE)
+                    ),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
                 ) {
                     Box(
                         modifier = Modifier
                             .background(premiumGradient)
-                            .padding(24.dp)
+                            .padding(22.dp)
                     ) {
                         Column {
                             Row(
@@ -216,47 +316,66 @@ fun DashboardScreen(
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        imageVector = Icons.Default.AccountBalanceWallet,
+                                        contentDescription = "Wallet Icon",
+                                        tint = Color.White.copy(alpha = 0.9f),
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = "Total Saldo Gabungan",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color.White
+                                    )
+                                }
                                 Text(
-                                    text = "Total Saldo Gabungan",
-                                    style = MaterialTheme.typography.titleSmall,
-                                    color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f)
-                                )
-                                Text(
-                                    text = "Uangku Keamanan Aktif",
+                                    text = "Keamanan Aktif",
                                     style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.6f),
-                                    fontSize = 10.sp
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White.copy(alpha = 0.7f),
+                                    fontSize = 11.sp,
+                                    modifier = Modifier
+                                        .background(Color.White.copy(alpha = 0.15f), RoundedCornerShape(12.dp))
+                                        .padding(horizontal = 8.dp, vertical = 4.dp)
                                 )
                             }
 
-                            Spacer(modifier = Modifier.height(12.dp))
+                            Spacer(modifier = Modifier.height(16.dp))
 
                             Text(
                                 text = rubelFormat.format(totalBalance),
                                 style = MaterialTheme.typography.headlineLarge,
                                 fontWeight = FontWeight.Black,
-                                color = MaterialTheme.colorScheme.onPrimary,
-                                fontSize = 32.sp
+                                color = Color.White,
+                                fontSize = 34.sp
                             )
 
                             Spacer(modifier = Modifier.height(20.dp))
 
+                            // Glassmorphism-inspired Info Row
                             Row(
-                                modifier = Modifier.fillMaxWidth(),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .background(Color.White.copy(alpha = 0.08f), RoundedCornerShape(18.dp))
+                                    .border(1.dp, Color.White.copy(alpha = 0.15f), RoundedCornerShape(18.dp))
+                                    .padding(14.dp),
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
                                 Column {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
                                         Box(
                                             modifier = Modifier
-                                                .size(16.dp)
+                                                .size(20.dp)
                                                 .background(Color.White.copy(alpha = 0.2f), CircleShape),
                                             contentAlignment = Alignment.Center
                                         ) {
                                             Icon(
                                                 imageVector = Icons.Default.ArrowUpward,
                                                 contentDescription = "Inflow",
-                                                tint = Color(0xFF81C784),
+                                                tint = Color(0xFF6EE7B7),
                                                 modifier = Modifier.size(12.dp)
                                             )
                                         }
@@ -264,14 +383,16 @@ fun DashboardScreen(
                                         Text(
                                             text = "Pemasukan",
                                             style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f)
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color.White.copy(alpha = 0.85f)
                                         )
                                     }
+                                    Spacer(modifier = Modifier.height(4.dp))
                                     Text(
                                         text = rubelFormat.format(totalIncome),
                                         style = MaterialTheme.typography.titleMedium,
                                         fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.onPrimary
+                                        color = Color.White
                                     )
                                 }
 
@@ -279,14 +400,14 @@ fun DashboardScreen(
                                     Row(verticalAlignment = Alignment.CenterVertically) {
                                         Box(
                                             modifier = Modifier
-                                                .size(16.dp)
+                                                .size(20.dp)
                                                 .background(Color.White.copy(alpha = 0.2f), CircleShape),
                                             contentAlignment = Alignment.Center
                                         ) {
                                             Icon(
                                                 imageVector = Icons.Default.ArrowDownward,
                                                 contentDescription = "Outflow",
-                                                tint = Color(0xFFE57373),
+                                                tint = Color(0xFFFCA5A5),
                                                 modifier = Modifier.size(12.dp)
                                             )
                                         }
@@ -294,20 +415,135 @@ fun DashboardScreen(
                                         Text(
                                             text = "Pengeluaran",
                                             style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f)
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color.White.copy(alpha = 0.85f)
                                         )
                                     }
+                                    Spacer(modifier = Modifier.height(4.dp))
                                     Text(
                                         text = rubelFormat.format(totalExpense),
                                         style = MaterialTheme.typography.titleMedium,
                                         fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.onPrimary
+                                        color = Color.White
                                     )
                                 }
                             }
                         }
                     }
                 }
+            }
+
+            // DETEKSI NOTIFIKASI BANK CARD & SIMULATOR
+            item {
+                var isNotifAccessGranted by remember { mutableStateOf(false) }
+                
+                LaunchedEffect(Unit) {
+                    isNotifAccessGranted = isNotificationServiceEnabled(context)
+                }
+
+                val cardBg = if (themeDark) Color(0xFF1A1625) else Color(0xFFFAF5FF)
+                val cardBorder = if (themeDark) Color(0xFF3A2B5E) else Color(0xFFE9E2FC)
+
+                val textTitleColor = if (themeDark) Color.White else Color(0xFF311062)
+                val textDescColor = if (themeDark) Color(0xFFD1CDDB) else Color(0xFF5A5266)
+
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("bank_notif_sync_card"),
+                    shape = RoundedCornerShape(24.dp),
+                    colors = CardDefaults.cardColors(containerColor = cardBg),
+                    border = BorderStroke(1.2.dp, cardBorder),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(20.dp),
+                        verticalArrangement = Arrangement.spacedBy(14.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(40.dp)
+                                        .background(
+                                            if (isNotifAccessGranted) {
+                                                if (themeDark) Color(0xFF0F2D24) else Color(0xFFE6F4EA)
+                                            } else {
+                                                if (themeDark) Color(0xFF3B2E1E) else Color(0xFFFFF7E6)
+                                            },
+                                            CircleShape
+                                        ),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = if (isNotifAccessGranted) Icons.Default.Check else Icons.Default.NotificationsActive,
+                                        contentDescription = "Sync Icon",
+                                        tint = if (isNotifAccessGranted) Color(0xFF10B981) else Color(0xFFF59E0B),
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Column {
+                                    Text(
+                                        text = "Detektor Notifikasi Bank",
+                                        fontWeight = FontWeight.Bold,
+                                        style = MaterialTheme.typography.titleSmall,
+                                        color = textTitleColor
+                                    )
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Text(
+                                        text = if (isNotifAccessGranted) "Sistem Pendeteksi Aktif" else "Menunggu Akses Izin Notifikasi",
+                                        fontSize = 11.sp,
+                                        color = if (isNotifAccessGranted) Color(0xFF10B981) else Color(0xFFF59E0B),
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+                            
+                            if (!isNotifAccessGranted) {
+                                Button(
+                                    onClick = {
+                                        try {
+                                            val intent = Intent("android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS")
+                                            context.startActivity(intent)
+                                        } catch (e: Exception) {
+                                            Toast.makeText(context, "Gagal membuka menu Pengaturan", Toast.LENGTH_SHORT).show()
+                                        }
+                                    },
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = if (themeDark) Color(0xFF8B5CF6) else Color(0xFF6D28D9)
+                                    ),
+                                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
+                                    shape = RoundedCornerShape(14.dp)
+                                ) {
+                                    Text("Aktifkan", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                }
+                            }
+                        }
+
+                        Text(
+                            text = if (isNotifAccessGranted) 
+                                "Membaca & merekam otomatis mutasi masuk/keluar dari notifikasi m-banking (BCA, Mandiri, BRI, BNI, OVO, GoPay) secara real-time."
+                                else "Aktifkan izin membaca notifikasi agar pengeluaran/pemasukan di m-banking & e-wallet otomatis tercatat tanpa perlu input manual.",
+                            style = MaterialTheme.typography.bodySmall,
+                            fontSize = 12.sp,
+                            lineHeight = 16.sp,
+                            color = textDescColor
+                        )
+                    }
+                }
+            }
+
+            // Monthly Income vs Expense comparison bar chart (Recharts style)
+            item {
+                MonthlyBarComparisonChart(transactions = transactions)
             }
 
             // Weekly Trend line chart
@@ -318,6 +554,56 @@ fun DashboardScreen(
             // Donut category split
             item {
                 TransactionCategoryDonutChart(transactions = transactions)
+            }
+
+            // Tagihan Berkala (Recurring Bills) Panel
+            item {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Tagihan Berkala (Jatuh Tempo)",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    TextButton(onClick = { showAddBillDialog = true }) {
+                        Icon(imageVector = Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Tambah")
+                    }
+                }
+            }
+
+            if (recurringBills.isEmpty()) {
+                item {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f)),
+                        shape = RoundedCornerShape(16.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier.fillMaxWidth().padding(16.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Text("Tidak Ada Tagihan Aktif", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyMedium)
+                            Text("Tambahkan langganan Spotify, Netflix, PLN atau tagihan WIFI Anda di sini.", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
+                        }
+                    }
+                }
+            } else {
+                items(recurringBills, key = { it.id }) { bill ->
+                    RecurringBillItemCard(
+                        bill = bill,
+                        rubelFormat = rubelFormat,
+                        themeDark = themeDark,
+                        onPay = { viewModel.payRecurringBill(bill) },
+                        onDelete = { viewModel.deleteRecurringBill(bill) }
+                    )
+                }
             }
 
             // Recent Transactions header list
@@ -339,7 +625,6 @@ fun DashboardScreen(
                 }
             }
 
-            val recentTxs = transactions.take(5)
             if (recentTxs.isEmpty()) {
                 item {
                     Text(
@@ -351,7 +636,11 @@ fun DashboardScreen(
                 }
             } else {
                 items(recentTxs, key = { it.id }) { tx ->
-                    TransactionItemRow(tx = tx, onDelete = { viewModel.deleteTransaction(it) })
+                    TransactionItemRow(
+                        tx = tx,
+                        onDelete = { viewModel.deleteTransaction(it) },
+                        onUpdate = { viewModel.updateTransaction(it) }
+                    )
                 }
             }
 
@@ -455,9 +744,23 @@ fun DashboardScreen(
 
                     OutlinedTextField(
                         value = txAmount,
-                        onValueChange = { txAmount = it },
+                        onValueChange = { input ->
+                            val clean = input.filter { it.isDigit() }
+                            if (clean.length <= 15) {
+                                val sb = StringBuilder()
+                                var count = 0
+                                for (i in clean.length - 1 downTo 0) {
+                                    sb.append(clean[i])
+                                    count++
+                                    if (count % 3 == 0 && i > 0) {
+                                        sb.append('.')
+                                    }
+                                }
+                                txAmount = sb.reverse().toString()
+                            }
+                        },
                         label = { Text("Jumlah (IDR)") },
-                        placeholder = { Text("misal: 45000") },
+                        placeholder = { Text("misal: 45.000") },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -471,6 +774,7 @@ fun DashboardScreen(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState())
                             .padding(bottom = 6.dp),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
@@ -507,7 +811,8 @@ fun DashboardScreen(
                         Spacer(modifier = Modifier.width(8.dp))
                         Button(
                             onClick = {
-                                val amtDouble = txAmount.toDoubleOrNull() ?: 0.0
+                                val cleanAmt = txAmount.filter { it.isDigit() }
+                                val amtDouble = cleanAmt.toDoubleOrNull() ?: 0.0
                                 if (txTitle.isNotBlank() && amtDouble > 0) {
                                     viewModel.addTransaction(
                                         title = txTitle,
@@ -518,10 +823,341 @@ fun DashboardScreen(
                                     showQuickAddDialog = false
                                 }
                             },
-                            enabled = txTitle.isNotBlank() && txAmount.toDoubleOrNull() != null
+                            enabled = txTitle.isNotBlank() && txAmount.filter { it.isDigit() }.isNotEmpty()
                         ) {
                             Text("Simpan")
                         }
+                    }
+                }
+            }
+        }
+    }
+
+    if (showAddBillDialog) {
+        var billTitle by remember { mutableStateOf("") }
+        var billAmountInput by remember { mutableStateOf("") }
+        var billDueDate by remember { mutableStateOf("") }
+        var billCategory by remember { mutableStateOf("Langganan") }
+        var billCycle by remember { mutableStateOf("Bulanan") }
+
+        val catsOptions = listOf("Langganan", "Utilitas", "Pendidikan", "Sewa", "Lainnya")
+        val cycleOptions = listOf("Bulanan", "Mingguan", "Tahunan")
+
+        Dialog(onDismissRequest = { showAddBillDialog = false }) {
+            Surface(
+                shape = RoundedCornerShape(24.dp),
+                color = MaterialTheme.colorScheme.surface,
+                tonalElevation = 6.dp,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(
+                    modifier = Modifier.padding(24.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    Text(
+                        text = "Tambah Tagihan Berkala Baru",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+
+                    OutlinedTextField(
+                        value = billTitle,
+                        onValueChange = { billTitle = it },
+                        label = { Text("Nama Tagihan") },
+                        placeholder = { Text("misal: Spotify Family") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    OutlinedTextField(
+                        value = billAmountInput,
+                        onValueChange = { billAmountInput = it },
+                        label = { Text("Nominal Tagihan (IDR)") },
+                        placeholder = { Text("misal: 125000") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    OutlinedTextField(
+                        value = billDueDate,
+                        onValueChange = { billDueDate = it },
+                        label = { Text("Hari / Tanggal Jatuh Tempo") },
+                        placeholder = { Text("misal: Setiap Tanggal 15") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    Text("Siklus Tagihan:", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        cycleOptions.forEach { cy ->
+                            val isSelected = billCycle == cy
+                            Box(
+                                modifier = Modifier
+                                    .background(
+                                        color = if (isSelected) Color(0xFFF06292) else if (themeDark) Color(0xFF2C1423) else Color(0xFFF3E5F5),
+                                        shape = RoundedCornerShape(12.dp)
+                                    )
+                                    .clickable { billCycle = cy }
+                                    .padding(horizontal = 20.dp, vertical = 10.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = cy,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 12.sp,
+                                    color = if (isSelected) Color.White else if (themeDark) Color(0xFFEF9A9A) else Color(0xFF880E4F)
+                                )
+                            }
+                        }
+                    }
+
+                    Text("Kategori Tagihan:", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        catsOptions.forEach { cat ->
+                            val isSelected = billCategory == cat
+                            Box(
+                                modifier = Modifier
+                                    .background(
+                                        color = if (isSelected) Color(0xFFF06292) else if (themeDark) Color(0xFF2C1423) else Color(0xFFF3E5F5),
+                                        shape = RoundedCornerShape(12.dp)
+                                    )
+                                    .clickable { billCategory = cat }
+                                    .padding(horizontal = 16.dp, vertical = 10.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = cat,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 12.sp,
+                                    color = if (isSelected) Color.White else if (themeDark) Color(0xFFEF9A9A) else Color(0xFF880E4F)
+                                )
+                            }
+                        }
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End
+                    ) {
+                        TextButton(onClick = { showAddBillDialog = false }) {
+                            Text("Batal")
+                        }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Button(
+                            onClick = {
+                                val amtValue = billAmountInput.toDoubleOrNull() ?: 0.0
+                                if (billTitle.isNotBlank() && amtValue > 0) {
+                                    viewModel.addRecurringBill(
+                                        title = billTitle,
+                                        amount = amtValue,
+                                        category = billCategory,
+                                        billingCycle = billCycle,
+                                        dueDate = billDueDate.ifEmpty { "Setiap akhir bulan" }
+                                    )
+                                    showAddBillDialog = false
+                                }
+                            },
+                            enabled = billTitle.isNotBlank() && billAmountInput.toDoubleOrNull() != null
+                        ) {
+                            Text("Simpan")
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if (showMlReportDialog) {
+        val summary by viewModel.mlWeeklySummary.collectAsState()
+        val isGeneratingSummary by viewModel.isGeneratingSummary.collectAsState()
+
+        val infiniteTransition = rememberInfiniteTransition(label = "rotation_dlg")
+        val rotationAngle by if (isGeneratingSummary) {
+            infiniteTransition.animateFloat(
+                initialValue = 0f,
+                targetValue = 360f,
+                animationSpec = infiniteRepeatable(
+                    animation = tween(1200, easing = LinearEasing),
+                    repeatMode = RepeatMode.Restart
+                ),
+                label = "rotate_dlg"
+            )
+        } else {
+            remember { mutableStateOf(0f) }
+        }
+
+        Dialog(onDismissRequest = { showMlReportDialog = false }) {
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .fillMaxHeight(0.85f)
+                    .testTag("ml_report_dialog_container"),
+                shape = RoundedCornerShape(24.dp),
+                color = if (themeDark) Color(0xFF13111A) else Color(0xFFFAFAFE),
+                border = BorderStroke(
+                    width = 1.6.dp,
+                    color = if (themeDark) Color(0xFF4C229E) else Color(0xFFE2D9FF)
+                ),
+                tonalElevation = 8.dp
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(22.dp)
+                ) {
+                    // Header
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(38.dp)
+                                    .background(
+                                        if (themeDark) Color(0xFF2E1C4E) else Color(0xFFF1E9FF),
+                                        CircleShape
+                                    ),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.AutoAwesome,
+                                    contentDescription = "On-Device ML Engine",
+                                    tint = if (themeDark) Color(0xFFD8B4FE) else Color(0xFF6D28D9),
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column {
+                                Text(
+                                    text = "Uangku ML Analyst",
+                                    fontWeight = FontWeight.Black,
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = if (themeDark) Color.White else Color(0xFF311062)
+                                )
+                                Text(
+                                    text = "Analisis Statistik & Model Regresi Lokal",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = if (themeDark) Color(0xFFC084FC) else Color(0xFF6D28D9),
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
+                        }
+
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            IconButton(
+                                onClick = { viewModel.fetchWeeklySummary(force = true) },
+                                enabled = !isGeneratingSummary,
+                                modifier = Modifier.rotate(rotationAngle)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Refresh,
+                                    contentDescription = "Hitung Ulang ML",
+                                    tint = if (themeDark) Color(0xFFC084FC) else Color(0xFF6D28D9)
+                                )
+                            }
+                            IconButton(onClick = { showMlReportDialog = false }) {
+                                Icon(
+                                    imageVector = Icons.Default.Close,
+                                    contentDescription = "Close",
+                                    tint = if (themeDark) Color.White.copy(alpha = 0.7f) else Color.DarkGray
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(18.dp))
+
+                    // Scrollable report text body
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxWidth()
+                            .background(
+                                if (themeDark) Color(0xFF0C0A10) else Color(0xFFF6F3FB),
+                                RoundedCornerShape(18.dp)
+                            )
+                            .border(
+                                1.dp,
+                                if (themeDark) Color(0xFF2A1C44) else Color(0xFFEDE5F8),
+                                RoundedCornerShape(18.dp)
+                            )
+                            .padding(18.dp)
+                    ) {
+                        if (isGeneratingSummary) {
+                            Column(
+                                modifier = Modifier.fillMaxSize(),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center
+                            ) {
+                                LinearProgressIndicator(
+                                    modifier = Modifier
+                                        .fillMaxWidth(0.85f)
+                                        .height(6.dp)
+                                        .clip(RoundedCornerShape(3.dp)),
+                                    color = if (themeDark) Color(0xFFEC4899) else Color(0xFF6D28D9),
+                                    trackColor = if (themeDark) Color(0xFF221A30) else Color(0xFFE9E4F5)
+                                )
+                                Spacer(modifier = Modifier.height(14.dp))
+                                Text(
+                                    text = "Mengalkulasi algoritme matematika lokal & melatih model regresi linear...",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    fontSize = 11.sp,
+                                    color = if (themeDark) Color.LightGray else Color(0xFF4A4A4A),
+                                    textAlign = TextAlign.Center
+                                )
+                            }
+                        } else {
+                            val displayText = summary ?: "Belum ada laporan statistik ML yang tersimpan. Tekan tombol putar di kanan atas untuk menghitung laporan baru secara real-time!"
+                            val primaryAccentColor = if (themeDark) Color(0xFFDDD6FE) else Color(0xFF6D28D9)
+                            val annotatedString = remember(displayText, themeDark) {
+                                parseMarkdownToAnnotatedString(displayText, primaryAccentColor)
+                            }
+
+                            val scrollState = androidx.compose.foundation.rememberScrollState()
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .verticalScroll(scrollState)
+                            ) {
+                                Text(
+                                    text = annotatedString,
+                                    style = MaterialTheme.typography.bodyMedium.copy(lineHeight = 22.sp),
+                                    color = if (themeDark) Color(0xFFE2E8F0) else Color(0xFF334155)
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(18.dp))
+
+                    Button(
+                        onClick = { showMlReportDialog = false },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(48.dp)
+                            .testTag("ml_report_dialog_close_button"),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (themeDark) Color(0xFF6D28D9) else Color(0xFF5B21B6)
+                        ),
+                        shape = RoundedCornerShape(16.dp)
+                    ) {
+                        Text("Tutup Laporan", fontWeight = FontWeight.Bold, color = Color.White)
                     }
                 }
             }
@@ -533,6 +1169,7 @@ fun DashboardScreen(
 fun TransactionItemRow(
     tx: Transaction,
     onDelete: (Transaction) -> Unit,
+    onUpdate: (Transaction) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val currencyFormat = NumberFormat.getCurrencyInstance(Locale("id", "ID"))
@@ -541,9 +1178,236 @@ fun TransactionItemRow(
     val dateFormat = SimpleDateFormat("dd MMM, HH:mm", Locale("id", "ID"))
     val cleanDate = dateFormat.format(Date(tx.timestamp))
 
+    var showEditDialog by remember { mutableStateOf(false) }
+
+    if (showEditDialog) {
+        var title by remember { mutableStateOf(tx.title) }
+        
+        // Initial amount format
+        val initialAmountStr = if (tx.amount > 0) {
+            val cleanStr = tx.amount.toLong().toString()
+            val sb = java.lang.StringBuilder()
+            var count = 0
+            for (i in cleanStr.length - 1 downTo 0) {
+                sb.append(cleanStr[i])
+                count++
+                if (count % 3 == 0 && i > 0) {
+                    sb.append('.')
+                }
+            }
+            sb.reverse().toString()
+        } else ""
+        
+        var amount by remember { mutableStateOf(initialAmountStr) }
+        var type by remember { mutableStateOf(tx.type) }
+        var category by remember { mutableStateOf(tx.category) }
+
+        Dialog(onDismissRequest = { showEditDialog = false }) {
+            Surface(
+                shape = RoundedCornerShape(24.dp),
+                color = MaterialTheme.colorScheme.surface,
+                tonalElevation = 6.dp,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(
+                    modifier = Modifier.padding(24.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    Text(
+                        text = "Edit Transaksi",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold
+                    )
+
+                    // Segmented capsule toggler
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(44.dp)
+                            .background(
+                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                shape = RoundedCornerShape(22.dp)
+                            )
+                            .padding(4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxHeight()
+                                .clip(RoundedCornerShape(18.dp))
+                                .background(
+                                    color = if (type == "EXPENSE") MaterialTheme.colorScheme.errorContainer else Color.Transparent
+                                )
+                                .clickable { type = "EXPENSE" },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "Pengeluaran",
+                                color = if (type == "EXPENSE") MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.onSurfaceVariant,
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1
+                            )
+                        }
+
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxHeight()
+                                .clip(RoundedCornerShape(18.dp))
+                                .background(
+                                    color = if (type == "INCOME") MaterialTheme.colorScheme.primaryContainer else Color.Transparent
+                                )
+                                .clickable { type = "INCOME" },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "Pemasukan",
+                                color = if (type == "INCOME") MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1
+                            )
+                        }
+                    }
+
+                    OutlinedTextField(
+                        value = title,
+                        onValueChange = { title = it },
+                        label = { Text("Keterangan") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    OutlinedTextField(
+                        value = amount,
+                        onValueChange = { input ->
+                            val clean = input.filter { it.isDigit() }
+                            if (clean.length <= 15) {
+                                val sb = StringBuilder()
+                                var count = 0
+                                for (i in clean.length - 1 downTo 0) {
+                                    sb.append(clean[i])
+                                    count++
+                                    if (count % 3 == 0 && i > 0) {
+                                        sb.append('.')
+                                    }
+                                }
+                                amount = sb.reverse().toString()
+                            }
+                        },
+                        label = { Text("Jumlah (IDR)") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    Text("Kategori:", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                    val catRows = listOf("Makanan", "Belanja", "Transportasi", "Gaji", "Investasi", "Sewa", "Lainnya")
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState())
+                            .padding(vertical = 4.dp)
+                    ) {
+                        catRows.forEach { cat ->
+                            val isSelected = category == cat
+                            Box(
+                                modifier = Modifier
+                                    .background(
+                                        color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
+                                        shape = RoundedCornerShape(10.dp)
+                                    )
+                                    .clickable { category = cat }
+                                    .padding(horizontal = 10.dp, vertical = 6.dp)
+                            ) {
+                                Text(
+                                    text = cat,
+                                    fontSize = 11.sp,
+                                    color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        // Danger Delete Button
+                        TextButton(
+                            onClick = {
+                                onDelete(tx)
+                                showEditDialog = false
+                            },
+                            colors = androidx.compose.material3.ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                        ) {
+                            Icon(imageVector = Icons.Default.Delete, contentDescription = "Hapus", tint = MaterialTheme.colorScheme.error)
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Hapus")
+                        }
+                        
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            TextButton(onClick = { showEditDialog = false }) {
+                                Text("Batal")
+                            }
+                            Button(
+                                onClick = {
+                                    val cleanAmt = amount.filter { it.isDigit() }
+                                    val dAmount = cleanAmt.toDoubleOrNull() ?: 0.0
+                                    if (title.isNotBlank() && dAmount > 0) {
+                                        val updatedTx = tx.copy(
+                                            title = title,
+                                            amount = dAmount,
+                                            type = type,
+                                            category = if (type == "INCOME" && category == "Makanan") "Gaji" else category
+                                        )
+                                        onUpdate(updatedTx)
+                                        showEditDialog = false
+                                    }
+                                },
+                                enabled = title.isNotBlank() && amount.filter { it.isDigit() }.isNotEmpty()
+                            ) {
+                                Text("Simpan")
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    var animatedAlpha by remember { mutableStateOf(0f) }
+    var animatedOffsetY by remember { mutableStateOf(40.dp) }
+
+    val alphaAnim by animateFloatAsState(
+        targetValue = animatedAlpha,
+        animationSpec = tween(durationMillis = 350),
+        label = "alpha"
+    )
+    val offsetYAnim by animateDpAsState(
+        targetValue = animatedOffsetY,
+        animationSpec = spring(
+            dampingRatio = androidx.compose.animation.core.Spring.DampingRatioLowBouncy,
+            stiffness = androidx.compose.animation.core.Spring.StiffnessMedium
+        ),
+        label = "offset"
+    )
+
+    LaunchedEffect(Unit) {
+        animatedAlpha = 1f
+        animatedOffsetY = 0.dp
+    }
+
     Card(
         modifier = modifier
             .fillMaxWidth()
+            .graphicsLayer {
+                alpha = alphaAnim
+                translationY = offsetYAnim.toPx()
+            }
+            .clickable { showEditDialog = true }
             .testTag("transaction_item_${tx.id}"),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         shape = RoundedCornerShape(16.dp),
@@ -638,4 +1502,149 @@ fun TransactionItemRow(
             }
         }
     }
+}
+
+@Composable
+fun RecurringBillItemCard(
+    bill: com.example.data.model.RecurringBill,
+    rubelFormat: NumberFormat,
+    themeDark: Boolean,
+    onPay: () -> Unit,
+    onDelete: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val cardBg = if (themeDark) Color(0xFF1C0A15) else Color(0xFFFCE4EC)
+    val cardBorderColor = if (themeDark) Color(0xFF38142C) else Color(0xFFF8BBD0)
+
+    val iconBg = if (themeDark) Color(0xFF500F31) else Color(0xFFF48FB1)
+    val iconTint = if (themeDark) Color(0xFFF06292) else Color(0xFF880E4F)
+
+    val categoryColor = if (themeDark) Color(0xFFF06292) else Color(0xFFC2185B)
+    val amountColor = if (themeDark) Color.White else Color(0xFF212121)
+    val subtextColor = if (themeDark) Color.LightGray else Color.DarkGray
+
+    Card(
+        modifier = modifier
+            .fillMaxWidth()
+            .testTag("recurring_bill_item_${bill.id}"),
+        colors = CardDefaults.cardColors(containerColor = cardBg),
+        shape = RoundedCornerShape(24.dp),
+        border = androidx.compose.foundation.BorderStroke(1.dp, cardBorderColor)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 20.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.weight(1f)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(48.dp)
+                        .background(iconBg, CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.CreditCard,
+                        contentDescription = "Bill",
+                        tint = iconTint,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+
+                Spacer(modifier = Modifier.width(16.dp))
+
+                Column {
+                    Text(
+                        text = bill.title,
+                        style = MaterialTheme.typography.bodyLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = amountColor,
+                        maxLines = 1
+                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = bill.category,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = categoryColor,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = " • Tempo: ${bill.dueDate}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = subtextColor
+                        )
+                    }
+                }
+            }
+
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Column(horizontalAlignment = Alignment.End) {
+                    Text(
+                        text = rubelFormat.format(bill.amount).replace(",00", ""),
+                        style = MaterialTheme.typography.bodyLarge,
+                        fontWeight = FontWeight.Black,
+                        color = amountColor
+                    )
+                    Text(
+                        text = "Siklus: ${bill.billingCycle}",
+                        style = MaterialTheme.typography.bodySmall,
+                        fontSize = 11.sp,
+                        color = subtextColor
+                    )
+                }
+
+                IconButton(
+                    onClick = onPay,
+                    modifier = Modifier
+                        .size(48.dp)
+                        .background(Color(0xFFF06292), CircleShape)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Check,
+                        contentDescription = "Bayar Tagihan",
+                        tint = Color(0xFF1C0A15),
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+
+                IconButton(
+                    onClick = onDelete,
+                    modifier = Modifier.size(36.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Delete,
+                        contentDescription = "Hapus",
+                        tint = if (themeDark) Color(0xFFEF9A9A) else Color(0xFFD32F2F),
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+            }
+        }
+    }
+}
+
+fun isNotificationServiceEnabled(context: android.content.Context): Boolean {
+    val pkgName = context.packageName
+    val flat = android.provider.Settings.Secure.getString(context.contentResolver, "enabled_notification_listeners")
+    if (!flat.isNullOrEmpty()) {
+        val names = flat.split(":")
+        for (name in names) {
+            val cn = android.content.ComponentName.unflattenFromString(name)
+            if (cn != null && cn.packageName == pkgName) {
+                return true
+            }
+        }
+    }
+    return false
 }

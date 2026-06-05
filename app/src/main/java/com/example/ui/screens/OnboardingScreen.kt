@@ -41,7 +41,6 @@ fun OnboardingScreen(
     // Step 2: Security States
     var pinEnabled by remember { mutableStateOf(false) }
     var pinValue by remember { mutableStateOf("") }
-    var biomEnabled by remember { mutableStateOf(false) }
 
     val backgroundBrush = Brush.verticalGradient(
         colors = listOf(
@@ -195,7 +194,7 @@ fun OnboardingScreen(
                         textAlign = TextAlign.Center
                     )
                     Text(
-                        text = "Batasi akses data anggaran Anda dengan PIN 4-digit atau biometrik sidik jari. Ini bisa Anda aktifkan secara opsional dan diganti kapan saja.",
+                        text = "Amankan akses data anggaran Anda dengan PIN 4-digit secara opsional. Anda juga dapat mengaktifkan keamanan tambahan sidik jari (biometrik) kapan saja nanti melalui halaman Pengaturan.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f),
                         textAlign = TextAlign.Center,
@@ -264,34 +263,6 @@ fun OnboardingScreen(
                                 }
                             }
                         }
-
-                        // Biometrics Fingerprint Enable Switch
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Row(
-                                modifier = Modifier.weight(1f),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(12.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Fingerprint,
-                                    contentDescription = "Biometrics Fingerprint",
-                                    tint = MaterialTheme.colorScheme.primary
-                                )
-                                Column {
-                                    Text("Gunakan Sidik Jari", fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                                    Text("Buka cepat dengan sensor sidik jari", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                }
-                            }
-                            Switch(
-                                checked = biomEnabled,
-                                onCheckedChange = { biomEnabled = it },
-                                modifier = Modifier.testTag("onboarding_biom_switch")
-                            )
-                        }
                     }
                 }
 
@@ -304,7 +275,7 @@ fun OnboardingScreen(
                                 name = userNameInput.trim(),
                                 pinEnabled = pinEnabled,
                                 pin = pinValue,
-                                biomEnabled = biomEnabled
+                                biomEnabled = false
                             )
                             Toast.makeText(context, "Selamat datang di Uangku, ${userNameInput.trim()}!", Toast.LENGTH_LONG).show()
                         }

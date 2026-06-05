@@ -9,6 +9,8 @@ import com.example.data.db.AppDatabase
 import com.example.data.model.BankConnection
 import com.example.data.model.Budget
 import com.example.data.model.Transaction
+import com.example.data.model.SavingGoal
+import com.example.data.model.RecurringBill
 import com.example.data.repository.FinanceRepository
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -17,6 +19,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import android.content.ContentValues
 import android.os.Build
@@ -29,6 +32,12 @@ import java.text.NumberFormat
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import android.graphics.Paint
+import android.graphics.Canvas
+import android.graphics.pdf.PdfDocument
+import java.io.FileOutputStream
+import java.io.ByteArrayOutputStream
+import com.example.service.LocalFinanceMLEngine
 
 class FinanceViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -38,6 +47,8 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     val allTransactions: StateFlow<List<Transaction>>
     val allBudgets: StateFlow<List<Budget>>
     val allBankConnections: StateFlow<List<BankConnection>>
+    val allSavingGoals: StateFlow<List<SavingGoal>>
+    val allRecurringBills: StateFlow<List<RecurringBill>>
 
     private val prefs = application.getSharedPreferences("uangku_prefs", Context.MODE_PRIVATE)
 
@@ -72,10 +83,18 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     private val _budgetAlert = MutableStateFlow<String?>(null)
     val budgetAlert = _budgetAlert.asStateFlow()
 
+    // Local ML Weekly Summary States (100% Client-side privacy-first Intelligence)
+    private val _mlWeeklySummary = MutableStateFlow<String?>(prefs.getString("ml_weekly_summary", null))
+    val mlWeeklySummary = _mlWeeklySummary.asStateFlow()
+
+    private val _isGeneratingSummary = MutableStateFlow(false)
+    val isGeneratingSummary = _isGeneratingSummary.asStateFlow()
+
     // Dashboard totals derived from State Flows
     val totalBalance: StateFlow<Double>
     val totalIncome: StateFlow<Double>
     val totalExpense: StateFlow<Double>
+    val mlInsights: StateFlow<LocalFinanceMLEngine.MLInsight?>
 
     init {
         val database = AppDatabase.getDatabase(application)
@@ -99,16 +118,26 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
             initialValue = emptyList()
         )
 
+        allSavingGoals = repository.allSavingGoals.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = emptyList()
+        )
+
+        allRecurringBills = repository.allRecurringBills.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = emptyList()
+        )
+
         // Derive financial metric summary
         val baseBalance = 0.0 // Base manual wallet cash (Starting entirely from 0)
 
-        totalIncome = allTransactions.combine(allBankConnections) { txs, banks ->
-            val manualIncome = txs.filter { it.type == "INCOME" && it.bankSource == null }.sumOf { it.amount }
-            val bankIncome = txs.filter { it.type == "INCOME" && it.bankSource != null }.sumOf { it.amount }
-            manualIncome + bankIncome
+        totalIncome = allTransactions.map { txs ->
+            txs.filter { it.type == "INCOME" }.sumOf { it.amount }
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
 
-        totalExpense = allTransactions.combine(allBankConnections) { txs, _ ->
+        totalExpense = allTransactions.map { txs ->
             txs.filter { it.type == "EXPENSE" }.sumOf { it.amount }
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
 
@@ -117,11 +146,33 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
             baseBalance + inc - exp + connectedBanksBalance
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), baseBalance)
 
+        mlInsights = combine(allTransactions, userName) { txs, name ->
+            if (txs.isEmpty()) null
+            else {
+                try {
+                    LocalFinanceMLEngine.analyzeTransactions(txs, name)
+                } catch (e: Exception) {
+                    null
+                }
+            }
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+
         // Automatically trigger seeding on first startup & establish standard budgets
         viewModelScope.launch {
             seedInitialDataIfNeeded()
             monitorBudgets()
+            // Wait a brief moment to ensure DB read is finished, then fetch automatic weekly summary
+            delay(1000)
+            fetchWeeklySummary(force = false)
         }
+    }
+
+    /**
+     * Memproses dan membersihkan data seluruh transaksi lokal agar siap digunakan sebagai
+     * data latih (training data) untuk model kecerdasan buatan lokal (Machine Learning).
+     */
+    fun cleanAndPrepareLocalTrainingData(): List<LocalFinanceMLEngine.CleanedMLSample> {
+        return LocalFinanceMLEngine.cleanAndPrepareTrainingData(allTransactions.value)
     }
 
     // --- Biometric Lock Control ---
@@ -194,6 +245,54 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
+    fun fetchWeeklySummary(force: Boolean = false) {
+        viewModelScope.launch {
+            val txs = allTransactions.value
+            val expenses = txs.filter { it.type == "EXPENSE" }
+            if (expenses.isEmpty()) {
+                _mlWeeklySummary.value = "Belum ada data pengeluaran yang tercatat minggu ini untuk dianalisis oleh Uangku ML Engine. Silakan tambahkan transaksi pengeluaran baru Anda."
+                return@launch
+            }
+
+            val cachedText = prefs.getString("ml_weekly_summary", null)
+            val cachedTxCount = prefs.getInt("ml_weekly_sum_tx_count", -1)
+            val cachedTimestamp = prefs.getLong("ml_weekly_sum_time", 0)
+            val currentTime = System.currentTimeMillis()
+
+            // Auto bypass ML re-calc if:
+            // 1. Not forced
+            // 2. We have cached text
+            // 3. The transaction count is equal
+            // 4. Cached summary was created less than 1 hour ago (fast re-evaluation)
+            if (!force && cachedText != null && cachedTxCount == expenses.size && (currentTime - cachedTimestamp) < 3600 * 1000) {
+                _mlWeeklySummary.value = cachedText
+                return@launch
+            }
+
+            _isGeneratingSummary.value = true
+            try {
+                // Add a small delay for delightful UX to show on-device machine learning at work
+                delay(800)
+                
+                val result = LocalFinanceMLEngine.analyzeTransactions(txs, _userName.value)
+                val report = result.markdownReport
+                
+                _mlWeeklySummary.value = report
+                
+                // Cache local ML intelligence results
+                prefs.edit()
+                    .putString("ml_weekly_summary", report)
+                    .putInt("ml_weekly_sum_tx_count", expenses.size)
+                    .putLong("ml_weekly_sum_time", currentTime)
+                    .apply()
+            } catch (e: Exception) {
+                _mlWeeklySummary.value = "Gagal memproses perhitungan Machine Learning lokal: ${e.localizedMessage}"
+            } finally {
+                _isGeneratingSummary.value = false
+            }
+        }
+    }
+
     fun toggleTheme() {
         val nextVal = !_themeDark.value
         prefs.edit().putBoolean("theme_dark", nextVal).apply()
@@ -220,9 +319,28 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
+    fun parseAndAddNotification(packageName: String, title: String, text: String): Boolean {
+        val parsed = com.example.service.MyNotificationListenerService.parseNotification(packageName, title, text)
+        if (parsed != null) {
+            viewModelScope.launch {
+                repository.insertTransaction(parsed)
+                triggerAutoSync()
+            }
+            return true
+        }
+        return false
+    }
+
     fun deleteTransaction(transaction: Transaction) {
         viewModelScope.launch {
             repository.deleteTransaction(transaction)
+            triggerAutoSync()
+        }
+    }
+
+    fun updateTransaction(transaction: Transaction) {
+        viewModelScope.launch {
+            repository.insertTransaction(transaction)
             triggerAutoSync()
         }
     }
@@ -239,6 +357,103 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     fun deleteBudget(budget: Budget) {
         viewModelScope.launch {
             repository.deleteBudget(budget)
+            triggerAutoSync()
+        }
+    }
+
+    // --- Saving Goals Actions ---
+    fun addSavingGoal(title: String, targetAmount: Double, currentAmount: Double, targetDate: String, category: String) {
+        viewModelScope.launch {
+            val goal = SavingGoal(
+                title = title,
+                targetAmount = targetAmount,
+                currentAmount = currentAmount,
+                targetDate = targetDate,
+                category = category
+            )
+            repository.insertSavingGoal(goal)
+            triggerAutoSync()
+        }
+    }
+
+    fun depositToSavingGoal(goal: SavingGoal, amount: Double) {
+        viewModelScope.launch {
+            val updated = goal.copy(currentAmount = goal.currentAmount + amount)
+            repository.insertSavingGoal(updated)
+            
+            // Record an expense transaction
+            val transaction = Transaction(
+                title = "Alokasi Tabungan: ${goal.title}",
+                amount = amount,
+                type = "EXPENSE",
+                category = "Investasi" // we use specific existing category
+            )
+            repository.insertTransaction(transaction)
+            triggerAutoSync()
+        }
+    }
+
+    fun withdrawFromSavingGoal(goal: SavingGoal, amount: Double) {
+        viewModelScope.launch {
+            val newAmount = (goal.currentAmount - amount).coerceAtLeast(0.0)
+            val updated = goal.copy(currentAmount = newAmount)
+            repository.insertSavingGoal(updated)
+            
+            // Record an income transaction
+            val transaction = Transaction(
+                title = "Penarikan Tabungan: ${goal.title}",
+                amount = amount,
+                type = "INCOME",
+                category = "Investasi"
+            )
+            repository.insertTransaction(transaction)
+            triggerAutoSync()
+        }
+    }
+
+    fun deleteSavingGoal(goal: SavingGoal) {
+        viewModelScope.launch {
+            repository.deleteSavingGoal(goal)
+            triggerAutoSync()
+        }
+    }
+
+    // --- Recurring Bills Actions ---
+    fun addRecurringBill(title: String, amount: Double, category: String, billingCycle: String, dueDate: String) {
+        viewModelScope.launch {
+            val bill = RecurringBill(
+                title = title,
+                amount = amount,
+                category = category,
+                billingCycle = billingCycle,
+                dueDate = dueDate,
+                lastClaimedTimestamp = 0
+            )
+            repository.insertRecurringBill(bill)
+            triggerAutoSync()
+        }
+    }
+
+    fun deleteRecurringBill(bill: RecurringBill) {
+        viewModelScope.launch {
+            repository.deleteRecurringBill(bill)
+            triggerAutoSync()
+        }
+    }
+
+    fun payRecurringBill(bill: RecurringBill) {
+        viewModelScope.launch {
+            val updated = bill.copy(lastClaimedTimestamp = System.currentTimeMillis())
+            repository.insertRecurringBill(updated)
+            
+            // Record an expense transaction
+            val transaction = Transaction(
+                title = "Bayar Tagihan: ${bill.title}",
+                amount = bill.amount,
+                type = "EXPENSE",
+                category = bill.category
+            )
+            repository.insertTransaction(transaction)
             triggerAutoSync()
         }
     }
@@ -427,6 +642,43 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
         return null
     }
 
+    private fun saveBytesToDownloadFolder(context: Context, fileName: String, bytes: ByteArray, mimeType: String): String? {
+        val resolver = context.contentResolver
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            val contentValues = ContentValues().apply {
+                put(MediaStore.MediaColumns.DISPLAY_NAME, fileName)
+                put(MediaStore.MediaColumns.MIME_TYPE, mimeType)
+                put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
+            }
+            try {
+                val uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, contentValues)
+                if (uri != null) {
+                    resolver.openOutputStream(uri)?.use { outputStream ->
+                        outputStream.write(bytes)
+                    }
+                    return "Download/$fileName"
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        } else {
+            val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+            if (!downloadsDir.exists()) {
+                downloadsDir.mkdirs()
+            }
+            val file = File(downloadsDir, fileName)
+            try {
+                FileOutputStream(file).use { outputStream ->
+                    outputStream.write(bytes)
+                }
+                return file.absolutePath
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+        return null
+    }
+
     fun generateCSVExport(context: Context): String {
         val format = SimpleDateFormat("yyyy-MM-dd_HH-mm-ss", Locale.getDefault())
         val fileName = "Laporan_Keuangan_Uangku_${format.format(Date())}.csv"
@@ -481,23 +733,14 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
         txReport.append("=========================================\n")
         txReport.append("      LAPORAN KEUANGAN BULANAN - UANGKU   \n")
         txReport.append("=========================================\n")
+        txReport.append("Nama Pengguna   : ${_userName.value}\n")
         txReport.append("Tanggal Dokumen : $dateStr\n")
         txReport.append("Total Bersih    : ${currencyFormat.format(totalBalance.value)}\n")
         txReport.append("Pemasukan       : ${currencyFormat.format(totalIncome.value)}\n")
         txReport.append("Pengeluaran     : ${currencyFormat.format(totalExpense.value)}\n")
         txReport.append("-----------------------------------------\n\n")
-        txReport.append("DAFTAR AKSES BANK TERLINKNG:\n")
 
-        val banks = allBankConnections.value
-        if (banks.none { it.isConnected }) {
-            txReport.append("- Tidak ada bank eksternal terhubung.\n")
-        } else {
-            for (bank in banks.filter { it.isConnected }) {
-                txReport.append("- ${bank.bankName} (${bank.accountNumber}): ${currencyFormat.format(bank.balance)}\n")
-            }
-        }
-
-        txReport.append("\nLIMIT & ANGGARAN BULANAN:\n")
+        txReport.append("LIMIT & ANGGARAN BULANAN:\n")
         val budgets = allBudgets.value
         if (budgets.isEmpty()) {
             txReport.append("- Belum ada anggaran limits yang disetel.\n")
@@ -529,26 +772,258 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
 
         val reportStr = txReport.toString()
         val fileFormat = SimpleDateFormat("yyyy-MM-dd_HH-mm-ss", Locale.getDefault())
-        val fileName = "Laporan_Uangku_PDF_${fileFormat.format(Date())}.txt"
+        val fileName = "Laporan_Uangku_PDF_${fileFormat.format(Date())}.pdf"
         
-        // Save to Download folder
-        val downloadPath = saveToDownloadFolder(context, fileName, reportStr, "text/plain")
+        // Generate REAL high fidelity binary PDF representation
+        val pdfBytes = createPdfDocumentBytes(dateStr, txs, budgets)
+
+        // Save real binary pdf to download folder!
+        val downloadPath = saveBytesToDownloadFolder(context, fileName, pdfBytes, "application/pdf")
         if (downloadPath != null) {
             Toast.makeText(context, "Laporan PDF disimpan di folder Download: $downloadPath", Toast.LENGTH_LONG).show()
         } else {
-            // Fallback to local cache
+            // Fallback to local cache as real binary pdf
             val file = File(context.cacheDir, fileName)
             try {
-                val writer = FileWriter(file)
-                writer.write(reportStr)
-                writer.flush()
-                writer.close()
+                FileOutputStream(file).use { outputStream ->
+                    outputStream.write(pdfBytes)
+                }
             } catch (e: Exception) {
                 e.printStackTrace()
             }
         }
 
         return reportStr
+    }
+
+    private fun createPdfDocumentBytes(
+        dateStr: String,
+        txs: List<Transaction>,
+        budgets: List<Budget>
+    ): ByteArray {
+        val pdfDocument = PdfDocument()
+        
+        var pageNumber = 1
+        var pageInfo = PdfDocument.PageInfo.Builder(595, 842, pageNumber).create()
+        var page = pdfDocument.startPage(pageInfo)
+        var canvas = page.canvas
+        
+        val titlePaint = Paint().apply {
+            color = android.graphics.Color.rgb(41, 128, 185)
+            textSize = 20f
+            isFakeBoldText = true
+            isAntiAlias = true
+        }
+        
+        val subTitlePaint = Paint().apply {
+            color = android.graphics.Color.DKGRAY
+            textSize = 10f
+            isAntiAlias = true
+        }
+        
+        val headerPaint = Paint().apply {
+            color = android.graphics.Color.rgb(44, 62, 80)
+            textSize = 13f
+            isFakeBoldText = true
+            isAntiAlias = true
+        }
+
+        val textPaint = Paint().apply {
+            color = android.graphics.Color.BLACK
+            textSize = 11f
+            isAntiAlias = true
+        }
+
+        val boldTextPaint = Paint().apply {
+            color = android.graphics.Color.BLACK
+            textSize = 11f
+            isFakeBoldText = true
+            isAntiAlias = true
+        }
+
+        val greenTextPaint = Paint().apply {
+            color = android.graphics.Color.rgb(39, 174, 96)
+            textSize = 11f
+            isFakeBoldText = true
+            isAntiAlias = true
+        }
+
+        val redTextPaint = Paint().apply {
+            color = android.graphics.Color.rgb(192, 57, 43)
+            textSize = 11f
+            isFakeBoldText = true
+            isAntiAlias = true
+        }
+
+        val gridPaint = Paint().apply {
+            color = android.graphics.Color.LTGRAY
+            strokeWidth = 1f
+        }
+
+        val bgPaint = Paint().apply {
+            color = android.graphics.Color.rgb(245, 247, 250)
+        }
+
+        val currencyFormat = NumberFormat.getCurrencyInstance(Locale("id", "ID"))
+        currencyFormat.maximumFractionDigits = 0
+
+        var y = 50f
+
+        canvas.drawText("UANGKU BY USER", 40f, y, titlePaint)
+        y += 18f
+        canvas.drawText("Aplikasi Manajemen Keuangan Pribadi Aman & Lokal", 40f, y, subTitlePaint)
+        y += 24f
+        
+        canvas.drawLine(40f, y, 555f, y, gridPaint)
+        y += 25f
+
+        canvas.drawText("LAPORAN KEUANGAN RESMI", 40f, y, headerPaint)
+        y += 20f
+        canvas.drawText("Nama Panggilan : ${_userName.value}", 40f, y, textPaint)
+        y += 18f
+        canvas.drawText("Tanggal Unduh  : $dateStr", 40f, y, textPaint)
+        y += 24f
+
+        val rectLeft = 40f
+        val rectTop = y
+        val rectRight = 555f
+        val rectBottom = y + 65f
+        canvas.drawRect(rectLeft, rectTop, rectRight, rectBottom, bgPaint)
+        
+        canvas.drawText("TOTAL SALDO BERSIH", 55f, y + 25f, boldTextPaint)
+        canvas.drawText(currencyFormat.format(totalBalance.value), 55f, y + 45f, textPaint)
+
+        canvas.drawText("TOTAL PEMASUKAN", 230f, y + 25f, boldTextPaint)
+        canvas.drawText(currencyFormat.format(totalIncome.value), 230f, y + 45f, greenTextPaint)
+
+        canvas.drawText("TOTAL PENGELUARAN", 395f, y + 25f, boldTextPaint)
+        canvas.drawText(currencyFormat.format(totalExpense.value), 395f, y + 45f, redTextPaint)
+        
+        y += 90f
+
+        canvas.drawText("BATAS & ANGGARAN BULANAN", 40f, y, headerPaint)
+        y += 15f
+        canvas.drawLine(40f, y, 555f, y, gridPaint)
+        y += 20f
+
+        if (budgets.isEmpty()) {
+            canvas.drawText("- Belum ada batasan anggaran bulanan yang ditetapkan.", 45f, y, textPaint)
+            y += 20f
+        } else {
+            for (b in budgets) {
+                canvas.drawText("Kategori ${b.category}:", 45f, y, boldTextPaint)
+                canvas.drawText("Limit ${currencyFormat.format(b.limitAmount)} per bulan", 200f, y, textPaint)
+                y += 18f
+                
+                if (y > 780f) {
+                    styleFooter(canvas, pageNumber)
+                    pdfDocument.finishPage(page)
+                    pageNumber++
+                    pageInfo = PdfDocument.PageInfo.Builder(595, 842, pageNumber).create()
+                    page = pdfDocument.startPage(pageInfo)
+                    canvas = page.canvas
+                    y = 50f
+                }
+            }
+        }
+        y += 15f
+
+        if (y > 580f) {
+            styleFooter(canvas, pageNumber)
+            pdfDocument.finishPage(page)
+            pageNumber++
+            pageInfo = PdfDocument.PageInfo.Builder(595, 842, pageNumber).create()
+            page = pdfDocument.startPage(pageInfo)
+            canvas = page.canvas
+            y = 50f
+        }
+
+        canvas.drawText("RIWAYAT TRANSAKSI TERBARU", 40f, y, headerPaint)
+        y += 15f
+        canvas.drawLine(40f, y, 555f, y, gridPaint)
+        y += 20f
+
+        canvas.drawRect(40f, y, 555f, y + 20f, bgPaint)
+        canvas.drawText("TANGGAL", 45f, y + 14f, boldTextPaint)
+        canvas.drawText("KATEGORI", 120f, y + 14f, boldTextPaint)
+        canvas.drawText("NAMA TRANSAKSI", 220f, y + 14f, boldTextPaint)
+        canvas.drawText("JUMLAH", 450f, y + 14f, boldTextPaint)
+        y += 28f
+
+        val listFormat = SimpleDateFormat("dd-MM-yyyy", Locale.getDefault())
+        for (tx in txs.take(20)) {
+            val dateStrTx = listFormat.format(Date(tx.timestamp))
+            val amountStr = (if (tx.type == "INCOME") "+" else "-") + currencyFormat.format(tx.amount)
+            val isIncome = tx.type == "INCOME"
+
+            canvas.drawText(dateStrTx, 45f, y, textPaint)
+            canvas.drawText(tx.category, 120f, y, textPaint)
+            
+            var titleShow = tx.title
+            if (titleShow.length > 25) {
+                titleShow = titleShow.substring(0, 22) + "..."
+            }
+            canvas.drawText(titleShow, 220f, y, textPaint)
+            
+            canvas.drawText(amountStr, 450f, y, if (isIncome) greenTextPaint else redTextPaint)
+            y += 22f
+
+            canvas.drawLine(40f, y - 6f, 555f, y - 6f, gridPaint)
+
+            if (y > 780f) {
+                styleFooter(canvas, pageNumber)
+                pdfDocument.finishPage(page)
+                pageNumber++
+                pageInfo = PdfDocument.PageInfo.Builder(595, 842, pageNumber).create()
+                page = pdfDocument.startPage(pageInfo)
+                canvas = page.canvas
+                y = 50f
+                
+                canvas.drawRect(40f, y, 555f, y + 20f, bgPaint)
+                canvas.drawText("TANGGAL", 45f, y + 14f, boldTextPaint)
+                canvas.drawText("KATEGORI", 120f, y + 14f, boldTextPaint)
+                canvas.drawText("NAMA TRANSAKSI", 220f, y + 14f, boldTextPaint)
+                canvas.drawText("JUMLAH", 450f, y + 14f, boldTextPaint)
+                y += 28f
+            }
+        }
+
+        y += 10f
+        if (y > 760f) {
+            styleFooter(canvas, pageNumber)
+            pdfDocument.finishPage(page)
+            pageNumber++
+            pageInfo = PdfDocument.PageInfo.Builder(595, 842, pageNumber).create()
+            page = pdfDocument.startPage(pageInfo)
+            canvas = page.canvas
+            y = 50f
+        }
+        
+        canvas.drawText("Laporan ini diunduh secara instan dari aplikasi Uangku.", 45f, y, subTitlePaint)
+        canvas.drawText("Semua data disimpan di penyimpanan terenkripsi perangkat Anda sendiri.", 45f, y + 12f, subTitlePaint)
+
+        styleFooter(canvas, pageNumber)
+        pdfDocument.finishPage(page)
+
+        val outputStream = ByteArrayOutputStream()
+        try {
+            pdfDocument.writeTo(outputStream)
+        } catch (e: Exception) {
+            e.printStackTrace()
+        } finally {
+            pdfDocument.close()
+        }
+
+        return outputStream.toByteArray()
+    }
+
+    private fun styleFooter(canvas: Canvas, pageIndex: Int) {
+        val paint = Paint().apply {
+            color = android.graphics.Color.GRAY
+            textSize = 9f
+            isAntiAlias = true
+        }
+        canvas.drawText("Halaman $pageIndex", 500f, 820f, paint)
     }
 
     // --- Private Initializer & Seeds ---
@@ -559,6 +1034,17 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
             repository.clearAllTransactions()
             repository.clearBudgets()
             repository.clearBankConnections()
+        }
+
+        // We do not prepopulate dummy target menabung or dummy recurring bills per user request
+        val goals = repository.allSavingGoals.first()
+        if (goals.any { it.title == "Beli Laptop Macbook Air" || it.title == "Dana Darurat Mandiri" }) {
+            repository.clearAllSavingGoals()
+        }
+
+        val bills = repository.allRecurringBills.first()
+        if (bills.any { it.title == "Langganan Spotify Family" || it.title == "Langganan Netflix UHD" || it.title == "Tagihan Wifi Indihome" }) {
+            repository.clearAllRecurringBills()
         }
     }
 }

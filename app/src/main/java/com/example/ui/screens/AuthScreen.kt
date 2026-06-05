@@ -33,6 +33,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.platform.LocalContext
+import androidx.biometric.BiometricManager
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -50,13 +53,27 @@ fun AuthScreen(
     modifier: Modifier = Modifier,
     onTriggerBiometric: (() -> Unit)? = null
 ) {
+    val context = LocalContext.current
     val biometricsEnabled by viewModel.biometricsEnabled.collectAsState()
     var enteredPin by remember { mutableStateOf("") }
     var pinError by remember { mutableStateOf(false) }
     var showErrorMessage by remember { mutableStateOf(false) }
+    var hasAutoPrompted by rememberSaveable { mutableStateOf(false) }
+
+    // Safely check device support for strong biometrics to avoid loop/crash on unsupported/simulation environment
+    val isBiometricSupported = remember(context) {
+        try {
+            val biometricManager = BiometricManager.from(context)
+            biometricManager.canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_STRONG) == BiometricManager.BIOMETRIC_SUCCESS
+        } catch (e: Exception) {
+            false
+        }
+    }
 
     LaunchedEffect(Unit) {
-        if (biometricsEnabled) {
+        if (biometricsEnabled && isBiometricSupported && !hasAutoPrompted) {
+            hasAutoPrompted = true
+            kotlinx.coroutines.delay(500)
             onTriggerBiometric?.invoke()
         }
     }
