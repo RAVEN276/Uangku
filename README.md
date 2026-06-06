@@ -1,43 +1,46 @@
-# Uangku - Aplikasi Pencatat Keuangan Pintar & Otomatis
+# Uangku - Aplikasi Pencatat Keuangan & Asisten Statistik ML Lokal
 
-**Uangku** adalah aplikasi manajemen keuangan pribadi berbasis Android yang dirancang modern, cepat, dan intuitif menggunakan **Jetpack Compose** dan **Material Design 3**. Aplikasi ini membantu Anda memantau arus kas secara otomatis maupun manual dengan presisi tinggi.
+**Uangku** adalah aplikasi manajemen keuangan pribadi (*personal finance manager*) berbasis Android yang dirancang modern, cepat, dan sepenuhnya luring (*offline-first*) menggunakan **Jetpack Compose** dan **Material Design 3**. Aplikasi ini memberikan kendali finansial penuh melalui otomatisasi pintar, pemantauan anggaran presisi, dan analisis prediktif berbasis Machine Learning lokal tanpa membutuhkan server eksternal ataupun koneksi internet.
+
+Briefly, aplikasi ini melacak keuangan Anda secara cerdas, baik melalui pencatatan manual maupun otomatisasi deteksi mutasi dari notifikasi perbankan.
 
 ---
 
 ## 🚀 Fitur Unggulan
 
-### 1. 🔔 Auto-Detect Mutasi dari Notifikasi (Notif Listener)
-Membaca dan merekam transaksi masuk atau keluar secara instan dari notifikasi aplikasi keuangan dan *m-banking* favorit seperti **BCA, Mandiri, BRI, BNI, OVO, GoPay,** dan lain-lain.
-*   **Akurasi Tinggi**: Memakai algoritma ekstraksi nominal pintar yang mampu menangani beragam format angka perbankan Indonesia (mencegah salah deteksi nominal karena angka sen `,00` atau `.00`).
-*   **Keamanan Terjamin**: Bekerja sepenuhnya secara lokal di perangkat Anda melalui izin *Notification Listener Service*.
+### 1. 🔔 Detektor Mutasi Otomatis dari Notifikasi Bank & E-Wallet
+Membaca dan merekam transaksi masuk atau keluar secara instan dari notifikasi aplikasi keuangan utama Indonesia secara real-time:
+*   **Akurasi Parsing Multi-Format**: Sistem parser reguler cerdas (*regex parser*) mampu menangani perbedaan simbol numerik internasional dan domestik secara dinamis. Mendukung format desimal US/BCA (misalnya `IDR 16,000.00`) maupun domestik (misalnya `Rp 15.000,00`), serta menangani sen cent secara otomatis sehingga mencegah kesalahan nilai nominal.
+*   **Pendeteksi Aplikasi Luas**: Mendukung format pemberitahuan transaksi dari **BCA, Mandiri, BRI, BNI, OVO, GoPay,** dan dompet digital terkemuka lainnya.
+*   **Privasi Maksimal**: Data dibaca dan diolah 100% secara lokal di dalam perangkat menggunakan izin *Notification Listener Service* tanpa dikirim ke server luar mana pun.
 
-### 2. ✏️ Kelola Transaksi dengan Fleksibel (Edit & Hapus)
-Semua transaksi (baik yang ditangkap otomatis maupun dicatat manual) dapat dikelola kembali demi kerapihan data:
-*   Ketuk transaksi apa pun untuk membuka **Dialog Edit Transaksi**.
-*   Ubah keterangan, kategori, jenis transaksi (*Pengeluaran* atau *Pemasukan*), serta nominalnya.
-*   Tombol hapus cepat memudahkan Anda merapikan entri yang tidak sengaja tercatat.
+### 2. 🧠 Uangku ML Analyst – Fitur Prediktif & Statistik Lokal
+Uangku dilengkapi dengan modul **Statistical ML Engine** lokal yang berjalan sepenuhnya *on-device* untuk menyajikan wawasan analitis tingkat lanjut:
+*   **Prediksi Saldo Akhir Bulan**: Menggunakan algoritme **Regresi Linear Sederhana** untuk menghitung tingkat pengeluaran harian (*daily burn rate*) dan memproyeksikan sisa saldo Anda di akhir bulan secara matematis.
+*   **Identifikasi Pengeluaran Boros**: Melakukan kategorisasi historis dan merekomendasikan target reduksi anggaran untuk sektor-sektor dengan laju pengeluaran yang tidak wajar.
+*   **Deteksi Anomali Finansial**: Menganalisis penyimpangan transaksi yang terlalu tinggi di luar kebiasaan pengeluaran harian untuk menjaga stabilitas arus kas Anda.
+*   **Model Training Terbuka**: Proses normalisasi Min-Max, winsorization data ekstrem, dan penghitungan korelasi statistik berjalan transparan bagi pengguna.
 
-### 3. ✍️ Input Anggaran & Nominal dengan Separator Otomatis (Auto-Thousand Separator)
-Saat menambahkan atau mengedit transaksi, Anda tidak perlu lagi menebak jumlah nol yang dimasukkan:
-*   Format titik ribuan (`.`) otomatis ditambahkan saat Anda mengetik angka di kolom input (misal penulisan `4000` otomatis berubah visual menjadi `4.000` secara dinamis).
-*   Membantu meminimalisir kesalahan pelaporan keuangan akibat kurang atau kelebihan menekan angka nol.
+### 3. ✍️ Input Nominal Terproteksi dengan RupiahVisualTransformation
+Uangku menyelesaikan masalah bug posisi kursor (*cursor jump bug*) yang sering ditemui pada visual format rupiah konvensional:
+*   **VisualTransformation Custom**: Memisahkan nilai data asli (*pure digits*) dengan visualisasi ribuan yang memakai pemisah titik (`.`).
+*   **Manipulasi Kursor yang Mulus**: Pengguna dapat mengetik secara natural, menghapus di posisi mana pun, atau memindahkan kursor ke tengah tanpa takut kursor terlempar ke ujung kanan input atau berpindah ke tengah secara aneh.
+*   **Input Terfokus & Aman**: Validasi keyboard tipe *Number* menjamin hanya angka yang dapat diproses oleh database.
 
-### 4. 📊 Grafik Visualisasi Finansial yang Kaya
-*   **Grafik Donat Kategori**: Melihat alokasi pengeluaran bulanan berdasarkan kategori (Makanan, Belanja, Transportasi, dsb).
-*   **Grafik Tren Mingguan & Bulanan**: Memantau perputaran arus kas secara dinamis.
+### 4. 📊 Pelacakan Anggaran, Saving Goals & Grafik Interaktif
+*   **Grafik Distribusi Kategori**: Diagram lingkaran (*Donut Chart*) beranimasi yang menunjukkan ke mana saja uang Anda mengalir berdasarkan klasifikasi pengeluaran.
+*   **Grafik Arus Kas Bulanan**: Grafik tren mingguan & bulanan untuk melihat perbandingan pemasukan dan pengeluaran secara visual.
+*   **Sistem Budgeting & Impian**: Tetapkan pagu batas belanja (*budget ceiling*) per kategori dengan persentase real-time dan tabungan impian (*saving goals*) terstruktur.
 
-### 5. 🎯 Rencana Masa Depan (Budget & Saving Goals)
-*   **Batas Anggaran (Budgeting)**: Set target reguler per kategori dengan peringatan progres kuota persen terpakai.
-*   **Rencana Impian (Saving Goals)**: Tabung uang secara terstruktur untuk mewujudkan impian finansial Anda.
-
-### 6. 📄 Ekspor Laporan Instan
-*   Unduh rangkuman keuangan Anda langsung ke format ekspor **PDF** atau **CSV** untuk kebutuhan pengarsipan maupun analisis tingkat lanjut.
+### 5. 📄 Ekspor Laporan Instan & Manajemen Transaksi Lengkap
+*   **Ekspor Fleksibel**: Unduh rangkuman keuangan lengkap dalam format **PDF berdesain profesional** untuk dicetak, atau format **CSV** untuk pengolahan data spreadsheet lanjut.
+*   **Kemudahan Sunting Data**: Ketuk transaksi apa pun untuk membuka Dialog Edit yang responsif. Anda dapat menyesuaikan nama, kategori, tipe, waktu, maupun nominal transaksi seketika.
 
 ---
 
-## 🏗️ Teknologi yang Digunakan
-*   **Bahasa Pemrograman**: Kotlin
-*   **UI Framework**: Jetpack Compose (Material Design 3)
-*   **Database Lokal**: Room Database (SQLite) untuk performa luring (*offline-first*) yang tangguh
-*   **Arsitektur**: MVVM (Model-View-ViewModel) dengan StateFlow & Coroutines yang reaktif
-*   **Ekspor Data**: Android PDF Canvas Writer & CSV Buffer Streamer
+## 🏗️ Teknologi & Arsitektur
+*   **Bahasa Pemrograman**: Kotlin (Kotlin Coroutines & Flow)
+*   **UI Framework**: Jetpack Compose dengan Material Design 3 (Edge-to-Edge Enabled)
+*   **Database**: Room Database (SQLite) terintegrasi dengan KSP untuk akses data asinkronus yang cepat
+*   **Analisis Lokal**: Statistika matematika terapan (Wawasan Laju / Regresi Matematik di bawah asisten analis AI lokal)
+*   **Arsitektur Aplikasi**: MVVM (Model-View-ViewModel) terstandarisasi untuk pemisahan logika bisnis (*Clean Architecture*)
