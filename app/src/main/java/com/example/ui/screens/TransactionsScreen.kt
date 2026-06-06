@@ -58,6 +58,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
+import com.example.ui.components.RupiahVisualTransformation
 import com.example.data.model.Transaction
 import com.example.ui.FinanceViewModel
 
@@ -325,19 +328,13 @@ fun TransactionsScreen(
                         onValueChange = { input ->
                             val clean = input.filter { it.isDigit() }
                             if (clean.length <= 15) {
-                                val sb = StringBuilder()
-                                var count = 0
-                                for (i in clean.length - 1 downTo 0) {
-                                    sb.append(clean[i])
-                                    count++
-                                    if (count % 3 == 0 && i > 0) {
-                                        sb.append('.')
-                                    }
-                                }
-                                amount = sb.reverse().toString()
+                                amount = clean
                             }
                         },
                         label = { Text("Jumlah (IDR)") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        visualTransformation = RupiahVisualTransformation(),
                         modifier = Modifier.fillMaxWidth()
                     )
 

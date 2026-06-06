@@ -54,6 +54,9 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
+import com.example.ui.components.RupiahVisualTransformation
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -747,21 +750,14 @@ fun DashboardScreen(
                         onValueChange = { input ->
                             val clean = input.filter { it.isDigit() }
                             if (clean.length <= 15) {
-                                val sb = StringBuilder()
-                                var count = 0
-                                for (i in clean.length - 1 downTo 0) {
-                                    sb.append(clean[i])
-                                    count++
-                                    if (count % 3 == 0 && i > 0) {
-                                        sb.append('.')
-                                    }
-                                }
-                                txAmount = sb.reverse().toString()
+                                txAmount = clean
                             }
                         },
                         label = { Text("Jumlah (IDR)") },
                         placeholder = { Text("misal: 45.000") },
                         singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        visualTransformation = RupiahVisualTransformation(),
                         modifier = Modifier.fillMaxWidth()
                     )
 
@@ -1185,17 +1181,7 @@ fun TransactionItemRow(
         
         // Initial amount format
         val initialAmountStr = if (tx.amount > 0) {
-            val cleanStr = tx.amount.toLong().toString()
-            val sb = java.lang.StringBuilder()
-            var count = 0
-            for (i in cleanStr.length - 1 downTo 0) {
-                sb.append(cleanStr[i])
-                count++
-                if (count % 3 == 0 && i > 0) {
-                    sb.append('.')
-                }
-            }
-            sb.reverse().toString()
+            tx.amount.toLong().toString()
         } else ""
         
         var amount by remember { mutableStateOf(initialAmountStr) }
@@ -1284,19 +1270,13 @@ fun TransactionItemRow(
                         onValueChange = { input ->
                             val clean = input.filter { it.isDigit() }
                             if (clean.length <= 15) {
-                                val sb = StringBuilder()
-                                var count = 0
-                                for (i in clean.length - 1 downTo 0) {
-                                    sb.append(clean[i])
-                                    count++
-                                    if (count % 3 == 0 && i > 0) {
-                                        sb.append('.')
-                                    }
-                                }
-                                amount = sb.reverse().toString()
+                                amount = clean
                             }
                         },
                         label = { Text("Jumlah (IDR)") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        visualTransformation = RupiahVisualTransformation(),
                         modifier = Modifier.fillMaxWidth()
                     )
 

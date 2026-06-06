@@ -49,6 +49,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
+import com.example.ui.components.RupiahVisualTransformation
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material.icons.filled.Savings
@@ -582,20 +585,14 @@ fun BudgetScreen(
                         onValueChange = { input ->
                             val clean = input.filter { it.isDigit() }
                             if (clean.length <= 15) {
-                                val sb = StringBuilder()
-                                var count = 0
-                                for (i in clean.length - 1 downTo 0) {
-                                    sb.append(clean[i])
-                                    count++
-                                    if (count % 3 == 0 && i > 0) {
-                                        sb.append('.')
-                                    }
-                                }
-                                limitInput = sb.reverse().toString()
+                                limitInput = clean
                             }
                         },
                         label = { Text("Limit Anggaran Berbelanja (IDR)") },
                         placeholder = { Text("misal: 1.500.000") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        visualTransformation = RupiahVisualTransformation(),
                         modifier = Modifier.fillMaxWidth()
                     )
 
@@ -677,20 +674,14 @@ fun BudgetScreen(
                         onValueChange = { input ->
                             val clean = input.filter { it.isDigit() }
                             if (clean.length <= 15) {
-                                val sb = StringBuilder()
-                                var count = 0
-                                for (i in clean.length - 1 downTo 0) {
-                                    sb.append(clean[i])
-                                    count++
-                                    if (count % 3 == 0 && i > 0) {
-                                        sb.append('.')
-                                    }
-                                }
-                                targetAmtInput = sb.reverse().toString()
+                                targetAmtInput = clean
                             }
                         },
                         label = { Text("Target Minimal Nominal (IDR)") },
                         placeholder = { Text("misal: 10.000.000") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        visualTransformation = RupiahVisualTransformation(),
                         modifier = Modifier.fillMaxWidth()
                     )
 

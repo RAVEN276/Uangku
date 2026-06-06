@@ -182,8 +182,7 @@ class MyNotificationListenerService : NotificationListenerService() {
         private fun extractAmount(text: String): Double? {
             try {
                 val lowerText = text.lowercase()
-                var clean = lowerText.replace(",00", "")
-                clean = clean.replace(",-", "")
+                val clean = lowerText.replace(",-", "")
 
                 val pattern = Pattern.compile("(?:rp|idr|nominal|sebesar|jumlah)\\.?\\s*([\\d\\.,]+)")
                 val matcher = pattern.matcher(clean)
@@ -215,31 +214,56 @@ class MyNotificationListenerService : NotificationListenerService() {
         private fun parseFormattedNumber(numStr: String): Double? {
             var s = numStr.trim()
             if (s.isEmpty()) return null
-            
-            // Strip any trailing decimal cents like .00 or ,00 or ,50 (exactly 2 digits after dot/comma at the end)
-            s = s.replace(Regex("[\\.,]\\d{2}$"), "")
-            
+
+            // Clean any trailing dots or commas
+            s = s.trim().removeSuffix(",").removeSuffix(".")
+
             if (s.contains(".") && s.contains(",")) {
-                if (s.indexOf(".") < s.indexOf(",")) {
-                    s = s.replace(".", "").replace(",", ".")
+                val lastDotIdx = s.lastIndexOf('.')
+                val lastCommaIdx = s.lastIndexOf(',')
+                if (lastDotIdx > lastCommaIdx) {
+                    // Dot is the decimal separator (US/BCA style: 16,000.50)
+                    val centsPart = s.substring(lastDotIdx + 1)
+                    val mainPart = s.substring(0, lastDotIdx).replace(",", "")
+                    s = if (centsPart == "00") mainPart else "$mainPart.$centsPart"
                 } else {
-                    s = s.replace(",", "")
+                    // Comma is the decimal separator (Indonesian style: 16.000,50)
+                    val centsPart = s.substring(lastCommaIdx + 1)
+                    val mainPart = s.substring(0, lastCommaIdx).replace(".", "")
+                    s = if (centsPart == "00") mainPart else "$mainPart.$centsPart"
                 }
             } else if (s.contains(",")) {
-                val parts = s.split(",")
-                if (parts.size > 2 || (parts.size == 2 && parts[1].length == 3)) {
+                val lastCommaIdx = s.lastIndexOf(',')
+                val afterComma = s.substring(lastCommaIdx + 1)
+                val commaCount = s.count { it == ',' }
+                if (commaCount > 1) {
                     s = s.replace(",", "")
                 } else {
-                    s = s.replace(",", ".")
+                    if (afterComma.length == 3 || afterComma.length > 2) {
+                        s = s.replace(",", "")
+                    } else if (afterComma.length == 2 && afterComma == "00") {
+                        s = s.substring(0, lastCommaIdx)
+                    } else {
+                        s = s.substring(0, lastCommaIdx) + "." + afterComma
+                    }
                 }
             } else if (s.contains(".")) {
-                val parts = s.split(".")
-                if (parts.size > 2 || (parts.size == 2 && parts[1].length == 3)) {
+                val lastDotIdx = s.lastIndexOf('.')
+                val afterDot = s.substring(lastDotIdx + 1)
+                val dotCount = s.count { it == '.' }
+                if (dotCount > 1) {
                     s = s.replace(".", "")
                 } else {
-                    // It is a decimal point (e.g. 42000.00 or 42.5). Keep the dot!
+                    if (afterDot.length == 3 || afterDot.length > 2) {
+                        s = s.replace(".", "")
+                    } else if (afterDot.length == 2 && afterDot == "00") {
+                        s = s.substring(0, lastDotIdx)
+                    } else {
+                        s = s.substring(0, lastDotIdx) + "." + afterDot
+                    }
                 }
             }
+
             return s.toDoubleOrNull()
         }
     }
