@@ -44,8 +44,8 @@ class MyNotificationListenerService : NotificationListenerService() {
         fun parseNotification(packageName: String, title: String, text: String): Transaction? {
             val content = "$title $text".lowercase()
             
-            // Tight blacklist of promo/marketing keywords to prevent promotional notifications
-            val isPromo = content.contains("promo") ||
+            // Tight blacklist of promo/marketing/informational/security/failure keywords to prevent fake notifications
+            val isPromoOrInfo = content.contains("promo") ||
                     content.contains("diskon") ||
                     content.contains("discount") ||
                     content.contains("hadiah") ||
@@ -72,6 +72,7 @@ class MyNotificationListenerService : NotificationListenerService() {
                     content.contains("klaim") ||
                     content.contains("ajak") ||
                     content.contains("s.d") ||
+                    content.contains("s/d") ||
                     content.contains("hingga") ||
                     content.contains("selesaikan") ||
                     content.contains("butuh") ||
@@ -79,11 +80,59 @@ class MyNotificationListenerService : NotificationListenerService() {
                     content.contains("pinjaman") ||
                     content.contains("ajukan") ||
                     content.contains("menunggu") ||
-                    content.contains("butuh dana")
+                    content.contains("butuh dana") ||
+                    content.contains("otp") ||
+                    content.contains("token") ||
+                    content.contains("keamanan") ||
+                    content.contains("waspada") ||
+                    content.contains("penipu") ||
+                    content.contains("hati-hati") ||
+                    content.contains("verifikasi") ||
+                    content.contains("verification") ||
+                    content.contains("kode") ||
+                    content.contains("login") ||
+                    content.contains("masuk ke akun") ||
+                    content.contains("perangkat") ||
+                    content.contains("device") ||
+                    content.contains("cs") ||
+                    content.contains("call center") ||
+                    content.contains("hubungi") ||
+                    content.contains("syarat") ||
+                    content.contains("ketentuan") ||
+                    content.contains("s&k") ||
+                    content.contains("jatuh tempo") ||
+                    content.contains("reminder") ||
+                    content.contains("pengingat") ||
+                    content.contains("aktifkan") ||
+                    content.contains("aktivasi") ||
+                    content.contains("upgrade") ||
+                    content.contains("minimal") ||
+                    content.contains("minimum") ||
+                    content.contains("saldo anda saat ini") ||
+                    content.contains("saldo minimum") ||
+                    content.contains("informasi saldo") ||
+                    content.contains("rekening anda") ||
+                    content.contains("info saldo") ||
+                    content.contains("waspada penipuan") ||
+                    content.contains("pemberitahuan login") ||
+                    content.contains("sesi") ||
+                    content.contains("password") ||
+                    content.contains("kata sandi") ||
+                    content.contains("blokir") ||
+                    content.contains("buka blokir") ||
+                    content.contains("tidak cukup") ||
+                    content.contains("kurang") ||
+                    content.contains("gagal") ||
+                    content.contains("failed") ||
+                    content.contains("ditolak") ||
+                    content.contains("declined") ||
+                    content.contains("batal") ||
+                    content.contains("cancelled") ||
+                    content.contains("bukan transaksi")
             
             // Check if it looks like a monetary transaction notification in Indonesia
             val containsRp = content.contains("rp") || content.contains("idr") || content.contains("nominal")
-            val isTransaction = containsRp && !isPromo && (
+            val isTransaction = containsRp && !isPromoOrInfo && (
                 content.contains("transfer") || 
                 content.contains("debet") || 
                 content.contains("debit") || 
@@ -102,10 +151,10 @@ class MyNotificationListenerService : NotificationListenerService() {
                 content.contains("diterima") ||
                 content.contains("dibayar") ||
                 content.contains("bayar") ||
-                content.contains("gopay") ||
-                content.contains("ovo") ||
-                content.contains("dana") ||
-                content.contains("saldo")
+                content.contains("topup") ||
+                content.contains("top up") ||
+                content.contains("tarik tunai") ||
+                content.contains("cashback")
             )
             
             if (!isTransaction) return null
@@ -120,7 +169,7 @@ class MyNotificationListenerService : NotificationListenerService() {
                            content.contains("top up") ||
                            content.contains("bunga")
             val type = if (isIncome) "INCOME" else "EXPENSE"
-
+ 
             // Extract the numerical amount
             val amount = extractAmount(content) ?: return null
 

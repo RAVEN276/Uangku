@@ -24,7 +24,7 @@ import androidx.compose.material.icons.filled.Cached
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.Fingerprint
-import androidx.compose.material.icons.filled.ListAlt
+import androidx.compose.material.icons.automirrored.filled.ListAlt
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PictureAsPdf
@@ -51,6 +51,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -203,7 +204,7 @@ fun SettingsScreen(
                                 .testTag("export_excel_button"),
                             shape = RoundedCornerShape(12.dp)
                         ) {
-                            Icon(imageVector = Icons.Default.ListAlt, contentDescription = "Excel", tint = MaterialTheme.colorScheme.primary)
+                            Icon(imageVector = Icons.AutoMirrored.Filled.ListAlt, contentDescription = "Excel", tint = MaterialTheme.colorScheme.primary)
                             Spacer(modifier = Modifier.width(8.dp))
                             Text("Ekspor Excel", fontSize = 11.sp, fontWeight = FontWeight.Bold)
                         }
@@ -249,7 +250,7 @@ fun SettingsScreen(
 
                     // Biometrics switch
                     SecuritySettingRow(
-                        title = "Uji Sidik Jari (Biometrik)",
+                        title = "Autentikasi Biometrik (Sidik Jari)",
                         subtitle = "Aktifkan autentikasi sidik jari di halaman login saat membuka aplikasi.",
                         icon = {
                             Icon(
@@ -260,11 +261,13 @@ fun SettingsScreen(
                         },
                         trailing = {
                             Switch(
-                                checked = biometricsEnabled,
+                                checked = biometricsEnabled && isPinEnabled,
                                 onCheckedChange = { viewModel.toggleBiometrics(it) },
+                                enabled = isPinEnabled,
                                 modifier = Modifier.testTag("biometric_switch")
                             )
-                        }
+                        },
+                        enabled = isPinEnabled
                     )
 
                     // Pin changes
@@ -518,12 +521,14 @@ fun SecuritySettingRow(
     icon: @Composable () -> Unit,
     trailing: @Composable () -> Unit,
     onClick: (() -> Unit)? = null,
+    enabled: Boolean = true,
     modifier: Modifier = Modifier
 ) {
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .clickable(enabled = onClick != null) { onClick?.invoke() }
+            .alpha(if (enabled) 1f else 0.5f)
+            .clickable(enabled = enabled && onClick != null) { onClick?.invoke() }
             .padding(16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {

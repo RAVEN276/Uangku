@@ -250,7 +250,7 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
             val txs = allTransactions.value
             val expenses = txs.filter { it.type == "EXPENSE" }
             if (expenses.isEmpty()) {
-                _mlWeeklySummary.value = "Belum ada data pengeluaran yang tercatat minggu ini untuk dianalisis oleh Uangku ML Engine. Silakan tambahkan transaksi pengeluaran baru Anda."
+                _mlWeeklySummary.value = "Belum ada data pengeluaran yang tercatat minggu ini untuk dianalisis oleh Asisten Cerdas. Silakan tambahkan transaksi pengeluaran baru Anda."
                 return@launch
             }
 
@@ -286,7 +286,7 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
                     .putLong("ml_weekly_sum_time", currentTime)
                     .apply()
             } catch (e: Exception) {
-                _mlWeeklySummary.value = "Gagal memproses perhitungan Machine Learning lokal: ${e.localizedMessage}"
+                _mlWeeklySummary.value = "Gagal memproses analisis Asisten Cerdas: ${e.localizedMessage}"
             } finally {
                 _isGeneratingSummary.value = false
             }
@@ -302,6 +302,12 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     fun setTheme(dark: Boolean) {
         prefs.edit().putBoolean("theme_dark", dark).apply()
         _themeDark.value = dark
+    }
+
+    fun updateSystemThemeDefault(systemDark: Boolean) {
+        if (!prefs.contains("theme_dark")) {
+            _themeDark.value = systemDark
+        }
     }
 
     // --- Transactions Actions ---
@@ -462,16 +468,37 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
         viewModelScope.launch {
             combine(allTransactions, allBudgets) { txs, budgets ->
                 // Check overall limit & category limits
-                val expensesByCategory = txs.filter { it.type == "EXPENSE" }
-                    .groupBy { it.category }
+                val currentMonthExpenses = txs.filter { tx ->
+                    tx.type == "EXPENSE" && run {
+                        val cal1 = java.util.Calendar.getInstance()
+                        cal1.timeInMillis = tx.timestamp
+                        val cal2 = java.util.Calendar.getInstance()
+                        cal1.get(java.util.Calendar.YEAR) == cal2.get(java.util.Calendar.YEAR) &&
+                        cal1.get(java.util.Calendar.MONTH) == cal2.get(java.util.Calendar.MONTH)
+                    }
+                }
 
-                val totalExpenseSum = txs.filter { it.type == "EXPENSE" }.sumOf { it.amount }
+                val expensesByCategory = currentMonthExpenses.groupBy { it.category }
+
+                val totalExpenseSum = currentMonthExpenses.sumOf { it.amount }
+
+                val todayExpenseSum = txs.filter { tx ->
+                    tx.type == "EXPENSE" && run {
+                        val cal1 = java.util.Calendar.getInstance()
+                        cal1.timeInMillis = tx.timestamp
+                        val cal2 = java.util.Calendar.getInstance()
+                        cal1.get(java.util.Calendar.YEAR) == cal2.get(java.util.Calendar.YEAR) &&
+                        cal1.get(java.util.Calendar.DAY_OF_YEAR) == cal2.get(java.util.Calendar.DAY_OF_YEAR)
+                    }
+                }.sumOf { it.amount }
 
                 var alertText: String? = null
 
                 for (budget in budgets) {
                     val spent = if (budget.category == "ALL") {
                         totalExpenseSum
+                    } else if (budget.category == "DAILY") {
+                        todayExpenseSum
                     } else {
                         expensesByCategory[budget.category]?.sumOf { it.amount } ?: 0.0
                     }
@@ -483,10 +510,10 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
                             format.maximumFractionDigits = 0
                             val limitStr = format.format(budget.limitAmount)
                             val spentStr = format.format(spent)
-                            alertText = if (budget.category == "ALL") {
-                                "⚠️ Peringatan Anggaran: Total pengeluaran Anda ($spentStr) telah melampaui ${budget.alertThresholdPercent}% dari limit bulanan ($limitStr)!"
-                            } else {
-                                "⚠️ Peringatan Anggaran: Kategori '${budget.category}' ($spentStr) telah melampaui ${budget.alertThresholdPercent}% dari limit ($limitStr)!"
+                            alertText = when (budget.category) {
+                                "ALL" -> "⚠️ Peringatan Anggaran: Total pengeluaran Anda ($spentStr) telah melampaui ${budget.alertThresholdPercent}% dari limit bulanan ($limitStr)!"
+                                "DAILY" -> "⚠️ Peringatan Anggaran: Pengeluaran harian Anda hari ini ($spentStr) telah melampaui ${budget.alertThresholdPercent}% dari limit harian ($limitStr)!"
+                                else -> "⚠️ Peringatan Anggaran: Kategori '${budget.category}' ($spentStr) telah melampaui ${budget.alertThresholdPercent}% dari limit ($limitStr)!"
                             }
                             break
                         }
@@ -740,13 +767,18 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
         txReport.append("Pengeluaran     : ${currencyFormat.format(totalExpense.value)}\n")
         txReport.append("-----------------------------------------\n\n")
 
-        txReport.append("LIMIT & ANGGARAN BULANAN:\n")
+        txReport.append("LIMIT & ANGGARAN:\n")
         val budgets = allBudgets.value
         if (budgets.isEmpty()) {
-            txReport.append("- Belum ada anggaran limits yang disetel.\n")
+            txReport.append("- Belum ada anggaran/limit yang disetel.\n")
         } else {
             for (budget in budgets) {
-                txReport.append("- Kategori ${budget.category}: Limit ${currencyFormat.format(budget.limitAmount)}\n")
+                val label = when (budget.category) {
+                    "ALL" -> "Limit Pengeluaran Bulanan"
+                    "DAILY" -> "Limit Pengeluaran Harian"
+                    else -> "Kategori ${budget.category}"
+                }
+                txReport.append("- $label: Limit ${currencyFormat.format(budget.limitAmount)}\n")
             }
         }
 

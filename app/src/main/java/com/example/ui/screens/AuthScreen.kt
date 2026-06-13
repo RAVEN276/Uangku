@@ -15,7 +15,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Backspace
+import androidx.compose.material.icons.automirrored.filled.Backspace
 import androidx.compose.material.icons.filled.Fingerprint
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.LockOpen
@@ -235,7 +235,7 @@ fun AuthScreen(
                         }
                     ) {
                         Icon(
-                            imageVector = Icons.Default.Backspace,
+                            imageVector = Icons.AutoMirrored.Filled.Backspace,
                             contentDescription = "Hapus",
                             tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )

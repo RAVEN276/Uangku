@@ -14,7 +14,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.ListAlt
+import androidx.compose.material.icons.automirrored.filled.ListAlt
 import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
@@ -50,11 +50,13 @@ class MainActivity : FragmentActivity() {
         enableEdgeToEdge()
         setContent {
             val viewModel: FinanceViewModel = viewModel()
-            val themeDarkOverride by viewModel.themeDark.collectAsState()
             val systemDark = isSystemInDarkTheme()
 
-            // Resolve modern adaptive theme
-            val useDarkTheme = themeDarkOverride || systemDark
+            // Update system default theme on startup to ensure VM and UI are synchronized
+            viewModel.updateSystemThemeDefault(systemDark)
+
+            val themeDarkOverride by viewModel.themeDark.collectAsState()
+            val useDarkTheme = themeDarkOverride
 
             MyApplicationTheme(darkTheme = useDarkTheme) {
                 val isOnboarded by viewModel.isOnboarded.collectAsState()
@@ -124,7 +126,7 @@ class MainActivity : FragmentActivity() {
 
 sealed class SubScreen(val route: String, val title: String, val icon: ImageVector) {
     object Dashboard : SubScreen("dashboard", "Dasbor", Icons.Default.Home)
-    object Transactions : SubScreen("transactions", "Transaksi", Icons.Default.ListAlt)
+    object Transactions : SubScreen("transactions", "Transaksi", Icons.AutoMirrored.Filled.ListAlt)
     object Budgets : SubScreen("budgets", "Anggaran", Icons.Default.NotificationsActive)
     object Settings : SubScreen("settings", "Pengaturan", Icons.Default.Settings)
 }

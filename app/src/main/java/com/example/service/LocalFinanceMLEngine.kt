@@ -111,15 +111,15 @@ object LocalFinanceMLEngine {
                 topCategory = "Belum Ada",
                 topCategoryPercentage = 0.0,
                 anomalies = emptyList(),
-                recommendations = listOf("Tambahkan transaksi pengeluaran pertama Anda agar Uangku ML Engine dapat menganalisis data keuangan Anda secara akurat."),
+                recommendations = listOf("Tambahkan transaksi pengeluaran pertama Anda agar Asisten Cerdas dapat menganalisis data keuangan Anda secara akurat."),
                 markdownReport = """
-                    ### 📊 Analisis Keuangan Cerdas Uangku ML
+                    ### 📊 Analisis Keuangan Asisten Cerdas
                     
                     Belum ada data pengeluaran yang tercatat di basis data lokal perangkat Anda untuk dianalisis.
                     
                     💡 **Rekomendasi Awal:**
                     - Catat setiap pengeluaran harian Anda (seperti makanan, transportasi, tagihan).
-                    - Kembali kesini setelah Anda menambahkan transaksi untuk melihat proyeksi & deteksi anomali otomatis dari mesin intelijen lokal kami.
+                    - Kembali kesini setelah Anda menambahkan transaksi untuk melihat proyeksi & deteksi anomali otomatis dari asisten cerdas lokal kami.
                 """.trimIndent(),
                 categoryToReduce = "Tidak Ada",
                 categoryReductionExplanation = "Semua kas atau anggaran Anda seimbang karena belum terdeteksi pengeluaran.",
@@ -235,7 +235,7 @@ object LocalFinanceMLEngine {
 
         // Build elegant markdown report
         val reportBuilder = StringBuilder()
-        reportBuilder.append("### 🦾 Uangku ML Intelligence Report\n\n")
+        reportBuilder.append("### 🦾 Laporan Asisten Cerdas\n\n")
         reportBuilder.append("Analisis performa keuangan lokal Anda berdasarkan pola transaksi:\n\n")
         reportBuilder.append("- **Total Belanja**: **${rp.format(totalExp)}**\n")
         reportBuilder.append("- **Rerata Transaksi**: **${rp.format(avgExp)}** per rincian\n")

@@ -114,29 +114,207 @@ import androidx.compose.material.icons.filled.TrendingDown
 import androidx.compose.material.icons.filled.Lightbulb
 import androidx.compose.material.icons.filled.Storage
 
-fun parseMarkdownToAnnotatedString(text: String, primaryColor: Color): AnnotatedString {
+fun parseMarkdownLine(line: String, defaultColor: Color, boldColor: Color): AnnotatedString {
     return buildAnnotatedString {
-        var cursor = 0
-        val l = text.length
-        while (cursor < l) {
-            val nextBoldStart = text.indexOf("**", cursor)
+        var tempCursor = 0
+        val l = line.length
+        while (tempCursor < l) {
+            val nextBoldStart = line.indexOf("**", tempCursor)
             if (nextBoldStart != -1) {
-                // Append text before bold
-                append(text.substring(cursor, nextBoldStart))
-                val nextBoldEnd = text.indexOf("**", nextBoldStart + 2)
+                append(line.substring(tempCursor, nextBoldStart))
+                val nextBoldEnd = line.indexOf("**", nextBoldStart + 2)
                 if (nextBoldEnd != -1) {
-                    // Span bold style
-                    withStyle(style = SpanStyle(fontWeight = FontWeight.Bold, color = primaryColor)) {
-                        append(text.substring(nextBoldStart + 2, nextBoldEnd))
+                    withStyle(style = SpanStyle(fontWeight = FontWeight.Bold, color = boldColor)) {
+                        append(line.substring(nextBoldStart + 2, nextBoldEnd))
                     }
-                    cursor = nextBoldEnd + 2
+                    tempCursor = nextBoldEnd + 2
                 } else {
                     append("**")
-                    cursor = nextBoldStart + 2
+                    tempCursor = nextBoldStart + 2
                 }
             } else {
-                append(text.substring(cursor, l))
-                cursor = l
+                append(line.substring(tempCursor, l))
+                tempCursor = l
+            }
+        }
+    }
+}
+
+@Composable
+fun BeautifulMarkdownView(displayText: String, themeDark: Boolean) {
+    val scrollState = androidx.compose.foundation.rememberScrollState()
+    val lines = remember(displayText) { displayText.split("\n") }
+    
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(scrollState),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        lines.forEach { line ->
+            val trimmed = line.trim()
+            if (trimmed.isEmpty()) {
+                // Spacer for empty paragraphs
+                Spacer(modifier = Modifier.height(4.dp))
+            } else if (trimmed.startsWith("### ")) {
+                val titleText = trimmed.removePrefix("### ").trim()
+                Text(
+                    text = titleText,
+                    style = MaterialTheme.typography.titleMedium.copy(
+                        fontWeight = FontWeight.ExtraBold,
+                        letterSpacing = 0.5.sp
+                    ),
+                    color = if (themeDark) Color(0xFFC084FC) else Color(0xFF5B21B6),
+                    modifier = Modifier.padding(top = 10.dp, bottom = 4.dp)
+                )
+            } else if (trimmed.startsWith("#### ")) {
+                val subtitleText = trimmed.removePrefix("#### ").trim()
+                Text(
+                    text = subtitleText,
+                    style = MaterialTheme.typography.titleSmall.copy(
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 0.25.sp
+                    ),
+                    color = if (themeDark) Color(0xFFE9D5FF) else Color(0xFF4C229E),
+                    modifier = Modifier.padding(top = 14.dp, bottom = 4.dp)
+                )
+            } else if (trimmed.startsWith("- ")) {
+                val isRecommendation = trimmed.contains("🔴") || trimmed.contains("⚠️") || trimmed.contains("✅") || trimmed.contains("✨") || trimmed.contains("📈") || trimmed.contains("📉")
+                
+                if (isRecommendation) {
+                    val emoji = when {
+                        trimmed.contains("🔴") -> "🔴"
+                        trimmed.contains("⚠️") -> "⚠️"
+                        trimmed.contains("✅") -> "✅"
+                        trimmed.contains("✨") -> "✨"
+                        trimmed.contains("📈") -> "📈"
+                        trimmed.contains("📉") -> "📉"
+                        else -> ""
+                    }
+                    var cleanTextLine = trimmed.removePrefix("- ").trim()
+                    if (emoji.isNotEmpty()) {
+                        cleanTextLine = cleanTextLine.replace(emoji, "").trim()
+                    }
+                    
+                    val (bgColor, borderColor, textColor) = when (emoji) {
+                        "🔴" -> listOf(
+                            if (themeDark) Color(0xFF2D0613) else Color(0xFFFFF1F2),
+                            if (themeDark) Color(0xFF881337) else Color(0xFFFECDD3),
+                            if (themeDark) Color(0xFFFDA4AF) else Color(0xFF9F1239)
+                        )
+                        "⚠️" -> listOf(
+                            if (themeDark) Color(0xFF2E1B05) else Color(0xFFFFFBEB),
+                            if (themeDark) Color(0xFF78350F) else Color(0xFFFDE68A),
+                            if (themeDark) Color(0xFFFCD34D) else Color(0xFF92400E)
+                        )
+                        "✅", "✨" -> listOf(
+                            if (themeDark) Color(0xFF022C22) else Color(0xFFF0FDF4),
+                            if (themeDark) Color(0xFF065F46) else Color(0xFFBBF7D0),
+                            if (themeDark) Color(0xFF34D399) else Color(0xFF15803D)
+                        )
+                        "📈" -> listOf(
+                            if (themeDark) Color(0xFF1E152F) else Color(0xFFF5F3FF),
+                            if (themeDark) Color(0xFF4A1D96) else Color(0xFFDDD6FE),
+                            if (themeDark) Color(0xFFA78BFA) else Color(0xFF6D28D9)
+                        )
+                        "📉" -> listOf(
+                            if (themeDark) Color(0xFF0F172A) else Color(0xFFEFF6FF),
+                            if (themeDark) Color(0xFF1E3A8A) else Color(0xFFBFDBFE),
+                            if (themeDark) Color(0xFF60A5FA) else Color(0xFF1D4ED8)
+                        )
+                        else -> listOf(
+                            if (themeDark) Color(0xFF1F2937) else Color(0xFFF9FAFB),
+                            if (themeDark) Color(0xFF374151) else Color(0xFFF3F4F6),
+                            if (themeDark) Color(0xFFD1D5DB) else Color(0xFF374151)
+                        )
+                    }
+                    
+                    val annotatedCardText = parseMarkdownLine(
+                        cleanTextLine,
+                        defaultColor = if (themeDark) Color(0xFFE2E8F0) else Color(0xFF334155),
+                        boldColor = textColor
+                    )
+                    
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp)
+                            .background(bgColor, RoundedCornerShape(12.dp))
+                            .border(1.dp, borderColor, RoundedCornerShape(12.dp))
+                            .padding(12.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.Top,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Text(text = emoji, fontSize = 16.sp, modifier = Modifier.padding(top = 1.dp))
+                            Text(
+                                text = annotatedCardText,
+                                style = MaterialTheme.typography.bodySmall.copy(lineHeight = 18.sp),
+                                color = if (themeDark) Color(0xFFE2E8F0) else Color(0xFF334155)
+                            )
+                        }
+                    }
+                } else {
+                    val contentLine = trimmed.removePrefix("- ").trim()
+                    val icon = when {
+                        contentLine.startsWith("**Total Belanja**") || contentLine.startsWith("Total Belanja") -> "🛍️"
+                        contentLine.startsWith("**Rerata Transaksi**") || contentLine.startsWith("Rerata Transaksi") -> "📊"
+                        contentLine.startsWith("**Sektor Dominan**") || contentLine.startsWith("Sektor Dominan") -> "🏷️"
+                        contentLine.startsWith("**Rasio Laju Belanja Harian**") || contentLine.contains("Laju Belanja") -> "⚡"
+                        contentLine.startsWith("**Proyeksi Sisa Bulan Ini**") || contentLine.contains("Proyeksi") -> "📅"
+                        contentLine.startsWith("**Estimasi Saldo Akhir Bulan**") || contentLine.contains("Estimasi Saldo") -> "💰"
+                        else -> "•"
+                    }
+                    
+                    val annotatedBulletText = parseMarkdownLine(
+                        contentLine,
+                        defaultColor = if (themeDark) Color(0xFFE2E8F0) else Color(0xFF334155),
+                        boldColor = if (themeDark) Color.White else Color(0xFF111827)
+                    )
+                    
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp, horizontal = 4.dp),
+                        verticalAlignment = Alignment.Top,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Text(
+                            text = icon,
+                            fontSize = if (icon == "•") 16.sp else 14.sp,
+                            modifier = Modifier.padding(top = 1.dp)
+                        )
+                        Text(
+                            text = annotatedBulletText,
+                            style = MaterialTheme.typography.bodyMedium.copy(lineHeight = 20.sp),
+                            color = if (themeDark) Color(0xFFE2E8F0) else Color(0xFF334155)
+                        )
+                    }
+                }
+            } else if (trimmed.startsWith("_") && trimmed.endsWith("_")) {
+                val cleanItalic = trimmed.removeSurrounding("_", "_").trim()
+                Text(
+                    text = cleanItalic,
+                    style = MaterialTheme.typography.bodySmall.copy(
+                        fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
+                        lineHeight = 16.sp
+                    ),
+                    color = if (themeDark) Color(0xFFA78BFA).copy(alpha = 0.8f) else Color(0xFF6D28D9).copy(alpha = 0.8f),
+                    modifier = Modifier.padding(top = 10.dp, bottom = 4.dp)
+                )
+            } else {
+                val annotatedText = parseMarkdownLine(
+                    trimmed,
+                    defaultColor = if (themeDark) Color(0xFFE2E8F0) else Color(0xFF334155),
+                    boldColor = if (themeDark) Color.White else Color(0xFF111827)
+                )
+                Text(
+                    text = annotatedText,
+                    style = MaterialTheme.typography.bodyMedium.copy(lineHeight = 20.sp),
+                    color = if (themeDark) Color(0xFFE2E8F0) else Color(0xFF334155),
+                    modifier = Modifier.padding(vertical = 2.dp)
+                )
             }
         }
     }
@@ -1040,13 +1218,13 @@ fun DashboardScreen(
                             Spacer(modifier = Modifier.width(12.dp))
                             Column {
                                 Text(
-                                    text = "Uangku ML Analyst",
+                                    text = "Asisten Cerdas",
                                     fontWeight = FontWeight.Black,
                                     style = MaterialTheme.typography.titleMedium,
                                     color = if (themeDark) Color.White else Color(0xFF311062)
                                 )
                                 Text(
-                                    text = "Analisis Statistik & Model Regresi Lokal",
+                                    text = "Saran & Analisis Keuangan Otomatis",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = if (themeDark) Color(0xFFC084FC) else Color(0xFF6D28D9),
                                     fontSize = 10.sp,
@@ -1119,24 +1297,8 @@ fun DashboardScreen(
                                 )
                             }
                         } else {
-                            val displayText = summary ?: "Belum ada laporan statistik ML yang tersimpan. Tekan tombol putar di kanan atas untuk menghitung laporan baru secara real-time!"
-                            val primaryAccentColor = if (themeDark) Color(0xFFDDD6FE) else Color(0xFF6D28D9)
-                            val annotatedString = remember(displayText, themeDark) {
-                                parseMarkdownToAnnotatedString(displayText, primaryAccentColor)
-                            }
-
-                            val scrollState = androidx.compose.foundation.rememberScrollState()
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .verticalScroll(scrollState)
-                            ) {
-                                Text(
-                                    text = annotatedString,
-                                    style = MaterialTheme.typography.bodyMedium.copy(lineHeight = 22.sp),
-                                    color = if (themeDark) Color(0xFFE2E8F0) else Color(0xFF334155)
-                                )
-                            }
+                            val displayText = summary ?: "Belum ada laporan statistik asisten cerdas yang tersimpan. Tekan tombol putar di kanan atas untuk menghitung laporan baru secara real-time!"
+                            BeautifulMarkdownView(displayText, themeDark)
                         }
                     }
 

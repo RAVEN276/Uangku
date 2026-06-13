@@ -25,15 +25,13 @@ abstract class AppDatabase : RoomDatabase() {
 
         fun getDatabase(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
-                val instance = Room.databaseBuilder(
+                INSTANCE ?: Room.databaseBuilder(
                     context.applicationContext,
                     AppDatabase::class.java,
                     "uangku_database"
                 )
-                .fallbackToDestructiveMigration()
-                .build()
-                INSTANCE = instance
-                instance
+                .fallbackToDestructiveMigration(dropAllTables = true)
+                .build().also { INSTANCE = it }
             }
         }
     }

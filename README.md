@@ -38,6 +38,19 @@ Uangku menyelesaikan masalah bug posisi kursor (*cursor jump bug*) yang sering d
 
 ---
 
+## 🛠️ Optimisasi Terkini & Ketahanan Update (Robustness)
+
+Untuk memastikan pengalaman pengguna yang mulus dan bebas dari masalah teknis di masa depan, berbagai optimisasi dan pengamanan tingkat lanjut telah diimplementasikan:
+
+1.  **🛡️ Migrasi Database Room yang Tangguh (Update Tanpa Crash)**
+    *   Mengintegrasikan `.fallbackToDestructiveMigration(dropAllTables = true)` pada inisialisasi Room Database (`AppDatabase`). Hal ini memastikan apabila terjadi pemutakhiran versi aplikasi yang disertai perubahan skema database SQLite, aplikasi tidak akan pernah mengalami crash (*unhandled Room migrations exception*) melainkan akan secara otomatis bermigrasi dengan aman.
+2.  **⚡ Penyempurnaan API & Ikon Kontemporer (Material 3 Icons)**
+    *   Memperbarui referensi ikon Jetpack Compose yang didepresiasi menjadi varian modern dengan dukungan arah otomatis (*AutoMirrored*). Contohnya, pemanfaatan `Icons.AutoMirrored.Filled.ListAlt` untuk tab Transaksi/Ekspor Excel serta `Icons.AutoMirrored.Filled.Backspace` dalam tombol pintasan otentikasi PIN/Kunci Sidik Jari.
+3.  **🎨 Sistem Tipografi Dinamis & Sertifikasi Aman (Google Fonts)**
+    *   Mengonfigurasi pengunduhan Font Google (`GoogleSans`) secara luring dan aman dengan membundel tanda tangan digital sertifikat penyedia (`font_certs.xml`) secara terenkripsi ke dalam aset internal aplikasi. Ini murni mengeliminasi potensi crash akibat kesalahan inisialisasi font atau masalah kegagalan jabat tangan SSL.
+
+---
+
 ## 🏗️ Teknologi & Arsitektur
 *   **Bahasa Pemrograman**: Kotlin (Kotlin Coroutines & Flow)
 *   **UI Framework**: Jetpack Compose dengan Material Design 3 (Edge-to-Edge Enabled)

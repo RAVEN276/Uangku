@@ -10,9 +10,11 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -86,9 +88,28 @@ fun BudgetScreen(
 
     // Group expenses by category
     val expenses = transactions.filter { it.type == "EXPENSE" }
-    val totalExpenseSum = expenses.sumOf { it.amount }
-    val expensesByCategory = expenses.groupBy { it.category }
+    
+    // Filter expenses to current calendar month for monthly and category budgets
+    val currentMonthExpenses = expenses.filter { tx ->
+        val cal1 = java.util.Calendar.getInstance()
+        cal1.timeInMillis = tx.timestamp
+        val cal2 = java.util.Calendar.getInstance()
+        cal1.get(java.util.Calendar.YEAR) == cal2.get(java.util.Calendar.YEAR) &&
+        cal1.get(java.util.Calendar.MONTH) == cal2.get(java.util.Calendar.MONTH)
+    }
+    
+    val totalExpenseSum = currentMonthExpenses.sumOf { it.amount }
+    
+    val expensesByCategory = currentMonthExpenses.groupBy { it.category }
         .mapValues { (_, txs) -> txs.sumOf { it.amount } }
+
+    val todayExpenseSum = expenses.filter { tx ->
+        val cal1 = java.util.Calendar.getInstance()
+        cal1.timeInMillis = tx.timestamp
+        val cal2 = java.util.Calendar.getInstance()
+        cal1.get(java.util.Calendar.YEAR) == cal2.get(java.util.Calendar.YEAR) &&
+        cal1.get(java.util.Calendar.DAY_OF_YEAR) == cal2.get(java.util.Calendar.DAY_OF_YEAR)
+    }.sumOf { it.amount }
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -187,133 +208,16 @@ fun BudgetScreen(
             }
 
             if (activeTab == 0) {
-                // Overall budget if configured
+                // Overall and Daily budgets if configured
                 val overallBudget = budgets.find { it.category == "ALL" }
-                if (overallBudget != null) {
-                    item {
-                        val progressPercent = if (overallBudget.limitAmount > 0) {
-                            (totalExpenseSum / overallBudget.limitAmount * 100).toInt()
-                        } else {
-                            0
-                        }
+                val dailyBudget = budgets.find { it.category == "DAILY" }
 
+                if (overallBudget == null && dailyBudget == null) {
+                    item {
                         Card(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .testTag("overall_budget_card"),
-                            colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
-                            ),
-                            shape = RoundedCornerShape(24.dp)
-                        ) {
-                            Column(modifier = Modifier.padding(20.dp)) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Icon(
-                                            imageVector = Icons.Default.NotificationsActive,
-                                            contentDescription = "Notification",
-                                            tint = MaterialTheme.colorScheme.primary,
-                                            modifier = Modifier.size(24.dp)
-                                        )
-                                        Spacer(modifier = Modifier.width(8.dp))
-                                        Text(
-                                            text = "Limit Pengeluaran Bulanan",
-                                            style = MaterialTheme.typography.titleMedium,
-                                            fontWeight = FontWeight.Bold
-                                        )
-                                    }
-
-                                    IconButton(onClick = { viewModel.deleteBudget(overallBudget) }) {
-                                        Icon(
-                                            imageVector = Icons.Default.Delete,
-                                            contentDescription = "Hapus",
-                                            tint = MaterialTheme.colorScheme.error
-                                        )
-                                    }
-                                }
-
-                                Spacer(modifier = Modifier.height(16.dp))
-
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween
-                                ) {
-                                    Text(
-                                        text = "Terpakai: ${rubelFormat.format(totalExpenseSum).replace(",00", "")}",
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.onSurface
-                                    )
-                                    Text(
-                                        text = "Limit: ${rubelFormat.format(overallBudget.limitAmount).replace(",00", "")}",
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-
-                                Spacer(modifier = Modifier.height(10.dp))
-
-                                // Colored progress bar based on warnings
-                                val progressBarColor = if (progressPercent >= overallBudget.alertThresholdPercent) {
-                                    MaterialTheme.colorScheme.error
-                                } else if (progressPercent >= 50) {
-                                    Color(0xFFFFB74D) // Amber/Orange
-                                } else {
-                                    MaterialTheme.colorScheme.primary
-                                }
-
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .height(10.dp)
-                                        .clip(RoundedCornerShape(5.dp))
-                                        .background(MaterialTheme.colorScheme.surfaceVariant)
-                                ) {
-                                    val progressFraction = if (overallBudget.limitAmount > 0) {
-                                        (totalExpenseSum / overallBudget.limitAmount).toFloat().coerceIn(0f, 1f)
-                                    } else {
-                                        0f
-                                    }
-                                    Box(
-                                        modifier = Modifier
-                                            .fillMaxWidth(progressFraction)
-                                            .fillMaxSize()
-                                            .background(progressBarColor)
-                                    )
-                                }
-
-                                Spacer(modifier = Modifier.height(8.dp))
-
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween
-                                ) {
-                                    Text(
-                                        text = "Porsi penggunaan: $progressPercent%",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = if (progressPercent >= overallBudget.alertThresholdPercent) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
-                                        fontWeight = FontWeight.Bold
-                                    )
-
-                                    Text(
-                                        text = "Notifikasi aktif pada ${overallBudget.alertThresholdPercent}%",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        fontSize = 11.sp
-                                    )
-                                }
-                            }
-                        }
-                    }
-                } else {
-                    item {
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
+                                .testTag("empty_budget_placeholder"),
                             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                             shape = RoundedCornerShape(16.dp),
                             border = CardDefaults.outlinedCardBorder()
@@ -325,8 +229,254 @@ fun BudgetScreen(
                                 Icon(imageVector = Icons.Default.Info, contentDescription = "Info", tint = MaterialTheme.colorScheme.primary)
                                 Spacer(modifier = Modifier.width(12.dp))
                                 Column {
-                                    Text("Batas Bulanan Kosong", fontWeight = FontWeight.Bold)
-                                    Text("Kamu belum menyetel limit total pengeluaran belanja.", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    Text("Batas Pengeluaran Kosong", fontWeight = FontWeight.Bold)
+                                    Text("Kamu belum menyetel limit total pengeluaran belanja bulanan atau harian.", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    if (overallBudget != null) {
+                        item {
+                            val progressPercent = if (overallBudget.limitAmount > 0) {
+                                (totalExpenseSum / overallBudget.limitAmount * 100).toInt()
+                            } else {
+                                0
+                            }
+
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .testTag("overall_budget_card"),
+                                colors = CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+                                ),
+                                shape = RoundedCornerShape(24.dp)
+                            ) {
+                                Column(modifier = Modifier.padding(20.dp)) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Icon(
+                                                imageVector = Icons.Default.NotificationsActive,
+                                                contentDescription = "Notification",
+                                                tint = MaterialTheme.colorScheme.primary,
+                                                modifier = Modifier.size(24.dp)
+                                            )
+                                            Spacer(modifier = Modifier.width(8.dp))
+                                            Text(
+                                                text = "Limit Pengeluaran Bulanan",
+                                                style = MaterialTheme.typography.titleMedium,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        }
+
+                                        IconButton(onClick = { viewModel.deleteBudget(overallBudget) }) {
+                                            Icon(
+                                                imageVector = Icons.Default.Delete,
+                                                contentDescription = "Hapus",
+                                                tint = MaterialTheme.colorScheme.error
+                                            )
+                                        }
+                                    }
+
+                                    Spacer(modifier = Modifier.height(16.dp))
+
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Text(
+                                            text = "Terpakai: ${rubelFormat.format(totalExpenseSum).replace(",00", "")}",
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        )
+                                        Text(
+                                            text = "Limit: ${rubelFormat.format(overallBudget.limitAmount).replace(",00", "")}",
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+
+                                    Spacer(modifier = Modifier.height(10.dp))
+
+                                    // Colored progress bar based on warnings
+                                    val progressBarColor = if (progressPercent >= overallBudget.alertThresholdPercent) {
+                                        MaterialTheme.colorScheme.error
+                                    } else if (progressPercent >= 50) {
+                                        Color(0xFFFFB74D) // Amber/Orange
+                                    } else {
+                                        MaterialTheme.colorScheme.primary
+                                    }
+
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(10.dp)
+                                            .clip(RoundedCornerShape(5.dp))
+                                            .background(MaterialTheme.colorScheme.surfaceVariant)
+                                    ) {
+                                        val progressFraction = if (overallBudget.limitAmount > 0) {
+                                            (totalExpenseSum / overallBudget.limitAmount).toFloat().coerceIn(0f, 1f)
+                                        } else {
+                                            0f
+                                        }
+                                        Box(
+                                            modifier = Modifier
+                                                .fillMaxWidth(progressFraction)
+                                                .fillMaxSize()
+                                                .background(progressBarColor)
+                                        )
+                                    }
+
+                                    Spacer(modifier = Modifier.height(8.dp))
+
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Text(
+                                            text = "Porsi penggunaan: $progressPercent%",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = if (progressPercent >= overallBudget.alertThresholdPercent) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
+                                            fontWeight = FontWeight.Bold
+                                        )
+
+                                        Text(
+                                            text = "Notifikasi aktif pada ${overallBudget.alertThresholdPercent}%",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            fontSize = 11.sp
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    if (dailyBudget != null) {
+                        item {
+                            val progressPercentDaily = if (dailyBudget.limitAmount > 0) {
+                                (todayExpenseSum / dailyBudget.limitAmount * 100).toInt()
+                            } else {
+                                0
+                            }
+
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                        .testTag("daily_budget_card"),
+                                    colors = CardDefaults.cardColors(
+                                        containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.3f)
+                                    ),
+                                shape = RoundedCornerShape(24.dp)
+                            ) {
+                                Column(modifier = Modifier.padding(20.dp)) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Icon(
+                                                imageVector = Icons.Default.AddAlert,
+                                                contentDescription = "Alert",
+                                                tint = MaterialTheme.colorScheme.secondary,
+                                                modifier = Modifier.size(24.dp)
+                                            )
+                                            Spacer(modifier = Modifier.width(8.dp))
+                                            Text(
+                                                text = "Limit Pengeluaran Harian",
+                                                style = MaterialTheme.typography.titleMedium,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        }
+
+                                        IconButton(onClick = { viewModel.deleteBudget(dailyBudget) }) {
+                                            Icon(
+                                                imageVector = Icons.Default.Delete,
+                                                contentDescription = "Hapus",
+                                                tint = MaterialTheme.colorScheme.error
+                                            )
+                                        }
+                                    }
+
+                                    Spacer(modifier = Modifier.height(16.dp))
+
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Text(
+                                            text = "Hari ini: ${rubelFormat.format(todayExpenseSum).replace(",00", "")}",
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        )
+                                        Text(
+                                            text = "Limit: ${rubelFormat.format(dailyBudget.limitAmount).replace(",00", "")}",
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+
+                                    Spacer(modifier = Modifier.height(10.dp))
+
+                                    // Colored progress bar based on warnings
+                                    val progressBarColorDaily = if (progressPercentDaily >= dailyBudget.alertThresholdPercent) {
+                                        MaterialTheme.colorScheme.error
+                                    } else if (progressPercentDaily >= 50) {
+                                        Color(0xFFFFB74D) // Amber/Orange
+                                    } else {
+                                        MaterialTheme.colorScheme.secondary
+                                    }
+
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(10.dp)
+                                            .clip(RoundedCornerShape(5.dp))
+                                            .background(MaterialTheme.colorScheme.surfaceVariant)
+                                    ) {
+                                        val progressFractionDaily = if (dailyBudget.limitAmount > 0) {
+                                            (todayExpenseSum / dailyBudget.limitAmount).toFloat().coerceIn(0f, 1f)
+                                        } else {
+                                            0f
+                                        }
+                                        Box(
+                                            modifier = Modifier
+                                                .fillMaxWidth(progressFractionDaily)
+                                                .fillMaxSize()
+                                                .background(progressBarColorDaily)
+                                        )
+                                    }
+
+                                    Spacer(modifier = Modifier.height(8.dp))
+
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Text(
+                                            text = "Porsi penggunaan: $progressPercentDaily%",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = if (progressPercentDaily >= dailyBudget.alertThresholdPercent) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
+                                            fontWeight = FontWeight.Bold
+                                        )
+
+                                        Text(
+                                            text = "Notifikasi aktif pada ${dailyBudget.alertThresholdPercent}%",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            fontSize = 11.sp
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -343,7 +493,7 @@ fun BudgetScreen(
                     )
                 }
 
-                val categoryBudgets = budgets.filter { it.category != "ALL" }
+                val categoryBudgets = budgets.filter { it.category != "ALL" && it.category != "DAILY" }
                 if (categoryBudgets.isEmpty()) {
                     item {
                         Text(
@@ -524,18 +674,23 @@ fun BudgetScreen(
 
     // Modal dialogue limit set up
     if (showAddBudgetDialog) {
-        var categoryChoice by remember { mutableStateOf("ALL") }
-        var limitInput by remember { mutableStateOf("") }
-        var alertPercentInput by remember { mutableStateOf("80") }
+        val hasMonthly = budgets.any { it.category == "ALL" }
+        val hasDaily = budgets.any { it.category == "DAILY" }
 
-        val catsOptions = listOf(
-            "ALL" to "Total Belanja Bulanan",
+        val catsOptions = listOfNotNull(
+            if (!hasMonthly) "ALL" to "Total Belanja Bulanan" else null,
+            if (!hasDaily) "DAILY" to "Total Belanja Harian" else null,
             "Makanan" to "Makanan",
             "Belanja" to "Belanja",
             "Transportasi" to "Transportasi",
             "Sewa" to "Sewa",
             "Lainnya" to "Lainnya"
         )
+
+        val initialChoice = remember(catsOptions) { catsOptions.firstOrNull()?.first ?: "Makanan" }
+        var categoryChoice by remember(catsOptions) { mutableStateOf(initialChoice) }
+        var limitInput by remember { mutableStateOf("") }
+        var alertPercentInput by remember { mutableStateOf("80") }
 
         Dialog(onDismissRequest = { showAddBudgetDialog = false }) {
             Surface(
@@ -556,8 +711,14 @@ fun BudgetScreen(
 
                     Text("Pilih Target Kategori:", fontWeight = FontWeight.Bold, fontSize = 12.sp)
 
-                    // Simple select choices
-                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    // Scrollable select choices to avoid keyboard overlap / small display bugs
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 180.dp)
+                            .verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
                         catsOptions.forEach { (valStr, choiceLabel) ->
                             val isSelected = categoryChoice == valStr
                             Box(
