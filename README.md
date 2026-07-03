@@ -10,7 +10,7 @@ Uangku adalah solusi manajemen keuangan pribadi (*personal finance manager*) ber
 
 ---
 
-## Matriks Fitur & Kapabilitas Sistem
+### Matriks Fitur & Kapabilitas Sistem
 
 | Modul Fitur | Deskripsi Fungsional | Komponen Teknis Utama | Dampak bagi Pengguna |
 | :--- | :--- | :--- | :--- |
@@ -19,10 +19,13 @@ Uangku adalah solusi manajemen keuangan pribadi (*personal finance manager*) ber
 | **Rupiah Input Formatter** | Pengetikan nominal keuangan yang aman, bebas dari kesalahan visualisasi ribu maupun gangguan lompatan kursor. | `RupiahVisualTransformation` | Pengalaman input nilai uang yang lancar, intuitif, dan bebas bug posisi kursor. |
 | **Visualisasi Komprehensif** | Pemetaan kategori pengeluaran dan kurva perbandingan pendapatan secara informatif. | Donut & Line Chart berbasis Canvas & Jetpack Compose | Pemahaman instan mengenai alokasi dana terbesar dan rasio tabungan. |
 | **Ekspor Laporan Resmi** | Penyediaan dokumen laporan ringkasan dalam format portabel dan tabel pengolah data. | PDF Document Canvas generator & CSV Exporter | Dokumentasi keuangan terlaporkan yang siap diarsipkan atau diolah di Excel. |
+| **Tantangan Menabung & Gamifikasi** (v2.0) | Program menabung interaktif harian/mingguan terstruktur dengan sistem apresiasi lencana virtual (*Virtual Badges*). | `SavingChallenge` & `VirtualBadge` engine with dynamic custom Dialogs | Membangun kedisiplinan dan kebiasaan menabung yang positif secara menyenangkan. |
+| **Kalender Tagihan Interaktif** (v2.0) | Kalender visual pengatur jadwal penarikan tagihan rutin bulanan (langganan, listrik, WiFi) dengan indikator visual. | Custom Calendar Grid Composables & `RecurringBill` entity | Menghindari keterlambatan denda pembayaran tagihan lewat pengawasan tanggal jatuh tempo yang presisi. |
+| **Notifikasi Pengingat Lokal** (v2.0) | Pengiriman sinyal pengingat lokal secara otomatis saat mendekati tanggal jatuh tempo pembayaran tanpa memerlukan server cloud. | `NotificationCompat.Builder`, `POST_NOTIFICATIONS` runtime checks | Jaminan ketepatan waktu membayar tagihan tanpa mengompromikan privasi data. |
 
 ---
 
-## Deskripsi Teknis Arsitektur & Fitur
+## Deskripsi Teknis Arsitektur & Fitur Terbaru (v2.0)
 
 ### 1. Deteksi Mutasi Latar Belakang Terintegrasi
 Subsistem pendeteksi mutasi bekerja pada tingkat sistem operasi untuk menangkap intensitas notifikasi keuangan:
@@ -43,6 +46,16 @@ Guna mempertahankan pengalaman pengguna yang mulus pada formulir pengisian data 
 *   **Pencegahan Cursor Jumping**: Transformasi visual merombak letak indeks teks tanpa mengubah nilai asli string dalam variabel *state* ( pure numeric digits). Penempatan kursor, penghapusan pertengahan karakter, dan pengeditan angka dapat dilakukan secara presisi tanpa lemparan posisi kursor ke ujung kanan masukan.
 *   **Validasi Masukan Statis**: Membatasi input karakter non-numerik melalui pembatasan level keyboard sistem untuk menjamin kepatuhan tipe data database sebelum kompilasi kueri SQLite.
 
+### 4. Tantangan Finansial Interaktif & Lemari Lencana Virtual (v2.0)
+Untuk mendorong kebiasaan menyisihkan uang yang konsisten, Uangku memperkenalkan modul gamifikasi:
+*   **Sistem Check-In Progresif**: Pengguna dapat berpartisipasi dalam tantangan menabung terstruktur dengan nominal tetap (misalnya *Tantangan Jumat Berkah* atau *Anti Jajan Kopi Boba*). Setiap check-in secara otomatis memotong saldo dompet utama dan menambah saldo tujuan tabungan terkait.
+*   **Apresiasi Lencana Virtual**: Dilengkapi dengan lemari lencana digital (*Virtual Badges Cabinet*) yang akan terbuka secara real-time saat pengguna berhasil menyentuh pencapaian finansial tertentu. Inovasi ini menyertakan dialog visual khusus interaktif sewaktu lencana berhasil diklaim.
+
+### 5. Pengatur Jadwal & Notifikasi Tagihan Rutin (v2.0)
+Meminimalkan beban kognitif pengelolaan tagihan berkala secara offline penuh:
+*   **Visualisasi Grid Kalender**: Lembar kalender khusus yang menyoroti tanggal-tanggal jatuh tempo tagihan aktif secara interaktif dengan indikasi titik pink penanda urgensi.
+*   **Sistem Pengingat Lokal Cerdas**: Melakukan pengecekan tagihan secara asinkron setiap kali aplikasi dibuka, lalu meluncurkan notifikasi lokal pada perangkat (H-3, H-1, dan hari-H) dengan dukungan kepatuhan izin dinamis Android 13+ (`POST_NOTIFICATIONS`).
+
 ---
 
 ## Ketahanan Sistem & Strategi Pemeliharaan Versi (Robustness)
@@ -50,10 +63,10 @@ Guna mempertahankan pengalaman pengguna yang mulus pada formulir pengisian data 
 Guna menjamin stabilitas fungsionalitas sistem saat pengguna melakukan pembaruan versi jangka panjang, arsitektur data Uangku mengadopsi tiga lapisan pengamanan internal:
 
 ```
-[ Pembaruan Versi Aplikasi ] 
+[ Pembaruan Versi Aplikasi (v2.0) ] 
          │
-         ├──► 1. Pelindung Room Database (Fallback Mutasi)
-         │       └─► .fallbackToDestructiveMigration(dropAllTables = true) -> Aplikasi bebas dari Crash Tabel Lunak.
+         ├──► 1. Pelindung Room Database (Migrasi Aman MIGRATION_1_2)
+         │       └─► Menghindari kehilangan data transaksi v1.0 saat memperbarui skema tabel baru.
          │
          ├──► 2. Kompatibilitas Ikonik Berkelanjutan
          │       └─► Integrasi Icons.AutoMirrored -> Mencegah visual terpotong pada format RTL/LTR.
@@ -62,18 +75,53 @@ Guna menjamin stabilitas fungsionalitas sistem saat pengguna melakukan pembaruan
                  └─► Integrasi xml font_certs.xml -> Menghindari kegagalan inisialisasi font akibat kegagalan jabat tangan SSL.
 ```
 
-### 1. Migrasi Basis Data Room yang Tangguh
-Database Room diinisialisasi melalui parameter pengamanan berikut untuk mengantisipasi konflik struktur tabel di masa depan:
+### 1. Migrasi Basis Data Room yang Tangguh (Update Tanpa Kehilangan Data)
+Sebelumnya, skema database menggunakan penghapusan destruktif saat terjadi perubahan tabel. Di versi 2.0 ini, kami menerapkan jalur migrasi `Migration(1, 2)` resmi untuk memperbarui tabel secara aman dan mempertahankan 100% data riwayat transaksi pengguna:
+
+```kotlin
+val MIGRATION_1_2 = object : Migration(1, 2) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS `saving_goals` (
+                `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, 
+                `title` TEXT NOT NULL, 
+                `targetAmount` REAL NOT NULL, 
+                `currentAmount` REAL NOT NULL, 
+                `targetDate` TEXT NOT NULL, 
+                `category` TEXT NOT NULL
+            )
+            """.trimIndent()
+        )
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS `recurring_bills` (
+                `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, 
+                `title` TEXT NOT NULL, 
+                `amount` REAL NOT NULL, 
+                `category` TEXT NOT NULL, 
+                `billingCycle` TEXT NOT NULL, 
+                `dueDate` TEXT NOT NULL, 
+                `lastClaimedTimestamp` INTEGER NOT NULL DEFAULT 0
+            )
+            """.trimIndent()
+        )
+    }
+}
+```
+
+Database Room kemudian diinisialisasi melalui konfigurasi perlindungan ganda ini:
 ```kotlin
 Room.databaseBuilder(
     context.applicationContext,
     AppDatabase::class.java,
     "uangku_database"
 )
-.fallbackToDestructiveMigration(dropAllTables = true)
+.addMigrations(MIGRATION_1_2)
+.fallbackToDestructiveMigration()
 .build()
 ```
-*Dampak Mekanisme*: Apabila terjadi pembaruan skema data (misalnya penambahan tabel anggaran, tujuan tabungan, atau perbaikan atribut) pada update versi aplikasi berikutnya, sistem akan mengoordinasikan migrasi baru secara instan tanpa menghentikan paksa aplikasi (*migration crash avoidance*).
+*Dampak Mekanisme*: Saat pengguna melakukan update dari versi 1.0 ke versi 2.0, Room akan mengeksekusi `MIGRATION_1_2` untuk menambahkan tabel `saving_goals` dan `recurring_bills` secara mulus tanpa memicu penghapusan data atau *crash* aplikasi.
 
 ### 2. Standardisasi Ikonik Fleksibel (Material 3 AutoMirrored)
 Seluruh tombol navigasi dan aksi interaktif yang memiliki ketergantungan arah pelacakan visual telah diperbarui ke standar Material 3 terbaru:
@@ -101,10 +149,10 @@ app/src/main/java/com/example/
 │
 ├── data/                    # Lapisan Persistensi Data (Offline Storage)
 │   ├── db/                  # Konfigurasi Basis Data SQLite Room (Entity, DAO, Database)
-│   └── model/               # Entitas Finansial (Transaksi, Anggaran, Tabungan)
+│   └── model/               # Entitas Finansial (Transaksi, Anggaran, Tabungan, Tagihan)
 │
 ├── service/                 # Komputasi background dan Mesin Matematika
-│   ├── NotificationService  # NotificationListenerService penangkap mutasi
+│   ├── NotificationService  # NotificationListenerService penangkap mutasi otomatis
 │   └── LocalFinanceMLEngine # Komputasi Regresi Linear & Deteksi Anomali Statistik
 │
 ├── ui/                      # Lapisan Presentasi Antarmuka (Jetpack Compose)
