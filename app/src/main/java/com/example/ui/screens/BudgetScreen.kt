@@ -38,6 +38,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -56,6 +57,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import com.example.ui.components.RupiahVisualTransformation
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.ui.draw.alpha
 import androidx.compose.material.icons.filled.Savings
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowUpward
@@ -73,13 +75,21 @@ fun BudgetScreen(
     viewModel: FinanceViewModel,
     modifier: Modifier = Modifier
 ) {
-    val budgets by viewModel.allBudgets.collectAsState()
-    val transactions by viewModel.allTransactions.collectAsState()
-    val savingGoals by viewModel.allSavingGoals.collectAsState()
-    val totalBalance by viewModel.totalBalance.collectAsState()
-    val themeDark by viewModel.themeDark.collectAsState()
+    val budgets by viewModel.allBudgets.collectAsStateWithLifecycle()
+    val transactions by viewModel.allTransactions.collectAsStateWithLifecycle()
+    val savingGoals by viewModel.allSavingGoals.collectAsStateWithLifecycle()
+    val totalBalance by viewModel.totalBalance.collectAsStateWithLifecycle()
+    val themeDark by viewModel.themeDark.collectAsStateWithLifecycle()
 
-    var activeTab by remember { mutableStateOf(0) } // 0 = Anggaran, 1 = Target Menabung
+    val savingChallenges by viewModel.savingChallenges.collectAsStateWithLifecycle()
+    val virtualBadges by viewModel.virtualBadges.collectAsStateWithLifecycle()
+    val showBadgeUnlockDialog by viewModel.showBadgeUnlockDialog.collectAsStateWithLifecycle()
+
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        viewModel.loadSavingChallengesAndBadges()
+    }
+
+    var activeTab by remember { mutableStateOf(0) } // 0 = Anggaran, 1 = Target Menabung, 2 = Tantangan
     var showAddBudgetDialog by remember { mutableStateOf(false) }
     var showAddSavingGoalDialog by remember { mutableStateOf(false) }
 
@@ -152,13 +162,13 @@ fun BudgetScreen(
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(
-                        text = if (activeTab == 0) "Anggaran & Alarm" else "Target Menabung",
+                        text = if (activeTab == 0) "Anggaran & Alarm" else if (activeTab == 1) "Target Menabung" else "Tantangan & Lencana",
                         style = MaterialTheme.typography.headlineMedium,
                         fontWeight = FontWeight.Black,
                         color = MaterialTheme.colorScheme.onSurface
                     )
                     Text(
-                        text = if (activeTab == 0) "Atur sasaran pengeluaran bulanan agar terhindar dari pemborosan berlebih." else "Lacak kemajuan menabung Anda untuk membeli barang atau tujuan impian.",
+                        text = if (activeTab == 0) "Atur sasaran pengeluaran bulanan agar terhindar dari pemborosan berlebih." else if (activeTab == 1) "Lacak kemajuan menabung Anda untuk membeli barang atau tujuan impian." else "Tantangan menabung interaktif seru untuk membangun kebiasaan finansial positif secara menyenangkan.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -192,7 +202,7 @@ fun BudgetScreen(
                         modifier = Modifier.weight(1f),
                         contentPadding = PaddingValues(vertical = 8.dp)
                     ) {
-                        Text("Batas Anggaran", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                        Text("Anggaran", fontWeight = FontWeight.Bold, fontSize = 11.sp)
                     }
 
                     Button(
@@ -202,7 +212,17 @@ fun BudgetScreen(
                         modifier = Modifier.weight(1f),
                         contentPadding = PaddingValues(vertical = 8.dp)
                     ) {
-                        Text("Target Menabung", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                        Text("Target", fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                    }
+
+                    Button(
+                        onClick = { activeTab = 2 },
+                        colors = if (activeTab == 2) activeBtnColor else inactiveBtnColor,
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.weight(1f),
+                        contentPadding = PaddingValues(vertical = 8.dp)
+                    ) {
+                        Text("Tantangan", fontWeight = FontWeight.Bold, fontSize = 11.sp)
                     }
                 }
             }
@@ -505,7 +525,7 @@ fun BudgetScreen(
                         )
                     }
                 } else {
-                    items(categoryBudgets, key = { it.category }) { budget ->
+                    items(categoryBudgets, key = { "budget_${it.category}" }) { budget ->
                         val spentOnCategory = expensesByCategory[budget.category] ?: 0.0
                         val percent = if (budget.limitAmount > 0) {
                             (spentOnCategory / budget.limitAmount * 100).toInt()
@@ -617,7 +637,7 @@ fun BudgetScreen(
                         }
                     }
                 }
-            } else {
+            } else if (activeTab == 1) {
                 if (savingGoals.isEmpty()) {
                     item {
                         Card(
@@ -655,13 +675,240 @@ fun BudgetScreen(
                         }
                     }
                 } else {
-                    items(savingGoals, key = { it.id }) { goal ->
+                    items(savingGoals, key = { "goal_${it.id}" }) { goal ->
                         SavingGoalCard(
                             goal = goal,
                             rubelFormat = rubelFormat,
                             currentBalance = totalBalance,
                             onDelete = { viewModel.deleteSavingGoal(goal) }
                         )
+                    }
+                }
+            } else {
+                // TAB 2: Saving Challenges & Badges
+                item {
+                    Text(
+                        text = "Tantangan Menabung Finansial",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(top = 8.dp)
+                    )
+                }
+
+                if (savingChallenges.isEmpty()) {
+                    item {
+                        Text(
+                            text = "Memuat tantangan...",
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                } else {
+                    items(savingChallenges, key = { "challenge_${it.id}" }) { challenge ->
+                        val isChCompleted = challenge.status == "COMPLETED"
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("challenge_card_${challenge.id}"),
+                            colors = CardDefaults.cardColors(
+                                containerColor = if (isChCompleted) {
+                                    MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f)
+                                } else {
+                                    MaterialTheme.colorScheme.surface
+                                }
+                            ),
+                            shape = RoundedCornerShape(16.dp),
+                            border = CardDefaults.outlinedCardBorder()
+                        ) {
+                            Column(modifier = Modifier.padding(16.dp)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = challenge.title,
+                                            fontWeight = FontWeight.Bold,
+                                            style = MaterialTheme.typography.titleSmall,
+                                            color = if (isChCompleted) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface
+                                        )
+                                        Text(
+                                            text = "📅 " + challenge.scheduleText,
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Medium,
+                                            color = MaterialTheme.colorScheme.primary
+                                        )
+                                    }
+                                    if (isChCompleted) {
+                                        Box(
+                                            modifier = Modifier
+                                                .background(Color(0xFFE8F5E9), RoundedCornerShape(8.dp))
+                                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                                        ) {
+                                            Text(
+                                                text = "Selesai 🎉",
+                                                color = Color(0xFF2E7D32),
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 11.sp
+                                            )
+                                        }
+                                    } else {
+                                        Button(
+                                            onClick = { viewModel.checkInChallenge(challenge.id, context = viewModel.getApplication()) },
+                                            modifier = Modifier
+                                                .testTag("checkin_button_${challenge.id}"),
+                                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                                            shape = RoundedCornerShape(8.dp)
+                                        ) {
+                                            Text("Check-In", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                        }
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(8.dp))
+
+                                Text(
+                                    text = challenge.description,
+                                    fontSize = 11.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    lineHeight = 14.sp
+                                )
+
+                                Spacer(modifier = Modifier.height(12.dp))
+
+                                val progressFraction = challenge.currentProgress.toFloat() / challenge.targetProgress.toFloat()
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = "Check-in: ${challenge.currentProgress}/${challenge.targetProgress}",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                    Text(
+                                        text = "Target: " + rubelFormat.format(challenge.targetAmount).replace(",00", ""),
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+
+                                Spacer(modifier = Modifier.height(6.dp))
+
+                                LinearProgressIndicator(
+                                    progress = { progressFraction.coerceIn(0f, 1f) },
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(8.dp)
+                                        .clip(RoundedCornerShape(4.dp)),
+                                    color = if (isChCompleted) Color(0xFF4CAF50) else MaterialTheme.colorScheme.primary,
+                                    trackColor = MaterialTheme.colorScheme.surfaceVariant
+                                )
+
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = "Menabung " + rubelFormat.format(challenge.amountPerCheckIn).replace(",00", "") + " setiap kali check-in.",
+                                    fontSize = 10.sp,
+                                    color = MaterialTheme.colorScheme.outline
+                                )
+                            }
+                        }
+                    }
+                }
+
+                item {
+                    Text(
+                        text = "Lemari Lencana Anda 🏆",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(top = 16.dp, bottom = 8.dp)
+                    )
+                }
+
+                item {
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        val chunkedBadges = virtualBadges.chunked(2)
+                        chunkedBadges.forEach { rowBadges ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                rowBadges.forEach { badge ->
+                                    Card(
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .testTag("badge_card_${badge.id}"),
+                                        colors = CardDefaults.cardColors(
+                                            containerColor = if (badge.isUnlocked) {
+                                                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.25f)
+                                            } else {
+                                                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.15f)
+                                            }
+                                        ),
+                                        shape = RoundedCornerShape(16.dp),
+                                        border = CardDefaults.outlinedCardBorder()
+                                    ) {
+                                        Column(
+                                            modifier = Modifier.padding(12.dp),
+                                            horizontalAlignment = Alignment.CenterHorizontally,
+                                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                                        ) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(48.dp)
+                                                    .background(
+                                                        if (badge.isUnlocked) MaterialTheme.colorScheme.primary.copy(alpha = 0.12f) else Color.Transparent,
+                                                        androidx.compose.foundation.shape.CircleShape
+                                                    ),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                Text(
+                                                    text = badge.icon,
+                                                    fontSize = 28.sp,
+                                                    modifier = Modifier.alpha(if (badge.isUnlocked) 1f else 0.35f)
+                                                )
+                                            }
+                                            
+                                            Text(
+                                                text = badge.name,
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 11.sp,
+                                                textAlign = TextAlign.Center,
+                                                color = if (badge.isUnlocked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                            
+                                            Text(
+                                                text = badge.description,
+                                                fontSize = 9.sp,
+                                                lineHeight = 11.sp,
+                                                textAlign = TextAlign.Center,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                modifier = Modifier.heightIn(min = 36.dp)
+                                            )
+                                            
+                                            Text(
+                                                text = if (badge.isUnlocked) "🔓 Terbuka!" else "🔒 " + badge.unlockProgressText,
+                                                fontSize = 9.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = if (badge.isUnlocked) Color(0xFF388E3C) else MaterialTheme.colorScheme.outline
+                                            )
+                                        }
+                                    }
+                                }
+                                if (rowBadges.size < 2) {
+                                    Spacer(modifier = Modifier.weight(1f))
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -911,6 +1158,63 @@ fun BudgetScreen(
                         ) {
                             Text("Buat Rencana")
                         }
+                    }
+                }
+            }
+        }
+    }
+
+    if (showBadgeUnlockDialog != null) {
+        val badge = showBadgeUnlockDialog!!
+        androidx.compose.ui.window.Dialog(onDismissRequest = { viewModel.dismissBadgeUnlockDialog() }) {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                shape = RoundedCornerShape(24.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                border = CardDefaults.outlinedCardBorder()
+            ) {
+                Column(
+                    modifier = Modifier.padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    Text(
+                        text = "🎉 SELAMAT! 🎉",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    
+                    Box(
+                        modifier = Modifier
+                            .size(100.dp)
+                            .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f), androidx.compose.foundation.shape.CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(text = badge.icon, fontSize = 56.sp)
+                    }
+                    
+                    Text(
+                        text = "Lencana Terbuka: ${badge.name}",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        textAlign = TextAlign.Center
+                    )
+                    
+                    Text(
+                        text = badge.description,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center
+                    )
+                    
+                    Button(
+                        onClick = { viewModel.dismissBadgeUnlockDialog() },
+                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
+                    ) {
+                        Text("Klaim & Bagikan", fontWeight = FontWeight.Bold)
                     }
                 }
             }

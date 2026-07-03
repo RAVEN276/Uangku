@@ -30,11 +30,13 @@ Subsistem pendeteksi mutasi bekerja pada tingkat sistem operasi untuk menangkap 
 *   **Dukungan Multi-Ecosystem**: Mengenali struktur kalimat transaksi dari SMS token, notifikasi bank (BCA, Mandiri, BRI, BNI), serta dompet digital (OVO, GoPay, ShopeePay, Dana).
 *   **Privacy-by-Design**: Operasi sepenuhnya berjalan di ranah memori internal sistem operasi Android perangkat lokal. Tidak ada data finansial yang dikirimkan ke server eksternal mana pun, mematuhi standar kedaulatan data pengguna secara penuh.
 
-### 2. Komputasi Prediktif & Analisis Statistik Lokal (ML Analyst)
-Mesin analisis statistik Uangku menggunakan estimasi matematis objektif untuk menyusun wawasan proyeksi keuangan:
-*   **Model Regresi Linier**: Menggunakan koordinat historis pengeluaran harian ($X$: Hari ke-n, $Y$: Akumulasi Pengeluaran) untuk menghitung rumus garis regresi $Y = a + bX$. Pendekatan ini menganalisis tingkat konsumsi harian (*burn rate*) untuk memetakan sisa likuiditas di akhir bulan.
-*   **Deteksi Anomali Transaksi**: Mengidentifikasi nilai pengeluaran tunggal yang melampaui rentang batas atas baku deviasi pengeluaran harian rata-rata.
-*   **Rekomendasi Kontrol Anggaran**: Menyusun rekomendasi pengetatan dana bagi kategori-kategori yang mengalami laju belanja abnormal (melampaui target alokasi anggaran bulanan).
+### 2. Komputasi Prediktif & Analisis Statistik Lokal (ML Analyst v2)
+Mesin analisis statistik Uangku dirancang sebagai sistem keuangan hibrida Tier 1 (pemodelan statistik canggih) dan Tier 3 (NLP ringan & klastering K-Means lokalan) untuk menyusun estimasi keuangan presisi secara luring sepenuhnya:
+*   **Model Peramalan Tren Linear Ganda (Holt's Double Exponential Smoothing)**: Menggantikan pengamatan linear dasar dengan algoritme peramalan deret waktu (*time-series forecasting*) dinamis untuk menganalisis level ($L_t$) dan kecenderungan tren ($T_t$) aktivitas pengeluaran pengguna selama 4 minggu terakhir guna memprediksi belanja 7 hari ke depan secara matematis.
+*   **Segmentasi Perilaku Belanja (K-Means Clustering - K=3)**: Algoritme klastering spasial mandiri yang mengelompokkan seluruh riwayat pengeluaran ke dalam tiga klaster kualitatif: *Transaksi Mikro & Rutin*, *Belanja Lifestyle & Sekunder*, dan *Pengeluaran Makro & Utama* berdasarkan sebaran spasial nominal pengeluaran harian.
+*   **Skor Kesehatan Finansial (Financial Health Score - FHS)**: Formulasi matematis komprehensif berskala 0–100 untuk mengukur kebugaran anggaran pengguna dengan mempertimbangkan laju konsumsi kas (*daily burn rate*), rasio tabungan, sensitivitas anomali, dan konsentrasi pengeluaran.
+*   **Deteksi Anomali Kuat Berbasis Interquartile Range (IQR)**: Pengganti metode standar deviasi (Z-Score) umum yang rentan bias akibat bias data ekstrim (*non-skewed robustness*). Menentukan deviasi anomali secara presisi menggunakan batas atas kuartil ketiga ($Q3 + 1.5 \times IQR$).
+*   **Prediktor Kategori Otomatis NLP Lokal**: Mesin pengenalan pola deskripsi transaksi berbasis probabilitas frekuensi token (TF-IDF inspired) yang dapat secara otomatis meramalkan dan menyarankan pilihan kategori transaksi yang relevan ketika pengguna sedang mengetik deskripsi baru di antarmuka dialog masukan.
 
 ### 3. Solusi Antarmuka RupiahVisualTransformation
 Guna mempertahankan pengalaman pengguna yang mulus pada formulir pengisian data numerik, Uangku memanfaatkan pemetaan visual kustom:

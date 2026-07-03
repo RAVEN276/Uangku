@@ -11,6 +11,7 @@ import com.example.data.model.Budget
 import com.example.data.model.Transaction
 import com.example.data.model.SavingGoal
 import com.example.data.model.RecurringBill
+import com.example.data.model.getCleanTitle
 import com.example.data.repository.FinanceRepository
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -34,9 +35,11 @@ import java.util.Date
 import java.util.Locale
 import android.graphics.Paint
 import android.graphics.Canvas
+import android.graphics.RectF
 import android.graphics.pdf.PdfDocument
 import java.io.FileOutputStream
 import java.io.ByteArrayOutputStream
+import java.util.Calendar
 import com.example.service.LocalFinanceMLEngine
 
 class FinanceViewModel(application: Application) : AndroidViewModel(application) {
@@ -78,6 +81,9 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
 
     private val _themeDark = MutableStateFlow(prefs.getBoolean("theme_dark", false))
     val themeDark = _themeDark.asStateFlow()
+
+    private val _bankNotificationEnabled = MutableStateFlow(prefs.getBoolean("bank_notification_enabled", false))
+    val bankNotificationEnabled = _bankNotificationEnabled.asStateFlow()
 
     // Alert message for Budget triggers
     private val _budgetAlert = MutableStateFlow<String?>(null)
@@ -302,6 +308,11 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     fun setTheme(dark: Boolean) {
         prefs.edit().putBoolean("theme_dark", dark).apply()
         _themeDark.value = dark
+    }
+
+    fun setBankNotificationEnabled(enabled: Boolean) {
+        prefs.edit().putBoolean("bank_notification_enabled", enabled).apply()
+        _bankNotificationEnabled.value = enabled
     }
 
     fun updateSystemThemeDefault(systemDark: Boolean) {
@@ -840,199 +851,680 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
         var page = pdfDocument.startPage(pageInfo)
         var canvas = page.canvas
         
+        // --- PREMIUM COLOR PALETTE ---
+        val colorPrimary = android.graphics.Color.rgb(79, 70, 229)    // Indigo #4F46E5
+        val colorOnPrimary = android.graphics.Color.WHITE
+        val colorDark = android.graphics.Color.rgb(15, 23, 42)        // Slate 900 #0F172A
+        val colorMuted = android.graphics.Color.rgb(100, 116, 139)    // Slate 500 #64748B
+        val colorLightMuted = android.graphics.Color.rgb(148, 163, 184) // Slate 400
+        val colorBg = android.graphics.Color.rgb(248, 250, 252)       // Slate 50 #F8FAFC
+        val colorBorder = android.graphics.Color.rgb(226, 232, 240)   // Slate 200 #E2E8F0
+        
+        val colorSuccess = android.graphics.Color.rgb(16, 185, 129)   // Emerald 500 #10B981
+        val colorSuccessBg = android.graphics.Color.rgb(240, 253, 250) // Emerald 50
+        val colorSuccessBorder = android.graphics.Color.rgb(209, 250, 229) // Emerald 100
+        
+        val colorDanger = android.graphics.Color.rgb(239, 68, 68)     // Red 500 #EF4444
+        val colorDangerBg = android.graphics.Color.rgb(254, 242, 242)   // Red 50
+        val colorDangerBorder = android.graphics.Color.rgb(254, 226, 226) // Red 100
+
+        // --- PAINTS ---
+        val brandBarPaint = Paint().apply {
+            color = colorPrimary
+            style = Paint.Style.FILL
+            isAntiAlias = true
+        }
+
         val titlePaint = Paint().apply {
-            color = android.graphics.Color.rgb(41, 128, 185)
-            textSize = 20f
+            color = colorDark
+            textSize = 22f
             isFakeBoldText = true
             isAntiAlias = true
         }
         
         val subTitlePaint = Paint().apply {
-            color = android.graphics.Color.DKGRAY
-            textSize = 10f
+            color = colorMuted
+            textSize = 9f
             isAntiAlias = true
         }
         
         val headerPaint = Paint().apply {
-            color = android.graphics.Color.rgb(44, 62, 80)
+            color = colorDark
             textSize = 13f
             isFakeBoldText = true
             isAntiAlias = true
         }
 
+        val sectionLabelPaint = Paint().apply {
+            color = colorPrimary
+            textSize = 8.5f
+            isFakeBoldText = true
+            isAntiAlias = true
+        }
+
         val textPaint = Paint().apply {
-            color = android.graphics.Color.BLACK
-            textSize = 11f
+            color = colorDark
+            textSize = 9.5f
             isAntiAlias = true
         }
 
         val boldTextPaint = Paint().apply {
-            color = android.graphics.Color.BLACK
-            textSize = 11f
+            color = colorDark
+            textSize = 9.5f
+            isFakeBoldText = true
+            isAntiAlias = true
+        }
+
+        val valueLargePaint = Paint().apply {
+            color = colorDark
+            textSize = 14f
             isFakeBoldText = true
             isAntiAlias = true
         }
 
         val greenTextPaint = Paint().apply {
-            color = android.graphics.Color.rgb(39, 174, 96)
-            textSize = 11f
+            color = colorSuccess
+            textSize = 9.5f
+            isFakeBoldText = true
+            isAntiAlias = true
+        }
+
+        val greenValueLargePaint = Paint().apply {
+            color = colorSuccess
+            textSize = 14f
             isFakeBoldText = true
             isAntiAlias = true
         }
 
         val redTextPaint = Paint().apply {
-            color = android.graphics.Color.rgb(192, 57, 43)
-            textSize = 11f
+            color = colorDanger
+            textSize = 9.5f
+            isFakeBoldText = true
+            isAntiAlias = true
+        }
+
+        val redValueLargePaint = Paint().apply {
+            color = colorDanger
+            textSize = 14f
             isFakeBoldText = true
             isAntiAlias = true
         }
 
         val gridPaint = Paint().apply {
-            color = android.graphics.Color.LTGRAY
+            color = colorBorder
             strokeWidth = 1f
+            style = Paint.Style.STROKE
         }
 
-        val bgPaint = Paint().apply {
-            color = android.graphics.Color.rgb(245, 247, 250)
+        val cardBgPaint = Paint().apply {
+            color = android.graphics.Color.WHITE
+            style = Paint.Style.FILL
         }
 
         val currencyFormat = NumberFormat.getCurrencyInstance(Locale("id", "ID"))
         currencyFormat.maximumFractionDigits = 0
 
-        var y = 50f
+        var y = 55f
 
-        canvas.drawText("UANGKU BY USER", 40f, y, titlePaint)
-        y += 18f
-        canvas.drawText("Aplikasi Manajemen Keuangan Pribadi Aman & Lokal", 40f, y, subTitlePaint)
-        y += 24f
+        // --- PAGE 1: COVER & OVERVIEW ---
+        canvas.drawRect(40f, y, 555f, y + 4f, brandBarPaint)
+        y += 20f
+        
+        canvas.drawText("UANGKU", 40f, y, titlePaint)
+        
+        val officialBadgePaint = Paint().apply {
+            color = colorPrimary
+            style = Paint.Style.FILL
+            isAntiAlias = true
+        }
+        val officialBadgeTextPaint = Paint().apply {
+            color = colorOnPrimary
+            textSize = 8f
+            isFakeBoldText = true
+            isAntiAlias = true
+        }
+        canvas.drawRoundRect(140f, y - 18f, 230f, y + 2f, 4f, 4f, officialBadgePaint)
+        canvas.drawText("LAPORAN RESMI", 148f, y - 6f, officialBadgeTextPaint)
+        
+        y += 14f
+        canvas.drawText("Asisten Cerdas Keuangan Pribadi • Aman, Mandiri & Lokal", 40f, y, subTitlePaint)
+        y += 20f
         
         canvas.drawLine(40f, y, 555f, y, gridPaint)
-        y += 25f
+        y += 22f
 
-        canvas.drawText("LAPORAN KEUANGAN RESMI", 40f, y, headerPaint)
-        y += 20f
-        canvas.drawText("Nama Panggilan : ${_userName.value}", 40f, y, textPaint)
-        y += 18f
-        canvas.drawText("Tanggal Unduh  : $dateStr", 40f, y, textPaint)
-        y += 24f
-
-        val rectLeft = 40f
-        val rectTop = y
-        val rectRight = 555f
-        val rectBottom = y + 65f
-        canvas.drawRect(rectLeft, rectTop, rectRight, rectBottom, bgPaint)
+        // Metadata Box
+        val metaBoxPaint = Paint().apply {
+            color = colorBg
+            style = Paint.Style.FILL
+        }
+        canvas.drawRoundRect(40f, y, 555f, y + 42f, 8f, 8f, metaBoxPaint)
+        canvas.drawRoundRect(40f, y, 555f, y + 42f, 8f, 8f, gridPaint)
         
-        canvas.drawText("TOTAL SALDO BERSIH", 55f, y + 25f, boldTextPaint)
-        canvas.drawText(currencyFormat.format(totalBalance.value), 55f, y + 45f, textPaint)
-
-        canvas.drawText("TOTAL PEMASUKAN", 230f, y + 25f, boldTextPaint)
-        canvas.drawText(currencyFormat.format(totalIncome.value), 230f, y + 45f, greenTextPaint)
-
-        canvas.drawText("TOTAL PENGELUARAN", 395f, y + 25f, boldTextPaint)
-        canvas.drawText(currencyFormat.format(totalExpense.value), 395f, y + 45f, redTextPaint)
+        canvas.drawText("PENGGUNA", 55f, y + 16f, sectionLabelPaint)
+        canvas.drawText(_userName.value, 55f, y + 31f, boldTextPaint)
         
-        y += 90f
+        canvas.drawText("TANGGAL GENERASI", 230f, y + 16f, sectionLabelPaint)
+        canvas.drawText(dateStr, 230f, y + 31f, boldTextPaint)
+        
+        canvas.drawText("INTEGRASI SISTEM", 410f, y + 16f, sectionLabelPaint)
+        canvas.drawText("Asisten Cerdas v2.0", 410f, y + 31f, boldTextPaint)
+        
+        y += 65f
 
-        canvas.drawText("BATAS & ANGGARAN BULANAN", 40f, y, headerPaint)
+        // Ringkasan Portfolio section
+        canvas.drawText("RINGKASAN PORTFOLIO", 40f, y, headerPaint)
+        y += 12f
+        canvas.drawLine(40f, y, 555f, y, gridPaint)
         y += 15f
+
+        val cardY = y
+        val cardHeight = 65f
+        val cardW = 160f
+        val cardGap = 17.5f
+        
+        // Card 1: Balance (Neutral / Indigo themed)
+        val balanceCardPaint = Paint().apply {
+            color = android.graphics.Color.WHITE
+            style = Paint.Style.FILL
+        }
+        val cardBorderPaint = Paint().apply {
+            color = colorBorder
+            style = Paint.Style.STROKE
+            strokeWidth = 1.2f
+            isAntiAlias = true
+        }
+        val c1X = 40f
+        canvas.drawRoundRect(c1X, cardY, c1X + cardW, cardY + cardHeight, 10f, 10f, balanceCardPaint)
+        canvas.drawRoundRect(c1X, cardY, c1X + cardW, cardY + cardHeight, 10f, 10f, cardBorderPaint)
+        
+        val indicatorPaint = Paint().apply {
+            color = colorPrimary
+            style = Paint.Style.FILL
+            isAntiAlias = true
+        }
+        canvas.drawRoundRect(c1X, cardY, c1X + cardW, cardY + 5f, 10f, 10f, indicatorPaint)
+        canvas.drawRect(c1X, cardY + 3f, c1X + cardW, cardY + 5f, indicatorPaint)
+        
+        canvas.drawText("SALDO BERSIH", c1X + 15f, cardY + 24f, sectionLabelPaint)
+        canvas.drawText(currencyFormat.format(totalBalance.value), c1X + 15f, cardY + 46f, valueLargePaint)
+
+        // Card 2: Income (Green Theme)
+        val incCardPaint = Paint().apply {
+            color = colorSuccessBg
+            style = Paint.Style.FILL
+        }
+        val incBorderPaint = Paint().apply {
+            color = colorSuccessBorder
+            style = Paint.Style.STROKE
+            strokeWidth = 1.2f
+            isAntiAlias = true
+        }
+        val c2X = c1X + cardW + cardGap
+        canvas.drawRoundRect(c2X, cardY, c2X + cardW, cardY + cardHeight, 10f, 10f, incCardPaint)
+        canvas.drawRoundRect(c2X, cardY, c2X + cardW, cardY + cardHeight, 10f, 10f, incBorderPaint)
+        val incIndicatorPaint = Paint().apply {
+            color = colorSuccess
+            style = Paint.Style.FILL
+            isAntiAlias = true
+        }
+        canvas.drawRoundRect(c2X, cardY, c2X + cardW, cardY + 5f, 10f, 10f, incIndicatorPaint)
+        canvas.drawRect(c2X, cardY + 3f, c2X + cardW, cardY + 5f, incIndicatorPaint)
+        
+        val successLabelPaint = Paint().apply {
+            color = colorSuccess
+            textSize = 8.5f
+            isFakeBoldText = true
+            isAntiAlias = true
+        }
+        canvas.drawText("TOTAL PEMASUKAN", c2X + 15f, cardY + 24f, successLabelPaint)
+        canvas.drawText(currencyFormat.format(totalIncome.value), c2X + 15f, cardY + 46f, greenValueLargePaint)
+
+        // Card 3: Expense (Red Theme)
+        val expCardPaint = Paint().apply {
+            color = colorDangerBg
+            style = Paint.Style.FILL
+        }
+        val expBorderPaint = Paint().apply {
+            color = colorDangerBorder
+            style = Paint.Style.STROKE
+            strokeWidth = 1.2f
+            isAntiAlias = true
+        }
+        val c3X = c2X + cardW + cardGap
+        canvas.drawRoundRect(c3X, cardY, c3X + cardW, cardY + cardHeight, 10f, 10f, expCardPaint)
+        canvas.drawRoundRect(c3X, cardY, c3X + cardW, cardY + cardHeight, 10f, 10f, expBorderPaint)
+        val expIndicatorPaint = Paint().apply {
+            color = colorDanger
+            style = Paint.Style.FILL
+            isAntiAlias = true
+        }
+        canvas.drawRoundRect(c3X, cardY, c3X + cardW, cardY + 5f, 10f, 10f, expIndicatorPaint)
+        canvas.drawRect(c3X, cardY + 3f, c3X + cardW, cardY + 5f, expIndicatorPaint)
+        
+        val dangerLabelPaint = Paint().apply {
+            color = colorDanger
+            textSize = 8.5f
+            isFakeBoldText = true
+            isAntiAlias = true
+        }
+        canvas.drawText("TOTAL PENGELUARAN", c3X + 15f, cardY + 24f, dangerLabelPaint)
+        canvas.drawText(currencyFormat.format(totalExpense.value), c3X + 15f, cardY + 46f, redValueLargePaint)
+
+        y += cardHeight + 35f
+
+        // Limits and Budgets section
+        canvas.drawText("LIMIT & ANGGARAN BULANAN", 40f, y, headerPaint)
+        y += 12f
         canvas.drawLine(40f, y, 555f, y, gridPaint)
-        y += 20f
+        y += 18f
 
         if (budgets.isEmpty()) {
-            canvas.drawText("- Belum ada batasan anggaran bulanan yang ditetapkan.", 45f, y, textPaint)
-            y += 20f
+            val emptyBoxPaint = Paint().apply {
+                color = colorBg
+                style = Paint.Style.FILL
+            }
+            canvas.drawRoundRect(40f, y, 555f, y + 45f, 8f, 8f, emptyBoxPaint)
+            canvas.drawRoundRect(40f, y, 555f, y + 45f, 8f, 8f, gridPaint)
+            canvas.drawText("Belum ada batasan anggaran bulanan yang ditetapkan.", 60f, y + 26f, subTitlePaint)
+            y += 60f
         } else {
+            val budgetHeaderPaint = Paint().apply {
+                color = colorBg
+                style = Paint.Style.FILL
+            }
+            canvas.drawRoundRect(40f, y, 555f, y + 24f, 6f, 6f, budgetHeaderPaint)
+            canvas.drawRoundRect(40f, y, 555f, y + 24f, 6f, 6f, gridPaint)
+            
+            canvas.drawText("KATEGORI", 55f, y + 16f, boldTextPaint)
+            canvas.drawText("LIMIT ANGGARAN BULANAN", 230f, y + 16f, boldTextPaint)
+            canvas.drawText("STATUS KEAKTIFAN", 410f, y + 16f, boldTextPaint)
+            y += 32f
+
             for (b in budgets) {
-                canvas.drawText("Kategori ${b.category}:", 45f, y, boldTextPaint)
-                canvas.drawText("Limit ${currencyFormat.format(b.limitAmount)} per bulan", 200f, y, textPaint)
-                y += 18f
+                val dotPaint = Paint().apply {
+                    color = colorPrimary
+                    style = Paint.Style.FILL
+                    isAntiAlias = true
+                }
+                canvas.drawCircle(50f, y - 3f, 3.5f, dotPaint)
+                canvas.drawText(b.category, 65f, y, boldTextPaint)
+                canvas.drawText(currencyFormat.format(b.limitAmount) + " / bulan", 230f, y, textPaint)
                 
-                if (y > 780f) {
+                val badgeBgPaint = Paint().apply {
+                    color = colorSuccessBg
+                    style = Paint.Style.FILL
+                    isAntiAlias = true
+                }
+                canvas.drawRoundRect(410f, y - 10f, 480f, y + 5f, 4f, 4f, badgeBgPaint)
+                val badgeTextPaint = Paint().apply {
+                    color = colorSuccess
+                    textSize = 8f
+                    isFakeBoldText = true
+                    isAntiAlias = true
+                }
+                canvas.drawText("AKTIF", 425f, y + 1f, badgeTextPaint)
+                
+                y += 22f
+                canvas.drawLine(40f, y - 14f, 555f, y - 14f, gridPaint)
+
+                if (y > 740f) {
                     styleFooter(canvas, pageNumber)
                     pdfDocument.finishPage(page)
                     pageNumber++
                     pageInfo = PdfDocument.PageInfo.Builder(595, 842, pageNumber).create()
                     page = pdfDocument.startPage(pageInfo)
                     canvas = page.canvas
-                    y = 50f
+                    y = 55f
+                    
+                    canvas.drawRect(40f, y, 555f, y + 24f, budgetHeaderPaint)
+                    canvas.drawRect(40f, y, 555f, y + 24f, gridPaint)
+                    canvas.drawText("KATEGORI", 55f, y + 16f, boldTextPaint)
+                    canvas.drawText("LIMIT ANGGARAN BULANAN", 230f, y + 16f, boldTextPaint)
+                    canvas.drawText("STATUS KEAKTIFAN", 410f, y + 16f, boldTextPaint)
+                    y += 32f
                 }
             }
-        }
-        y += 15f
-
-        if (y > 580f) {
-            styleFooter(canvas, pageNumber)
-            pdfDocument.finishPage(page)
-            pageNumber++
-            pageInfo = PdfDocument.PageInfo.Builder(595, 842, pageNumber).create()
-            page = pdfDocument.startPage(pageInfo)
-            canvas = page.canvas
-            y = 50f
+            y += 10f
         }
 
-        canvas.drawText("RIWAYAT TRANSAKSI TERBARU", 40f, y, headerPaint)
-        y += 15f
-        canvas.drawLine(40f, y, 555f, y, gridPaint)
+        // --- PAGE BREAK FOR VISUAL CHARTS PAGE (PAGE 2) ---
+        styleFooter(canvas, pageNumber)
+        pdfDocument.finishPage(page)
+        pageNumber++
+        pageInfo = PdfDocument.PageInfo.Builder(595, 842, pageNumber).create()
+        page = pdfDocument.startPage(pageInfo)
+        canvas = page.canvas
+        y = 55f
+
+        canvas.drawRect(40f, y, 555f, y + 4f, brandBarPaint)
         y += 20f
 
-        canvas.drawRect(40f, y, 555f, y + 20f, bgPaint)
-        canvas.drawText("TANGGAL", 45f, y + 14f, boldTextPaint)
-        canvas.drawText("KATEGORI", 120f, y + 14f, boldTextPaint)
-        canvas.drawText("NAMA TRANSAKSI", 220f, y + 14f, boldTextPaint)
-        canvas.drawText("JUMLAH", 450f, y + 14f, boldTextPaint)
-        y += 28f
+        canvas.drawText("VISUALISASI & TREN KEUANGAN", 40f, y, titlePaint)
+        y += 12f
+        canvas.drawText("Analisis perbandingan grafis dan pola pengeluaran kategori", 40f, y, subTitlePaint)
+        y += 20f
+        canvas.drawLine(40f, y, 555f, y, gridPaint)
+        y += 25f
+
+        // Chart 1: Bar Chart
+        canvas.drawText("1. Tren Aliran Kas Bulanan (Pemasukan vs Pengeluaran)", 45f, y, boldTextPaint)
+        y += 15f
+        
+        // Group by month
+        val monthFormat = SimpleDateFormat("MMM yy", Locale("id", "ID"))
+        val monthlyGroups = txs.groupBy {
+            val cal = Calendar.getInstance().apply { timeInMillis = it.timestamp }
+            cal.get(Calendar.YEAR) * 12 + cal.get(Calendar.MONTH)
+        }.entries.sortedBy { it.key }.takeLast(5)
+
+        val chartData = monthlyGroups.map { entry ->
+            val label = if (entry.value.isNotEmpty()) {
+                monthFormat.format(java.util.Date(entry.value.first().timestamp))
+            } else ""
+            val income = entry.value.filter { it.type == "INCOME" }.sumOf { it.amount }
+            val expense = entry.value.filter { it.type == "EXPENSE" }.sumOf { it.amount }
+            Triple(label, income, expense)
+        }
+
+        canvas.drawRoundRect(40f, y, 555f, y + 155f, 12f, 12f, cardBgPaint)
+        canvas.drawRoundRect(40f, y, 555f, y + 155f, 12f, 12f, gridPaint)
+
+        if (chartData.isEmpty()) {
+            canvas.drawText("Belum ada data transaksi bulanan untuk grafik.", 60f, y + 78f, subTitlePaint)
+        } else {
+            val maxVal = chartData.map { maxOf(it.second, it.third) }.maxOrNull() ?: 1.0
+            val scaleMax = if (maxVal <= 0.0) 1.0 else maxVal
+            
+            val baselineY = y + 120f
+            val chartHeight = 85f
+            
+            // Draw grid lines inside chart
+            val dashPaint = Paint().apply {
+                color = colorBorder
+                strokeWidth = 0.8f
+            }
+            canvas.drawLine(85f, baselineY, 535f, baselineY, dashPaint)
+            canvas.drawLine(85f, baselineY - chartHeight * 0.5f, 535f, baselineY - chartHeight * 0.5f, dashPaint)
+            canvas.drawLine(85f, baselineY - chartHeight, 535f, baselineY - chartHeight, dashPaint)
+
+            // Draw Y-axis labels
+            val axisLabelPaint = Paint().apply {
+                color = colorMuted
+                textSize = 7.5f
+                isAntiAlias = true
+            }
+            canvas.drawText("0", 50f, baselineY + 3f, axisLabelPaint)
+            canvas.drawText(currencyFormat.format(scaleMax * 0.5).replace(",00", ""), 50f, baselineY - chartHeight * 0.5f + 3f, axisLabelPaint)
+            canvas.drawText(currencyFormat.format(scaleMax).replace(",00", ""), 50f, baselineY - chartHeight + 3f, axisLabelPaint)
+
+            // Draw Legends
+            val legendGreenPaint = Paint().apply { color = colorSuccess; style = Paint.Style.FILL; isAntiAlias = true }
+            val legendRedPaint = Paint().apply { color = colorDanger; style = Paint.Style.FILL; isAntiAlias = true }
+            
+            canvas.drawRoundRect(390f, y + 10f, 400f, y + 20f, 2f, 2f, legendGreenPaint)
+            canvas.drawText("Pemasukan", 405f, y + 18f, axisLabelPaint)
+            
+            canvas.drawRoundRect(470f, y + 10f, 480f, y + 20f, 2f, 2f, legendRedPaint)
+            canvas.drawText("Pengeluaran", 485f, y + 18f, axisLabelPaint)
+
+            val numMonths = chartData.size
+            val startX = 110f
+            val endX = 530f
+            val stepX = (endX - startX) / numMonths.coerceAtLeast(1)
+
+            val barGreenPaint = Paint().apply {
+                color = colorSuccess
+                style = Paint.Style.FILL
+                isAntiAlias = true
+            }
+            val barRedPaint = Paint().apply {
+                color = colorDanger
+                style = Paint.Style.FILL
+                isAntiAlias = true
+            }
+
+            chartData.forEachIndexed { i, data ->
+                val cx = startX + i * stepX + stepX / 2f
+                
+                // Income Bar
+                val incHeight = ((data.second / scaleMax) * chartHeight).toFloat()
+                if (incHeight > 0f) {
+                    canvas.drawRoundRect(cx - 14f, baselineY - incHeight, cx - 2f, baselineY, 3f, 3f, barGreenPaint)
+                    if (incHeight > 4f) {
+                        canvas.drawRect(cx - 14f, baselineY - 4f, cx - 2f, baselineY, barGreenPaint)
+                    }
+                }
+                
+                // Expense Bar
+                val expHeight = ((data.third / scaleMax) * chartHeight).toFloat()
+                if (expHeight > 0f) {
+                    canvas.drawRoundRect(cx + 2f, baselineY - expHeight, cx + 14f, baselineY, 3f, 3f, barRedPaint)
+                    if (expHeight > 4f) {
+                        canvas.drawRect(cx + 2f, baselineY - 4f, cx + 14f, baselineY, barRedPaint)
+                    }
+                }
+                
+                // Month Label
+                canvas.drawText(data.first, cx - 18f, baselineY + 16f, textPaint)
+            }
+        }
+        
+        y += 185f
+
+        // Chart 2: Donut Chart
+        canvas.drawText("2. Alokasi Pengeluaran Berdasarkan Kategori", 45f, y, boldTextPaint)
+        y += 15f
+
+        val expenseTxs = txs.filter { it.type == "EXPENSE" }
+        val totalExpenseAmt = expenseTxs.sumOf { it.amount }
+        val catGroups = expenseTxs.groupBy { it.category }
+            .mapValues { it.value.sumOf { it.amount } }
+            .entries.sortedByDescending { it.value }
+
+        canvas.drawRoundRect(40f, y, 555f, y + 175f, 12f, 12f, cardBgPaint)
+        canvas.drawRoundRect(40f, y, 555f, y + 175f, 12f, 12f, gridPaint)
+
+        if (totalExpenseAmt <= 0.0 || catGroups.isEmpty()) {
+            canvas.drawText("Belum ada data pengeluaran untuk diagram kategori.", 60f, y + 88f, subTitlePaint)
+        } else {
+            val topCats = catGroups.take(4)
+            val otherSum = if (catGroups.size > 4) catGroups.drop(4).sumOf { it.value } else 0.0
+            val donutData = topCats.map { Pair(it.key, it.value) }.toMutableList()
+            if (otherSum > 0.0) {
+                donutData.add(Pair("Lainnya", otherSum))
+            }
+
+            val cx = 135f
+            val cy = y + 88f
+            val radius = 58f
+            val rectF = RectF(cx - radius, cy - radius, cx + radius, cy + radius)
+
+            var startAngle = -90f
+            donutData.forEachIndexed { idx, pair ->
+                val pct = (pair.second / totalExpenseAmt).toFloat()
+                val sweepAngle = pct * 360f
+                
+                val slicePaint = Paint().apply {
+                    color = when (idx) {
+                        0 -> android.graphics.Color.rgb(99, 102, 241)  // Indigo #6366F1
+                        1 -> android.graphics.Color.rgb(14, 165, 233)  // Light Blue #0EA5E9
+                        2 -> android.graphics.Color.rgb(236, 72, 153)  // Pink #EC4899
+                        3 -> android.graphics.Color.rgb(245, 158, 11)   // Amber #F59E0B
+                        else -> android.graphics.Color.rgb(148, 163, 184) // Slate 400
+                    }
+                    style = Paint.Style.FILL
+                    isAntiAlias = true
+                }
+                
+                canvas.drawArc(rectF, startAngle, sweepAngle, true, slicePaint)
+                startAngle += sweepAngle
+            }
+
+            // Draw White Inner Circle (Donut Hole)
+            val whitePaint = Paint().apply {
+                color = android.graphics.Color.WHITE
+                style = Paint.Style.FILL
+                isAntiAlias = true
+            }
+            canvas.drawCircle(cx, cy, 35f, whitePaint)
+
+            // Draw Legends on the Right
+            val legendX = 235f
+            donutData.forEachIndexed { idx, pair ->
+                val legendY = y + 26f + idx * 28f
+                
+                val markerPaint = Paint().apply {
+                    color = when (idx) {
+                        0 -> android.graphics.Color.rgb(99, 102, 241)
+                        1 -> android.graphics.Color.rgb(14, 165, 233)
+                        2 -> android.graphics.Color.rgb(236, 72, 153)
+                        3 -> android.graphics.Color.rgb(245, 158, 11)
+                        else -> android.graphics.Color.rgb(148, 163, 184)
+                    }
+                    style = Paint.Style.FILL
+                    isAntiAlias = true
+                }
+                canvas.drawRoundRect(legendX, legendY - 8f, legendX + 11f, legendY + 3f, 3f, 3f, markerPaint)
+
+                val pctText = String.format("%.1f%%", (pair.second / totalExpenseAmt) * 100)
+                canvas.drawText("${pair.first} ($pctText)", legendX + 18f, legendY, boldTextPaint)
+                canvas.drawText(currencyFormat.format(pair.second), legendX + 18f, legendY + 11f, subTitlePaint)
+            }
+        }
+
+        // --- PAGE BREAK TO TRANSACTION HISTORY PAGE ---
+        styleFooter(canvas, pageNumber)
+        pdfDocument.finishPage(page)
+        pageNumber++
+        pageInfo = PdfDocument.PageInfo.Builder(595, 842, pageNumber).create()
+        page = pdfDocument.startPage(pageInfo)
+        canvas = page.canvas
+        y = 55f
+
+        canvas.drawRect(40f, y, 555f, y + 4f, brandBarPaint)
+        y += 20f
+
+        canvas.drawText("RIWAYAT TRANSAKSI TERBARU", 40f, y, titlePaint)
+        y += 12f
+        canvas.drawText("Daftar mutasi keuangan dan rekaman transaksi terbaru di perangkat Anda", 40f, y, subTitlePaint)
+        y += 20f
+        canvas.drawLine(40f, y, 555f, y, gridPaint)
+        y += 25f
+
+        // Table Header
+        val tableHeaderBgPaint = Paint().apply {
+            color = colorDark
+            style = Paint.Style.FILL
+        }
+        val tableHeaderLabelPaint = Paint().apply {
+            color = android.graphics.Color.WHITE
+            textSize = 9.5f
+            isFakeBoldText = true
+            isAntiAlias = true
+        }
+
+        canvas.drawRoundRect(40f, y, 555f, y + 26f, 6f, 6f, tableHeaderBgPaint)
+        
+        canvas.drawText("TANGGAL", 55f, y + 17f, tableHeaderLabelPaint)
+        canvas.drawText("KATEGORI", 140f, y + 17f, tableHeaderLabelPaint)
+        canvas.drawText("NAMA TRANSAKSI", 240f, y + 17f, tableHeaderLabelPaint)
+        canvas.drawText("JUMLAH", 465f, y + 17f, tableHeaderLabelPaint)
+        y += 26f
 
         val listFormat = SimpleDateFormat("dd-MM-yyyy", Locale.getDefault())
-        for (tx in txs.take(20)) {
-            val dateStrTx = listFormat.format(Date(tx.timestamp))
+        val rowHeight = 24f
+        
+        val zebraEvenPaint = Paint().apply {
+            color = android.graphics.Color.WHITE
+            style = Paint.Style.FILL
+        }
+        val zebraOddPaint = Paint().apply {
+            color = colorBg
+            style = Paint.Style.FILL
+        }
+
+        txs.take(20).forEachIndexed { index, tx ->
+            val dateStrTx = listFormat.format(java.util.Date(tx.timestamp))
             val amountStr = (if (tx.type == "INCOME") "+" else "-") + currencyFormat.format(tx.amount)
             val isIncome = tx.type == "INCOME"
 
-            canvas.drawText(dateStrTx, 45f, y, textPaint)
-            canvas.drawText(tx.category, 120f, y, textPaint)
+            val currentBgPaint = if (index % 2 == 0) zebraEvenPaint else zebraOddPaint
+            canvas.drawRect(40f, y, 555f, y + rowHeight, currentBgPaint)
             
-            var titleShow = tx.title
-            if (titleShow.length > 25) {
-                titleShow = titleShow.substring(0, 22) + "..."
+            canvas.drawText(dateStrTx, 55f, y + 16f, textPaint)
+            canvas.drawText(tx.category, 140f, y + 16f, boldTextPaint)
+            
+            var titleShow = tx.getCleanTitle()
+            if (titleShow.length > 30) {
+                titleShow = titleShow.substring(0, 27) + "..."
             }
-            canvas.drawText(titleShow, 220f, y, textPaint)
+            canvas.drawText(titleShow, 240f, y + 16f, textPaint)
             
-            canvas.drawText(amountStr, 450f, y, if (isIncome) greenTextPaint else redTextPaint)
-            y += 22f
+            canvas.drawText(amountStr, 465f, y + 16f, if (isIncome) greenTextPaint else redTextPaint)
+            y += rowHeight
 
-            canvas.drawLine(40f, y - 6f, 555f, y - 6f, gridPaint)
+            val rowBorderPaint = Paint().apply {
+                color = colorBorder
+                strokeWidth = 0.8f
+            }
+            canvas.drawLine(40f, y, 555f, y, rowBorderPaint)
 
-            if (y > 780f) {
+            if (y > 740f) {
                 styleFooter(canvas, pageNumber)
                 pdfDocument.finishPage(page)
                 pageNumber++
                 pageInfo = PdfDocument.PageInfo.Builder(595, 842, pageNumber).create()
                 page = pdfDocument.startPage(pageInfo)
                 canvas = page.canvas
-                y = 50f
+                y = 55f
                 
-                canvas.drawRect(40f, y, 555f, y + 20f, bgPaint)
-                canvas.drawText("TANGGAL", 45f, y + 14f, boldTextPaint)
-                canvas.drawText("KATEGORI", 120f, y + 14f, boldTextPaint)
-                canvas.drawText("NAMA TRANSAKSI", 220f, y + 14f, boldTextPaint)
-                canvas.drawText("JUMLAH", 450f, y + 14f, boldTextPaint)
-                y += 28f
+                canvas.drawRect(40f, y, 555f, y + 4f, brandBarPaint)
+                y += 20f
+                canvas.drawRoundRect(40f, y, 555f, y + 26f, 6f, 6f, tableHeaderBgPaint)
+                canvas.drawText("TANGGAL", 55f, y + 17f, tableHeaderLabelPaint)
+                canvas.drawText("KATEGORI", 140f, y + 17f, tableHeaderLabelPaint)
+                canvas.drawText("NAMA TRANSAKSI", 240f, y + 17f, tableHeaderLabelPaint)
+                canvas.drawText("JUMLAH", 465f, y + 17f, tableHeaderLabelPaint)
+                y += 26f
             }
         }
 
-        y += 10f
-        if (y > 760f) {
+        y += 15f
+        if (y > 720f) {
             styleFooter(canvas, pageNumber)
             pdfDocument.finishPage(page)
             pageNumber++
             pageInfo = PdfDocument.PageInfo.Builder(595, 842, pageNumber).create()
             page = pdfDocument.startPage(pageInfo)
             canvas = page.canvas
-            y = 50f
+            y = 55f
+            canvas.drawRect(40f, y, 555f, y + 4f, brandBarPaint)
+            y += 20f
         }
         
-        canvas.drawText("Laporan ini diunduh secara instan dari aplikasi Uangku.", 45f, y, subTitlePaint)
-        canvas.drawText("Semua data disimpan di penyimpanan terenkripsi perangkat Anda sendiri.", 45f, y + 12f, subTitlePaint)
+        val closingBgPaint = Paint().apply {
+            color = colorBg
+            style = Paint.Style.FILL
+        }
+        canvas.drawRoundRect(40f, y, 555f, y + 46f, 8f, 8f, closingBgPaint)
+        canvas.drawRoundRect(40f, y, 555f, y + 46f, 8f, 8f, gridPaint)
+        
+        val disclaimerHeaderPaint = Paint().apply {
+            color = colorPrimary
+            textSize = 8.5f
+            isFakeBoldText = true
+            isAntiAlias = true
+        }
+        val disclaimerTextPaint = Paint().apply {
+            color = colorMuted
+            textSize = 8.5f
+            isAntiAlias = true
+        }
+        
+        canvas.drawText("INFORMASI KEAMANAN DATA", 55f, y + 18f, disclaimerHeaderPaint)
+        canvas.drawText("Laporan ini diunduh secara instan dari aplikasi Uangku. Semua data transaksi Anda", 55f, y + 30f, disclaimerTextPaint)
+        canvas.drawText("disimpan di penyimpanan lokal perangkat yang terenkripsi dan tidak pernah diunggah ke cloud.", 55f, y + 40f, disclaimerTextPaint)
 
         styleFooter(canvas, pageNumber)
         pdfDocument.finishPage(page)
@@ -1050,12 +1542,19 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     }
 
     private fun styleFooter(canvas: Canvas, pageIndex: Int) {
+        val linePaint = Paint().apply {
+            color = android.graphics.Color.rgb(226, 232, 240) // Slate 200
+            strokeWidth = 0.8f
+        }
+        canvas.drawLine(40f, 800f, 555f, 800f, linePaint)
+        
         val paint = Paint().apply {
-            color = android.graphics.Color.GRAY
-            textSize = 9f
+            color = android.graphics.Color.rgb(148, 163, 184) // Slate 400
+            textSize = 8f
             isAntiAlias = true
         }
-        canvas.drawText("Halaman $pageIndex", 500f, 820f, paint)
+        canvas.drawText("Uangku - Laporan Keuangan Otomatis Asisten Cerdas", 40f, 814f, paint)
+        canvas.drawText("Halaman $pageIndex", 505f, 814f, paint)
     }
 
     // --- Private Initializer & Seeds ---
@@ -1079,4 +1578,240 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
             repository.clearAllRecurringBills()
         }
     }
+
+    // --- Gamifikasi & Motivasi Menabung (Goals Booster) & Local Reminders ---
+    private val _savingChallenges = MutableStateFlow<List<com.example.data.model.SavingChallenge>>(emptyList())
+    val savingChallenges = _savingChallenges.asStateFlow()
+
+    private val _virtualBadges = MutableStateFlow<List<com.example.data.model.VirtualBadge>>(emptyList())
+    val virtualBadges = _virtualBadges.asStateFlow()
+
+    private val _showBadgeUnlockDialog = MutableStateFlow<com.example.data.model.VirtualBadge?>(null)
+    val showBadgeUnlockDialog = _showBadgeUnlockDialog.asStateFlow()
+
+    fun loadSavingChallengesAndBadges() {
+        val challengesSeed = listOf(
+            com.example.data.model.SavingChallenge(
+                id = "jumat_berkah",
+                title = "Tantangan Jumat Berkah",
+                description = "Membiasakan diri menyisihkan uang saku/gaji kecil setiap hari Jumat untuk keberkahan finansial.",
+                targetAmount = 100000.0,
+                amountPerCheckIn = 10000.0,
+                currentProgress = prefs.getInt("challenge_progress_jumat_berkah", 0),
+                targetProgress = 10,
+                scheduleText = "Setiap Hari Jumat"
+            ),
+            com.example.data.model.SavingChallenge(
+                id = "anti_jajan",
+                title = "Anti Jajan Kopi Boba",
+                description = "Tantangan disiplin mengurangi jajan harian kopi boba/snack manis di hari kerja.",
+                targetAmount = 100000.0,
+                amountPerCheckIn = 20000.0,
+                currentProgress = prefs.getInt("challenge_progress_anti_jajan", 0),
+                targetProgress = 5,
+                scheduleText = "Senin - Kamis"
+            ),
+            com.example.data.model.SavingChallenge(
+                id = "akhir_pekan",
+                title = "Pemberantas Impulsif",
+                description = "Melawan keinginan belanja online atau checkout impulsif saat bersantai di akhir pekan.",
+                targetAmount = 200000.0,
+                amountPerCheckIn = 50000.0,
+                currentProgress = prefs.getInt("challenge_progress_akhir_pekan", 0),
+                targetProgress = 4,
+                scheduleText = "Sabtu & Minggu"
+            ),
+            com.example.data.model.SavingChallenge(
+                id = "receh_disiplin",
+                title = "Tantangan Rp5.000 Receh",
+                description = "Melatih konsistensi menabung dari nominal kecil harian secara terus menerus selama 20 hari.",
+                targetAmount = 100000.0,
+                amountPerCheckIn = 5000.0,
+                currentProgress = prefs.getInt("challenge_progress_receh_disiplin", 0),
+                targetProgress = 20,
+                scheduleText = "Setiap Hari"
+            )
+        )
+
+        val challenges = challengesSeed.map { ch ->
+            if (ch.currentProgress >= ch.targetProgress) {
+                ch.copy(status = "COMPLETED")
+            } else {
+                ch
+            }
+        }
+        _savingChallenges.value = challenges
+
+        val totalChallengeSavings = challenges.sumOf { it.currentProgress * it.amountPerCheckIn }
+        val totalCheckIns = challenges.sumOf { it.currentProgress }
+
+        val badgesSeed = listOf(
+            com.example.data.model.VirtualBadge(
+                id = "badge_first_checkin",
+                name = "Prajurit Hemat",
+                description = "Selesaikan check-in pertama di tantangan apa saja untuk memulai.",
+                icon = "🛡️",
+                isUnlocked = totalCheckIns >= 1,
+                unlockProgressText = "Selesai $totalCheckIns/1"
+            ),
+            com.example.data.model.VirtualBadge(
+                id = "badge_friday",
+                name = "Penakluk Jumat",
+                description = "Selesaikan penuh tantangan menabung Jumat Berkah.",
+                icon = "🎯",
+                isUnlocked = prefs.getInt("challenge_progress_jumat_berkah", 0) >= 10,
+                unlockProgressText = "Progress " + prefs.getInt("challenge_progress_jumat_berkah", 0) + "/10"
+            ),
+            com.example.data.model.VirtualBadge(
+                id = "badge_saving_guru",
+                name = "Guru Menabung",
+                description = "Selesaikan minimal 1 tantangan menabung secara penuh.",
+                icon = "🏆",
+                isUnlocked = challenges.any { it.status == "COMPLETED" },
+                unlockProgressText = if (challenges.any { it.status == "COMPLETED" }) "Selesai!" else "Belum ada tantangan selesai"
+            ),
+            com.example.data.model.VirtualBadge(
+                id = "badge_financial_sultan",
+                name = "Sultan Sadar Finansial",
+                description = "Miliki akumulasi tabungan tantangan interaktif di atas Rp100.000.",
+                icon = "👑",
+                isUnlocked = totalChallengeSavings >= 100000.0,
+                unlockProgressText = "Tersimpan Rp" + String.format(Locale("id", "ID"), "%,.0f", totalChallengeSavings).replace(",", ".") + "/100.000"
+            ),
+            com.example.data.model.VirtualBadge(
+                id = "badge_consistency",
+                name = "Konsistensi Emas",
+                description = "Selesaikan total 5 kali check-in pada tantangan menabung apa saja.",
+                icon = "🌟",
+                isUnlocked = totalCheckIns >= 5,
+                unlockProgressText = "Selesai $totalCheckIns/5"
+            )
+        )
+
+        _virtualBadges.value = badgesSeed
+    }
+
+    fun checkInChallenge(challengeId: String, context: Context) {
+        val currentVal = prefs.getInt("challenge_progress_$challengeId", 0)
+        val ch = _savingChallenges.value.find { it.id == challengeId } ?: return
+        
+        if (currentVal >= ch.targetProgress) {
+            Toast.makeText(context, "Tantangan ini sudah selesai!", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        val newVal = currentVal + 1
+        prefs.edit().putInt("challenge_progress_$challengeId", newVal).apply()
+
+        viewModelScope.launch {
+            val transaction = Transaction(
+                title = "Tantangan Menabung: ${ch.title} #${newVal}",
+                amount = ch.amountPerCheckIn,
+                type = "INCOME",
+                category = "Investasi"
+            )
+            repository.insertTransaction(transaction)
+            
+            loadSavingChallengesAndBadges()
+            
+            val updatedBadges = _virtualBadges.value
+            for (badge in updatedBadges) {
+                val previouslyUnlocked = prefs.getBoolean("badge_unlocked_${badge.id}", false)
+                if (badge.isUnlocked && !previouslyUnlocked) {
+                    prefs.edit().putBoolean("badge_unlocked_${badge.id}", true).apply()
+                    _showBadgeUnlockDialog.value = badge
+                    
+                    sendLocalNotification(
+                        context = context,
+                        notificationId = 9999 + badge.hashCode(),
+                        title = "🏆 Lencana Baru Terbuka!",
+                        message = "Selamat! Anda mendapatkan lencana '${badge.name}' (${badge.icon}) - ${badge.description}"
+                    )
+                }
+            }
+            
+            Toast.makeText(context, "Berhasil Check-in! Rp" + String.format(Locale("id", "ID"), "%,.0f", ch.amountPerCheckIn).replace(",", ".") + " berhasil ditambahkan.", Toast.LENGTH_SHORT).show()
+            triggerAutoSync()
+        }
+    }
+
+    fun dismissBadgeUnlockDialog() {
+        _showBadgeUnlockDialog.value = null
+    }
+
+    fun extractDayFromDueDate(dueDate: String): Int? {
+        val digits = dueDate.filter { it.isDigit() }
+        return digits.toIntOrNull()?.coerceIn(1, 31)
+    }
+
+    fun checkAndTriggerBillReminders(context: Context) {
+        viewModelScope.launch {
+            val bills = repository.allRecurringBills.first()
+            val calendar = Calendar.getInstance()
+            val todayDay = calendar.get(Calendar.DAY_OF_MONTH)
+            
+            for (bill in bills) {
+                val dueDay = extractDayFromDueDate(bill.dueDate) ?: continue
+                val diff = dueDay - todayDay
+                
+                if (diff == 1) {
+                    sendNotificationIfNeeded(context, bill.id * 10 + 1, diff, "Pengingat Tagihan (H-1)", "Tagihan '${bill.title}' sebesar Rp" + String.format(Locale("id", "ID"), "%,.0f", bill.amount).replace(",", ".") + " jatuh tempo BESOK!")
+                } else if (diff == 3) {
+                    sendNotificationIfNeeded(context, bill.id * 10 + 3, diff, "Pengingat Tagihan (H-3)", "Tagihan '${bill.title}' sebesar Rp" + String.format(Locale("id", "ID"), "%,.0f", bill.amount).replace(",", ".") + " jatuh tempo dalam 3 hari.")
+                } else if (diff == 0) {
+                    sendNotificationIfNeeded(context, bill.id * 10, diff, "Tagihan Jatuh Tempo HARI INI", "Tagihan '${bill.title}' sebesar Rp" + String.format(Locale("id", "ID"), "%,.0f", bill.amount).replace(",", ".") + " harus dibayar hari ini!")
+                }
+            }
+        }
+    }
+
+    private fun sendNotificationIfNeeded(context: Context, notificationId: Int, diff: Int, title: String, message: String) {
+        val todayStr = SimpleDateFormat("yyyyMMdd", Locale.getDefault()).format(Date())
+        val key = "notified_${notificationId}_${diff}_${todayStr}"
+        
+        if (!prefs.getBoolean(key, false)) {
+            sendLocalNotification(context, notificationId, title, message)
+            prefs.edit().putBoolean(key, true).apply()
+        }
+    }
+
+    fun sendLocalNotification(context: Context, notificationId: Int, title: String, message: String) {
+        val channelId = "uangku_bill_reminders"
+        val channelName = "Pengingat Uangku"
+        
+        val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as android.app.NotificationManager
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = android.app.NotificationChannel(channelId, channelName, android.app.NotificationManager.IMPORTANCE_HIGH).apply {
+                description = "Saluran untuk pengingat tagihan bulanan dan tantangan menabung"
+                enableVibration(true)
+            }
+            notificationManager.createNotificationChannel(channel)
+        }
+        
+        val intent = android.content.Intent(context, com.example.MainActivity::class.java).apply {
+            flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_CLEAR_TASK
+        }
+        val pendingIntent = android.app.PendingIntent.getActivity(
+            context,
+            0,
+            intent,
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) android.app.PendingIntent.FLAG_IMMUTABLE or android.app.PendingIntent.FLAG_UPDATE_CURRENT else android.app.PendingIntent.FLAG_UPDATE_CURRENT
+        )
+        
+        val builder = androidx.core.app.NotificationCompat.Builder(context, channelId)
+            .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .setContentTitle(title)
+            .setContentText(message)
+            .setPriority(androidx.core.app.NotificationCompat.PRIORITY_HIGH)
+            .setContentIntent(pendingIntent)
+            .setAutoCancel(true)
+            
+        try {
+            notificationManager.notify(notificationId, builder.build())
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
 }
+

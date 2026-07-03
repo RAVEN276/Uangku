@@ -19,6 +19,13 @@ class MyNotificationListenerService : NotificationListenerService() {
         super.onNotificationPosted(sbn)
         if (sbn == null) return
 
+        val prefs = applicationContext.getSharedPreferences("uangku_prefs", android.content.Context.MODE_PRIVATE)
+        val isEnabled = prefs.getBoolean("bank_notification_enabled", false)
+        if (!isEnabled) {
+            Log.d("UangkuNotif", "Bank notification processing is disabled via settings.")
+            return
+        }
+
         val extras = sbn.notification.extras
         val title = extras.getString("android.title") ?: ""
         val text = extras.getCharSequence("android.text")?.toString() ?: ""
@@ -167,7 +174,12 @@ class MyNotificationListenerService : NotificationListenerService() {
                            content.contains("income") ||
                            content.contains("topup") ||
                            content.contains("top up") ||
-                           content.contains("bunga")
+                           content.contains("bunga") ||
+                           content.contains("isi saldo") ||
+                           content.contains("pengisian saldo") ||
+                           content.contains("isi ulang") ||
+                           content.contains("ditambahkan") ||
+                           content.contains("bertambah")
             val type = if (isIncome) "INCOME" else "EXPENSE"
  
             // Extract the numerical amount
@@ -179,7 +191,7 @@ class MyNotificationListenerService : NotificationListenerService() {
                 category = "Makanan"
             } else if (content.contains("grab") || content.contains("gojek") || content.contains("ojek") || content.contains("trans") || content.contains("mrt") || content.contains("krl") || content.contains("tiket") || content.contains("bensin") || content.contains("pertamina")) {
                 category = "Transportasi"
-            } else if (content.contains("belanja") || content.contains("tokopedia") || content.contains("shopee") || content.contains("lazada") || content.contains("buku") || content.contains("pembelian") || content.contains("qr")) {
+            } else if (content.contains("belanja") || content.contains("tokopedia") || (content.contains("shopee") && !isIncome) || content.contains("lazada") || content.contains("buku") || content.contains("pembelian") || content.contains("qr")) {
                 category = "Belanja"
             } else if (content.contains("gaji") || content.contains("payroll") || content.contains("salary") || content.contains("insentif")) {
                 category = "Gaji"
@@ -204,18 +216,25 @@ class MyNotificationListenerService : NotificationListenerService() {
                 bankSource = "OVO"
             } else if (pkg.contains("gojek") || content.contains("gopay")) {
                 bankSource = "GoPay"
+            } else if (pkg.contains("shopee") || content.contains("shopeepay")) {
+                bankSource = "ShopeePay"
             }
 
             // Refine display title based on details
             val displayTitle = when {
-                content.contains("gofood") -> "GoFood Delivery ($bankSource)"
-                content.contains("grabfood") -> "GrabFood Order ($bankSource)"
-                content.contains("tokopedia") -> "Belanja Tokopedia ($bankSource)"
-                content.contains("shopee") -> "Belanja Shopee ($bankSource)"
-                content.contains("pln") || content.contains("listrik") -> "Tagihan Listrik PLN ($bankSource)"
-                content.contains("gaji") -> "Gaji Bulanan ($bankSource)"
-                isIncome -> "Transfer Masuk SBN ($bankSource)"
-                else -> "Auto Transaksi ($bankSource)"
+                content.contains("gofood") -> "GoFood Delivery"
+                content.contains("grabfood") -> "GrabFood Order"
+                content.contains("tokopedia") -> "Belanja Tokopedia"
+                content.contains("shopee") -> {
+                    if (isIncome) "Top Up ShopeePay" else "Belanja Shopee"
+                }
+                content.contains("pln") || content.contains("listrik") -> "Tagihan Listrik PLN"
+                content.contains("gaji") -> "Gaji Bulanan"
+                content.contains("isi saldo") || content.contains("pengisian saldo") || content.contains("topup") || content.contains("top up") -> {
+                    if (bankSource != "Bank Notifikasi") "Top Up $bankSource" else "Top Up Saldo"
+                }
+                isIncome -> "Transfer Masuk"
+                else -> "Auto Transaksi"
             }
 
             return Transaction(

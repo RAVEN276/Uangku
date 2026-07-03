@@ -55,3 +55,37 @@ data class RecurringBill(
     val dueDate: String, // "Tanggal 10" atau "Setiap tanggal 5"
     val lastClaimedTimestamp: Long = 0
 )
+
+fun Transaction.getCleanTitle(): String {
+    return this.title
+        .replace(" (BCA)", "")
+        .replace(" (Mandiri)", "")
+        .replace(" (BNI)", "")
+        .replace(" (BRI)", "")
+        .replace(" (OVO)", "")
+        .replace(" (GoPay)", "")
+        .replace(" (ShopeePay)", "")
+        .replace(" (Bank Notifikasi)", "")
+}
+
+data class SavingChallenge(
+    val id: String,
+    val title: String,
+    val description: String,
+    val targetAmount: Double,
+    val amountPerCheckIn: Double,
+    val currentProgress: Int, // Jumlah check-in yang selesai
+    val targetProgress: Int,  // Target jumlah check-in (misal 10)
+    val scheduleText: String, // misal "Setiap hari Jumat"
+    val status: String = "ACTIVE" // "ACTIVE", "COMPLETED"
+)
+
+data class VirtualBadge(
+    val id: String,
+    val name: String,
+    val description: String,
+    val icon: String, // misal "🛡️", "🎯", "🏆", "👑", "🌟"
+    val isUnlocked: Boolean = false,
+    val unlockProgressText: String = ""
+)
+

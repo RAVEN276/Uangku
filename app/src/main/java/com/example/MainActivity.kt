@@ -24,6 +24,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -55,12 +56,27 @@ class MainActivity : FragmentActivity() {
             // Update system default theme on startup to ensure VM and UI are synchronized
             viewModel.updateSystemThemeDefault(systemDark)
 
-            val themeDarkOverride by viewModel.themeDark.collectAsState()
+            androidx.compose.runtime.LaunchedEffect(Unit) {
+                if (android.os.Build.VERSION.SDK_INT >= 33) {
+                    val permission = "android.permission.POST_NOTIFICATIONS"
+                    if (androidx.core.content.ContextCompat.checkSelfPermission(
+                            this@MainActivity,
+                            permission
+                        ) != android.content.pm.PackageManager.PERMISSION_GRANTED
+                    ) {
+                        requestPermissions(arrayOf(permission), 101)
+                    }
+                }
+                viewModel.checkAndTriggerBillReminders(this@MainActivity)
+                viewModel.loadSavingChallengesAndBadges()
+            }
+
+            val themeDarkOverride by viewModel.themeDark.collectAsStateWithLifecycle()
             val useDarkTheme = themeDarkOverride
 
             MyApplicationTheme(darkTheme = useDarkTheme) {
-                val isOnboarded by viewModel.isOnboarded.collectAsState()
-                val isLocked by viewModel.isLocked.collectAsState()
+                val isOnboarded by viewModel.isOnboarded.collectAsStateWithLifecycle()
+                val isLocked by viewModel.isLocked.collectAsStateWithLifecycle()
 
                 if (!isOnboarded) {
                     OnboardingScreen(viewModel = viewModel)

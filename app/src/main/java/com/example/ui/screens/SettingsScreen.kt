@@ -1,6 +1,7 @@
 package com.example.ui.screens
 
 import android.widget.Toast
+import android.content.Intent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -26,6 +27,7 @@ import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.Fingerprint
 import androidx.compose.material.icons.automirrored.filled.ListAlt
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PictureAsPdf
 import androidx.compose.material.icons.filled.Share
@@ -45,6 +47,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -69,13 +72,14 @@ fun SettingsScreen(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
-    val isLocked by viewModel.isLocked.collectAsState()
-    val biometricsEnabled by viewModel.biometricsEnabled.collectAsState()
-    val themeDark by viewModel.themeDark.collectAsState()
-    val isSyncing by viewModel.isSyncing.collectAsState()
-    val currentPin by viewModel.userPin.collectAsState()
-    val currentName by viewModel.userName.collectAsState()
-    val isPinEnabled by viewModel.isPinEnabled.collectAsState()
+    val isLocked by viewModel.isLocked.collectAsStateWithLifecycle()
+    val biometricsEnabled by viewModel.biometricsEnabled.collectAsStateWithLifecycle()
+    val themeDark by viewModel.themeDark.collectAsStateWithLifecycle()
+    val isSyncing by viewModel.isSyncing.collectAsStateWithLifecycle()
+    val currentPin by viewModel.userPin.collectAsStateWithLifecycle()
+    val currentName by viewModel.userName.collectAsStateWithLifecycle()
+    val isPinEnabled by viewModel.isPinEnabled.collectAsStateWithLifecycle()
+    val bankNotificationEnabled by viewModel.bankNotificationEnabled.collectAsStateWithLifecycle()
 
     var showPinDialog by remember { mutableStateOf(false) }
     var pinInputValue by remember { mutableStateOf(currentPin) }
@@ -310,6 +314,76 @@ fun SettingsScreen(
                             }
                         )
                     }
+                }
+            }
+
+            // --- DETEKTOR NOTIFIKASI BANK SECTION ---
+            Text(
+                text = "Detektor Notifikasi Bank",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.padding(top = 8.dp)
+            )
+
+            Card(
+                modifier = Modifier.fillMaxWidth().testTag("bank_notif_settings_card"),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                shape = RoundedCornerShape(20.dp),
+                border = CardDefaults.outlinedCardBorder()
+            ) {
+                Column(modifier = Modifier.padding(4.dp)) {
+                    SecuritySettingRow(
+                        title = "Aktifkan Detektor Notifikasi",
+                        subtitle = "Otomatis membaca dan mencatat pengeluaran masuk/keluar dari notifikasi bank & e-wallet.",
+                        icon = {
+                            Icon(
+                                imageVector = Icons.Default.NotificationsActive,
+                                contentDescription = "Bank Notification Detector",
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                        },
+                        trailing = {
+                            Switch(
+                                checked = bankNotificationEnabled,
+                                onCheckedChange = {
+                                    viewModel.setBankNotificationEnabled(it)
+                                    if (it) {
+                                        Toast.makeText(context, "Detektor Diaktifkan. Pastikan izin akses notifikasi sistem Android sudah aktif.", Toast.LENGTH_LONG).show()
+                                    } else {
+                                        Toast.makeText(context, "Detektor Dinonaktifkan.", Toast.LENGTH_SHORT).show()
+                                    }
+                                },
+                                modifier = Modifier.testTag("bank_notif_enabled_switch")
+                            )
+                        }
+                    )
+
+                    SecuritySettingRow(
+                        title = "Pengaturan Akses Izin Sistem",
+                        subtitle = "Buka pengaturan sistem Android untuk mengizinkan atau mencabut akses membaca notifikasi.",
+                        icon = {
+                            Icon(
+                                imageVector = Icons.Default.Sync,
+                                contentDescription = "System Notification Permission Settings",
+                                tint = MaterialTheme.colorScheme.secondary
+                            )
+                        },
+                        onClick = {
+                            try {
+                                val intent = Intent("android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS")
+                                context.startActivity(intent)
+                            } catch (e: Exception) {
+                                Toast.makeText(context, "Gagal membuka menu Pengaturan", Toast.LENGTH_SHORT).show()
+                            }
+                        },
+                        trailing = {
+                            Icon(
+                                imageVector = Icons.Default.ChevronRight,
+                                contentDescription = "Akses Izin"
+                            )
+                        }
+                    )
                 }
             }
 

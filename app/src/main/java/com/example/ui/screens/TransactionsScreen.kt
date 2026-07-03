@@ -46,6 +46,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -69,7 +70,7 @@ fun TransactionsScreen(
     viewModel: FinanceViewModel,
     modifier: Modifier = Modifier
 ) {
-    val transactions by viewModel.allTransactions.collectAsState()
+    val transactions by viewModel.allTransactions.collectAsStateWithLifecycle()
 
     var searchQuery by remember { mutableStateOf("") }
     var selectedTypeFilter by remember { mutableStateOf("ALL") } // ALL, INCOME, EXPENSE
@@ -227,7 +228,7 @@ fun TransactionsScreen(
                     modifier = Modifier.weight(1f),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    items(filteredTransactions, key = { it.id }) { tx ->
+                    items(filteredTransactions, key = { "tx_${it.id}" }) { tx ->
                         TransactionItemRow(
                             tx = tx,
                             onDelete = { viewModel.deleteTransaction(it) },
