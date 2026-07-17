@@ -19,7 +19,6 @@ Uangku adalah solusi manajemen keuangan pribadi (*personal finance manager*) ber
 | **Rupiah Input Formatter** | Pengetikan nominal keuangan yang aman, bebas dari kesalahan visualisasi ribu maupun gangguan lompatan kursor. | `RupiahVisualTransformation` | Pengalaman input nilai uang yang lancar, intuitif, dan bebas bug posisi kursor. |
 | **Visualisasi Komprehensif** | Pemetaan kategori pengeluaran dan kurva perbandingan pendapatan secara informatif. | Donut & Line Chart berbasis Canvas & Jetpack Compose | Pemahaman instan mengenai alokasi dana terbesar dan rasio tabungan. |
 | **Ekspor Laporan Resmi** | Penyediaan dokumen laporan ringkasan dalam format portabel dan tabel pengolah data. | PDF Document Canvas generator & CSV Exporter | Dokumentasi keuangan terlaporkan yang siap diarsipkan atau diolah di Excel. |
-| **Tantangan Menabung & Gamifikasi** (v2.0) | Program menabung interaktif harian/mingguan terstruktur dengan sistem apresiasi lencana virtual (*Virtual Badges*). | `SavingChallenge` & `VirtualBadge` engine with dynamic custom Dialogs | Membangun kedisiplinan dan kebiasaan menabung yang positif secara menyenangkan. |
 | **Kalender Tagihan Interaktif** (v2.0) | Kalender visual pengatur jadwal penarikan tagihan rutin bulanan (langganan, listrik, WiFi) dengan indikator visual. | Custom Calendar Grid Composables & `RecurringBill` entity | Menghindari keterlambatan denda pembayaran tagihan lewat pengawasan tanggal jatuh tempo yang presisi. |
 | **Notifikasi Pengingat Lokal** (v2.0) | Pengiriman sinyal pengingat lokal secara otomatis saat mendekati tanggal jatuh tempo pembayaran tanpa memerlukan server cloud. | `NotificationCompat.Builder`, `POST_NOTIFICATIONS` runtime checks | Jaminan ketepatan waktu membayar tagihan tanpa mengompromikan privasi data. |
 
@@ -46,12 +45,7 @@ Guna mempertahankan pengalaman pengguna yang mulus pada formulir pengisian data 
 *   **Pencegahan Cursor Jumping**: Transformasi visual merombak letak indeks teks tanpa mengubah nilai asli string dalam variabel *state* ( pure numeric digits). Penempatan kursor, penghapusan pertengahan karakter, dan pengeditan angka dapat dilakukan secara presisi tanpa lemparan posisi kursor ke ujung kanan masukan.
 *   **Validasi Masukan Statis**: Membatasi input karakter non-numerik melalui pembatasan level keyboard sistem untuk menjamin kepatuhan tipe data database sebelum kompilasi kueri SQLite.
 
-### 4. Tantangan Finansial Interaktif & Lemari Lencana Virtual (v2.0)
-Untuk mendorong kebiasaan menyisihkan uang yang konsisten, Uangku memperkenalkan modul gamifikasi:
-*   **Sistem Check-In Progresif**: Pengguna dapat berpartisipasi dalam tantangan menabung terstruktur dengan nominal tetap (misalnya *Tantangan Jumat Berkah* atau *Anti Jajan Kopi Boba*). Setiap check-in secara otomatis memotong saldo dompet utama dan menambah saldo tujuan tabungan terkait.
-*   **Apresiasi Lencana Virtual**: Dilengkapi dengan lemari lencana digital (*Virtual Badges Cabinet*) yang akan terbuka secara real-time saat pengguna berhasil menyentuh pencapaian finansial tertentu. Inovasi ini menyertakan dialog visual khusus interaktif sewaktu lencana berhasil diklaim.
-
-### 5. Pengatur Jadwal & Notifikasi Tagihan Rutin (v2.0)
+### 4. Pengatur Jadwal & Notifikasi Tagihan Rutin (v2.0)
 Meminimalkan beban kognitif pengelolaan tagihan berkala secara offline penuh:
 *   **Visualisasi Grid Kalender**: Lembar kalender khusus yang menyoroti tanggal-tanggal jatuh tempo tagihan aktif secara interaktif dengan indikasi titik pink penanda urgensi.
 *   **Sistem Pengingat Lokal Cerdas**: Melakukan pengecekan tagihan secara asinkron setiap kali aplikasi dibuka, lalu meluncurkan notifikasi lokal pada perangkat (H-3, H-1, dan hari-H) dengan dukungan kepatuhan izin dinamis Android 13+ (`POST_NOTIFICATIONS`).
