@@ -58,6 +58,24 @@ Meminimalkan beban kognitif pengelolaan tagihan berkala secara offline penuh:
 
 ---
 
+## Pembaruan Versi Terbaru & Optimalisasi (v2.1)
+
+Pembaruan pada versi **2.1** difokuskan pada peningkatan kegunaan (*usability*), optimalisasi tampilan riwayat keuangan, penanganan kesalahan kompilasi, serta pemeliharaan kompatibilitas data:
+
+### 1. Modifikasi Rencana / Impian Menabung Terintegrasi (Edit Saving Goal)
+*   **Dialog Modifikasi Interaktif**: Menambahkan tombol edit (`Icons.Default.Edit`) pada setiap kartu target menabung yang terintegrasi langsung dengan database Room melalui kueri `@Update` asinkronus. Pengguna kini dapat mengubah judul, kategori, nominal target, dan estimasi waktu pencapaian rencana keuangan mereka sewaktu-waktu secara dinamis tanpa perlu menghapus rencana tersebut dan kehilangan catatan progres tabungan yang telah berjalan.
+
+### 2. Redesain Visual dan Statistik Komprehensif Layar Transaksi
+*   **Kartu Informasi Statistik Real-Time**: Layar Transaksi kini dilengkapi dua kartu statistik asimetris yang elegan di bagian atas layar untuk memvisualisasikan jumlah total pengeluaran dan pemasukan berdasarkan pencarian serta filter aktif secara langsung (*real-time*).
+*   **Pill Tabs Navigasi Modern**: Filter jenis transaksi (Semua, Pemasukan, Pengeluaran) dirombak menggunakan desain tab berbentuk pil berskala penuh dengan ikon indikator penunjuk arah aliran dana (`ArrowUpward` dan `ArrowDownward`) yang ramah pengguna.
+*   **Pengelompokan Berdasarkan Tanggal (Date Grouping)**: Daftar transaksi disajikan secara dinamis dalam kelompok hari pelaporan (`Hari Ini`, `Kemarin`, atau tanggal spesifik) yang dipisahkan oleh pembatas beraksen warna primer untuk visualisasi yang lebih beraturan dan mempermudah pemindaian arus keuangan.
+
+### 3. Stabilitas Kode & Kompatibilitas Versi Pembaruan Aman (Safe Update Strategy)
+*   **Resolusi Error Sintaksis & Dependensi**: Mengatasi konflik parsing tanda kurung siku dan percabangan `if/else` token pada visualisasi tab ML Analyst di layar dashboard utama, menstabilkan impor ikon `Icons.Default.Edit` di layar anggaran, serta menyempurnakan asinkronisasi render lazy column daftar transaksi.
+*   **Perlindungan Data Migrasi**: Pembangunan skema database Room yang terjaga menggunakan migrasi skema `MIGRATION_1_2` menjamin data lokal yang disimpan pada v1.0 dan v2.0 aman 100% dari kehilangan data (*data loss*) saat pengguna menginstal file biner pembaruan v2.1 ini.
+
+---
+
 ## Ketahanan Sistem & Strategi Pemeliharaan Versi (Robustness)
 
 Guna menjamin stabilitas fungsionalitas sistem saat pengguna melakukan pembaruan versi jangka panjang, arsitektur data Uangku mengadopsi tiga lapisan pengamanan internal:

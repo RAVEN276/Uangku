@@ -1521,7 +1521,6 @@ fun DashboardScreen(
         val summary by viewModel.mlWeeklySummary.collectAsStateWithLifecycle()
         val isGeneratingSummary by viewModel.isGeneratingSummary.collectAsStateWithLifecycle()
         val mlInsights by viewModel.mlInsights.collectAsStateWithLifecycle()
-        var activeMlTab by remember { mutableStateOf(0) }
 
         val infiniteTransition = rememberInfiniteTransition(label = "rotation_dlg")
         val rotationAngle by if (isGeneratingSummary) {
@@ -1621,65 +1620,6 @@ fun DashboardScreen(
                                     imageVector = Icons.Default.Close,
                                     contentDescription = "Close",
                                     tint = if (themeDark) Color.White.copy(alpha = 0.7f) else Color.DarkGray
-                                )
-                            }
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(
-                                if (themeDark) Color(0xFF1E142B) else Color(0xFFF1E9FF),
-                                RoundedCornerShape(12.dp)
-                            )
-                            .padding(4.dp)
-                    ) {
-                        val activeColor = if (themeDark) Color(0xFF6D28D9) else Color(0xFFE9D5FF)
-                        val activeTextColor = if (themeDark) Color.White else Color(0xFF4C229E)
-                        val inactiveTextColor = if (themeDark) Color.LightGray.copy(alpha = 0.6f) else Color.Gray
-
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(if (activeMlTab == 0) activeColor else Color.Transparent)
-                                .clickable { activeMlTab = 0 }
-                                .padding(vertical = 8.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                "Ringkasan Analisis",
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = if (activeMlTab == 0) activeTextColor else inactiveTextColor
-                            )
-                        }
-
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(if (activeMlTab == 1) activeColor else Color.Transparent)
-                                .clickable { activeMlTab = 1 }
-                                .padding(vertical = 8.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    imageVector = Icons.Default.AutoAwesome,
-                                    contentDescription = null,
-                                    tint = if (activeMlTab == 1) activeTextColor else inactiveTextColor,
-                                    modifier = Modifier.size(12.dp)
-                                )
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text(
-                                    "Lab Interaktif 2.0",
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = if (activeMlTab == 1) activeTextColor else inactiveTextColor
                                 )
                             }
                         }
@@ -1864,8 +1804,7 @@ fun DashboardScreen(
                                     maximumFractionDigits = 0
                                 }
 
-                                if (activeMlTab == 0) {
-                                    Column(
+                                Column(
                                         modifier = Modifier
                                             .fillMaxSize()
                                             .verticalScroll(rememberScrollState()),
@@ -2365,7 +2304,7 @@ fun DashboardScreen(
 
                                     // Laporan Tekstual Lengkap v2 removed per user request
                                 }
-                                } else {
+                                if (false) {
                                     val expenses = remember(transactions) { transactions.filter { it.type == "EXPENSE" }.sortedBy { it.timestamp } }
                                     val totalIncomeAmt = remember(transactions) { transactions.filter { it.type == "INCOME" }.sumOf { it.amount } }
                                     val totalExpenseAmt = remember(transactions) { transactions.filter { it.type == "EXPENSE" }.sumOf { it.amount } }

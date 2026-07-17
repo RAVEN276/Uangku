@@ -435,6 +435,13 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
+    fun updateSavingGoal(goal: SavingGoal) {
+        viewModelScope.launch {
+            repository.updateSavingGoal(goal)
+            triggerAutoSync()
+        }
+    }
+
     // --- Recurring Bills Actions ---
     fun addRecurringBill(title: String, amount: Double, category: String, billingCycle: String, dueDate: String) {
         viewModelScope.launch {

@@ -1,5 +1,10 @@
 package com.example.ui.screens
 
+import java.text.NumberFormat
+import java.text.SimpleDateFormat
+import java.util.Calendar
+import java.util.Date
+import java.util.Locale
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -24,8 +29,11 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ArrowDownward
+import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.FilterList
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -71,12 +79,19 @@ fun TransactionsScreen(
     modifier: Modifier = Modifier
 ) {
     val transactions by viewModel.allTransactions.collectAsStateWithLifecycle()
+    val themeDark by viewModel.themeDark.collectAsStateWithLifecycle()
 
     var searchQuery by remember { mutableStateOf("") }
     var selectedTypeFilter by remember { mutableStateOf("ALL") } // ALL, INCOME, EXPENSE
     var selectedCategoryFilter by remember { mutableStateOf("ALL") } // ALL or categories
 
     var showAddDialog by remember { mutableStateOf(false) }
+
+    val rubelFormat = remember {
+        val format = NumberFormat.getCurrencyInstance(Locale("id", "ID"))
+        format.maximumFractionDigits = 0
+        format
+    }
 
     // List filtration
     val filteredTransactions = remember(transactions, searchQuery, selectedTypeFilter, selectedCategoryFilter) {
@@ -88,6 +103,39 @@ fun TransactionsScreen(
             val matchesCategory = selectedCategoryFilter == "ALL" || tx.category == selectedCategoryFilter
 
             matchesSearch && matchesType && matchesCategory
+        }
+    }
+
+    // Statistics for the currently filtered view
+    val totalIncome = remember(filteredTransactions) {
+        filteredTransactions.filter { it.type == "INCOME" }.sumOf { it.amount }
+    }
+    val totalExpense = remember(filteredTransactions) {
+        filteredTransactions.filter { it.type == "EXPENSE" }.sumOf { it.amount }
+    }
+
+    // Grouping by Date descending
+    val groupedTransactions = remember(filteredTransactions) {
+        val groups = filteredTransactions.groupBy { tx ->
+            val cal = Calendar.getInstance().apply { timeInMillis = tx.timestamp }
+            val today = Calendar.getInstance()
+            val yesterday = Calendar.getInstance().apply { add(Calendar.DATE, -1) }
+
+            val isToday = cal.get(Calendar.YEAR) == today.get(Calendar.YEAR) &&
+                    cal.get(Calendar.DAY_OF_YEAR) == today.get(Calendar.DAY_OF_YEAR)
+            val isYesterday = cal.get(Calendar.YEAR) == yesterday.get(Calendar.YEAR) &&
+                    cal.get(Calendar.DAY_OF_YEAR) == yesterday.get(Calendar.DAY_OF_YEAR)
+
+            when {
+                isToday -> "Hari Ini"
+                isYesterday -> "Kemarin"
+                else -> SimpleDateFormat("dd MMMM yyyy", Locale("id", "ID")).format(Date(tx.timestamp))
+            }
+        }
+        groups.toList().sortedWith { a, b ->
+            val txA = a.second.maxByOrNull { it.timestamp }?.timestamp ?: 0L
+            val txB = b.second.maxByOrNull { it.timestamp }?.timestamp ?: 0L
+            txB.compareTo(txA)
         }
     }
 
@@ -109,7 +157,7 @@ fun TransactionsScreen(
                 .fillMaxSize()
                 .padding(innerPadding)
                 .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+            verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             // Screen Title
             Text(
@@ -118,6 +166,86 @@ fun TransactionsScreen(
                 fontWeight = FontWeight.Black,
                 color = MaterialTheme.colorScheme.onSurface
             )
+
+            // Horizontal Summary Statistics Cards
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Card(
+                    modifier = Modifier.weight(1f),
+                    colors = CardDefaults.cardColors(
+                        containerColor = if (themeDark) Color(0xFF0F2D1E) else Color(0xFFE8F5E9)
+                    ),
+                    shape = RoundedCornerShape(16.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, if (themeDark) Color(0xFF1B5E20) else Color(0xFFC8E6C9))
+                ) {
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .size(20.dp)
+                                    .background(if (themeDark) Color(0xFF1B5E20) else Color(0xFFC8E6C9), CircleShape),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.ArrowUpward,
+                                    contentDescription = null,
+                                    tint = if (themeDark) Color(0xFFC8E6C9) else Color(0xFF1B5E20),
+                                    modifier = Modifier.size(12.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Pemasukan", fontSize = 10.sp, color = if (themeDark) Color(0xFF81C784) else Color(0xFF2E7D32), fontWeight = FontWeight.Bold)
+                        }
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = rubelFormat.format(totalIncome).replace(",00", ""),
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Black,
+                            color = if (themeDark) Color(0xFFC8E6C9) else Color(0xFF1B5E20),
+                            maxLines = 1
+                        )
+                    }
+                }
+
+                Card(
+                    modifier = Modifier.weight(1f),
+                    colors = CardDefaults.cardColors(
+                        containerColor = if (themeDark) Color(0xFF3E121E) else Color(0xFFFFEBEE)
+                    ),
+                    shape = RoundedCornerShape(16.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, if (themeDark) Color(0xFFB71C1C) else Color(0xFFFFCDD2))
+                ) {
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .size(20.dp)
+                                    .background(if (themeDark) Color(0xFFB71C1C) else Color(0xFFFFCDD2), CircleShape),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.ArrowDownward,
+                                    contentDescription = null,
+                                    tint = if (themeDark) Color(0xFFFFCDD2) else Color(0xFFB71C1C),
+                                    modifier = Modifier.size(12.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Pengeluaran", fontSize = 10.sp, color = if (themeDark) Color(0xFFE57373) else Color(0xFFC62828), fontWeight = FontWeight.Bold)
+                        }
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = rubelFormat.format(totalExpense).replace(",00", ""),
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Black,
+                            color = if (themeDark) Color(0xFFFFCDD2) else Color(0xFFB71C1C),
+                            maxLines = 1
+                        )
+                    }
+                }
+            }
 
             // Search Bar & Filters
             OutlinedTextField(
@@ -131,7 +259,7 @@ fun TransactionsScreen(
                     .testTag("transactions_search_input")
             )
 
-            // Dynamic Tab Toggles for Income vs Expense vs All
+            // Beautifully Reworked Pill Tabs Toggles (Semua, Pemasukan, Pengeluaran)
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -142,23 +270,48 @@ fun TransactionsScreen(
                     "EXPENSE" to "Pengeluaran"
                 ).forEach { (filterVal, label) ->
                     val isSelected = selectedTypeFilter == filterVal
+                    val bgCol = if (isSelected) {
+                        MaterialTheme.colorScheme.primary
+                    } else {
+                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+                    }
+                    val txtCol = if (isSelected) {
+                        MaterialTheme.colorScheme.onPrimary
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    }
+                    val iconVector = when (filterVal) {
+                        "INCOME" -> Icons.Default.ArrowUpward
+                        "EXPENSE" -> Icons.Default.ArrowDownward
+                        else -> Icons.Default.Info
+                    }
+
                     Box(
                         modifier = Modifier
                             .weight(1f)
-                            .background(
-                                color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                                shape = RoundedCornerShape(12.dp)
-                            )
+                            .background(bgCol, RoundedCornerShape(16.dp))
                             .clickable { selectedTypeFilter = filterVal }
-                            .padding(vertical = 10.dp),
+                            .padding(vertical = 10.dp, horizontal = 4.dp),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text(
-                            text = label,
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            Icon(
+                                imageVector = iconVector,
+                                contentDescription = null,
+                                tint = txtCol,
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = label,
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = txtCol
+                            )
+                        }
                     }
                 }
             }
@@ -204,7 +357,7 @@ fun TransactionsScreen(
                 }
             }
 
-            // Transaction lists scroll
+            // Transaction lists scroll with Date Grouping Header
             if (filteredTransactions.isEmpty()) {
                 Box(
                     modifier = Modifier
@@ -226,14 +379,40 @@ fun TransactionsScreen(
             } else {
                 LazyColumn(
                     modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    items(filteredTransactions, key = { "tx_${it.id}" }) { tx ->
-                        TransactionItemRow(
-                            tx = tx,
-                            onDelete = { viewModel.deleteTransaction(it) },
-                            onUpdate = { viewModel.updateTransaction(it) }
-                        )
+                    groupedTransactions.forEach { (dateHeader, list) ->
+                        item {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 4.dp, horizontal = 2.dp)
+                            ) {
+                                Text(
+                                    text = dateHeader,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    letterSpacing = 0.5.sp
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .height(1.dp)
+                                        .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f))
+                                )
+                            }
+                        }
+
+                        items(list, key = { "tx_${it.id}" }) { tx ->
+                            TransactionItemRow(
+                                tx = tx,
+                                onDelete = { viewModel.deleteTransaction(it) },
+                                onUpdate = { viewModel.updateTransaction(it) }
+                            )
+                        }
                     }
                 }
             }

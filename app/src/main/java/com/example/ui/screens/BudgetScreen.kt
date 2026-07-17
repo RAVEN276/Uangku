@@ -21,6 +21,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AddAlert
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.LibraryAdd
 import androidx.compose.material.icons.filled.NotificationsActive
@@ -89,9 +90,10 @@ fun BudgetScreen(
         viewModel.loadSavingChallengesAndBadges()
     }
 
-    var activeTab by remember { mutableStateOf(0) } // 0 = Anggaran, 1 = Target Menabung, 2 = Tantangan
+    var activeTab by remember { mutableStateOf(0) } // 0 = Anggaran, 1 = Target Menabung
     var showAddBudgetDialog by remember { mutableStateOf(false) }
     var showAddSavingGoalDialog by remember { mutableStateOf(false) }
+    var editingSavingGoal by remember { mutableStateOf<com.example.data.model.SavingGoal?>(null) }
 
     val rubelFormat = NumberFormat.getCurrencyInstance(Locale("id", "ID"))
     rubelFormat.maximumFractionDigits = 0
@@ -162,13 +164,13 @@ fun BudgetScreen(
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(
-                        text = if (activeTab == 0) "Anggaran & Alarm" else if (activeTab == 1) "Target Menabung" else "Tantangan & Lencana",
+                        text = if (activeTab == 0) "Anggaran & Alarm" else "Target Menabung",
                         style = MaterialTheme.typography.headlineMedium,
                         fontWeight = FontWeight.Black,
                         color = MaterialTheme.colorScheme.onSurface
                     )
                     Text(
-                        text = if (activeTab == 0) "Atur sasaran pengeluaran bulanan agar terhindar dari pemborosan berlebih." else if (activeTab == 1) "Lacak kemajuan menabung Anda untuk membeli barang atau tujuan impian." else "Tantangan menabung interaktif seru untuk membangun kebiasaan finansial positif secara menyenangkan.",
+                        text = if (activeTab == 0) "Atur sasaran pengeluaran bulanan agar terhindar dari pemborosan berlebih." else "Lacak kemajuan menabung Anda untuk membeli barang atau tujuan impian.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -213,16 +215,6 @@ fun BudgetScreen(
                         contentPadding = PaddingValues(vertical = 8.dp)
                     ) {
                         Text("Target", fontWeight = FontWeight.Bold, fontSize = 11.sp)
-                    }
-
-                    Button(
-                        onClick = { activeTab = 2 },
-                        colors = if (activeTab == 2) activeBtnColor else inactiveBtnColor,
-                        shape = RoundedCornerShape(8.dp),
-                        modifier = Modifier.weight(1f),
-                        contentPadding = PaddingValues(vertical = 8.dp)
-                    ) {
-                        Text("Tantangan", fontWeight = FontWeight.Bold, fontSize = 11.sp)
                     }
                 }
             }
@@ -680,235 +672,9 @@ fun BudgetScreen(
                             goal = goal,
                             rubelFormat = rubelFormat,
                             currentBalance = totalBalance,
+                            onEdit = { editingSavingGoal = goal },
                             onDelete = { viewModel.deleteSavingGoal(goal) }
                         )
-                    }
-                }
-            } else {
-                // TAB 2: Saving Challenges & Badges
-                item {
-                    Text(
-                        text = "Tantangan Menabung Finansial",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.padding(top = 8.dp)
-                    )
-                }
-
-                if (savingChallenges.isEmpty()) {
-                    item {
-                        Text(
-                            text = "Memuat tantangan...",
-                            fontSize = 12.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                } else {
-                    items(savingChallenges, key = { "challenge_${it.id}" }) { challenge ->
-                        val isChCompleted = challenge.status == "COMPLETED"
-                        Card(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .testTag("challenge_card_${challenge.id}"),
-                            colors = CardDefaults.cardColors(
-                                containerColor = if (isChCompleted) {
-                                    MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f)
-                                } else {
-                                    MaterialTheme.colorScheme.surface
-                                }
-                            ),
-                            shape = RoundedCornerShape(16.dp),
-                            border = CardDefaults.outlinedCardBorder()
-                        ) {
-                            Column(modifier = Modifier.padding(16.dp)) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text(
-                                            text = challenge.title,
-                                            fontWeight = FontWeight.Bold,
-                                            style = MaterialTheme.typography.titleSmall,
-                                            color = if (isChCompleted) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface
-                                        )
-                                        Text(
-                                            text = "📅 " + challenge.scheduleText,
-                                            fontSize = 11.sp,
-                                            fontWeight = FontWeight.Medium,
-                                            color = MaterialTheme.colorScheme.primary
-                                        )
-                                    }
-                                    if (isChCompleted) {
-                                        Box(
-                                            modifier = Modifier
-                                                .background(Color(0xFFE8F5E9), RoundedCornerShape(8.dp))
-                                                .padding(horizontal = 8.dp, vertical = 4.dp)
-                                        ) {
-                                            Text(
-                                                text = "Selesai 🎉",
-                                                color = Color(0xFF2E7D32),
-                                                fontWeight = FontWeight.Bold,
-                                                fontSize = 11.sp
-                                            )
-                                        }
-                                    } else {
-                                        Button(
-                                            onClick = { viewModel.checkInChallenge(challenge.id, context = viewModel.getApplication()) },
-                                            modifier = Modifier
-                                                .testTag("checkin_button_${challenge.id}"),
-                                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
-                                            shape = RoundedCornerShape(8.dp)
-                                        ) {
-                                            Text("Check-In", fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                                        }
-                                    }
-                                }
-
-                                Spacer(modifier = Modifier.height(8.dp))
-
-                                Text(
-                                    text = challenge.description,
-                                    fontSize = 11.sp,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    lineHeight = 14.sp
-                                )
-
-                                Spacer(modifier = Modifier.height(12.dp))
-
-                                val progressFraction = challenge.currentProgress.toFloat() / challenge.targetProgress.toFloat()
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Text(
-                                        text = "Check-in: ${challenge.currentProgress}/${challenge.targetProgress}",
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.onSurface
-                                    )
-                                    Text(
-                                        text = "Target: " + rubelFormat.format(challenge.targetAmount).replace(",00", ""),
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-
-                                Spacer(modifier = Modifier.height(6.dp))
-
-                                LinearProgressIndicator(
-                                    progress = { progressFraction.coerceIn(0f, 1f) },
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .height(8.dp)
-                                        .clip(RoundedCornerShape(4.dp)),
-                                    color = if (isChCompleted) Color(0xFF4CAF50) else MaterialTheme.colorScheme.primary,
-                                    trackColor = MaterialTheme.colorScheme.surfaceVariant
-                                )
-
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Text(
-                                    text = "Menabung " + rubelFormat.format(challenge.amountPerCheckIn).replace(",00", "") + " setiap kali check-in.",
-                                    fontSize = 10.sp,
-                                    color = MaterialTheme.colorScheme.outline
-                                )
-                            }
-                        }
-                    }
-                }
-
-                item {
-                    Text(
-                        text = "Lemari Lencana Anda 🏆",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.padding(top = 16.dp, bottom = 8.dp)
-                    )
-                }
-
-                item {
-                    Column(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        val chunkedBadges = virtualBadges.chunked(2)
-                        chunkedBadges.forEach { rowBadges ->
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(12.dp)
-                            ) {
-                                rowBadges.forEach { badge ->
-                                    Card(
-                                        modifier = Modifier
-                                            .weight(1f)
-                                            .testTag("badge_card_${badge.id}"),
-                                        colors = CardDefaults.cardColors(
-                                            containerColor = if (badge.isUnlocked) {
-                                                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.25f)
-                                            } else {
-                                                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.15f)
-                                            }
-                                        ),
-                                        shape = RoundedCornerShape(16.dp),
-                                        border = CardDefaults.outlinedCardBorder()
-                                    ) {
-                                        Column(
-                                            modifier = Modifier.padding(12.dp),
-                                            horizontalAlignment = Alignment.CenterHorizontally,
-                                            verticalArrangement = Arrangement.spacedBy(6.dp)
-                                        ) {
-                                            Box(
-                                                modifier = Modifier
-                                                    .size(48.dp)
-                                                    .background(
-                                                        if (badge.isUnlocked) MaterialTheme.colorScheme.primary.copy(alpha = 0.12f) else Color.Transparent,
-                                                        androidx.compose.foundation.shape.CircleShape
-                                                    ),
-                                                contentAlignment = Alignment.Center
-                                            ) {
-                                                Text(
-                                                    text = badge.icon,
-                                                    fontSize = 28.sp,
-                                                    modifier = Modifier.alpha(if (badge.isUnlocked) 1f else 0.35f)
-                                                )
-                                            }
-                                            
-                                            Text(
-                                                text = badge.name,
-                                                fontWeight = FontWeight.Bold,
-                                                fontSize = 11.sp,
-                                                textAlign = TextAlign.Center,
-                                                color = if (badge.isUnlocked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                                            )
-                                            
-                                            Text(
-                                                text = badge.description,
-                                                fontSize = 9.sp,
-                                                lineHeight = 11.sp,
-                                                textAlign = TextAlign.Center,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                                modifier = Modifier.heightIn(min = 36.dp)
-                                            )
-                                            
-                                            Text(
-                                                text = if (badge.isUnlocked) "🔓 Terbuka!" else "🔒 " + badge.unlockProgressText,
-                                                fontSize = 9.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = if (badge.isUnlocked) Color(0xFF388E3C) else MaterialTheme.colorScheme.outline
-                                            )
-                                        }
-                                    }
-                                }
-                                if (rowBadges.size < 2) {
-                                    Spacer(modifier = Modifier.weight(1f))
-                                }
-                            }
-                        }
                     }
                 }
             }
@@ -1164,6 +930,127 @@ fun BudgetScreen(
         }
     }
 
+    if (editingSavingGoal != null) {
+        val currentGoal = editingSavingGoal!!
+        var goalTitle by remember { mutableStateOf(currentGoal.title) }
+        var targetAmtInput by remember { mutableStateOf(currentGoal.targetAmount.toLong().toString()) }
+        var targetDateInput by remember { mutableStateOf(currentGoal.targetDate) }
+        var categoryChoice by remember { mutableStateOf(currentGoal.category) }
+
+        val catsOptions = listOf("Gawai", "Liburan", "Dana Darurat", "Kendaraan", "Lainnya")
+
+        Dialog(onDismissRequest = { editingSavingGoal = null }) {
+            Surface(
+                shape = RoundedCornerShape(24.dp),
+                color = MaterialTheme.colorScheme.surface,
+                tonalElevation = 6.dp,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(
+                    modifier = Modifier.padding(24.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    Text(
+                        text = "Edit Rencana / Impian",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold
+                    )
+
+                    OutlinedTextField(
+                        value = goalTitle,
+                        onValueChange = { goalTitle = it },
+                        label = { Text("Nama Rencana / Impian") },
+                        placeholder = { Text("misal: Beli Laptop Baru") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    OutlinedTextField(
+                        value = targetAmtInput,
+                        onValueChange = { input ->
+                            val clean = input.filter { it.isDigit() }
+                            if (clean.length <= 15) {
+                                targetAmtInput = clean
+                            }
+                        },
+                        label = { Text("Target Minimal Nominal (IDR)") },
+                        placeholder = { Text("misal: 10.000.000") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        visualTransformation = RupiahVisualTransformation(),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    OutlinedTextField(
+                        value = targetDateInput,
+                        onValueChange = { targetDateInput = it },
+                        label = { Text("Target Tanggal Pencapaian") },
+                        placeholder = { Text("misal: Desember 2026") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    Text("Pilih Kategori:", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        catsOptions.forEach { cat ->
+                            val isSelected = categoryChoice == cat
+                            Box(
+                                modifier = Modifier
+                                    .background(
+                                        color = if (isSelected) Color(0xFFF06292) else if (themeDark) Color(0xFF2C1423) else Color(0xFFF3E5F5),
+                                        shape = RoundedCornerShape(12.dp)
+                                    )
+                                    .clickable { categoryChoice = cat }
+                                    .padding(horizontal = 16.dp, vertical = 10.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = cat,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 12.sp,
+                                    color = if (isSelected) Color.White else if (themeDark) Color(0xFFEF9A9A) else Color(0xFF880E4F)
+                                )
+                            }
+                        }
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End
+                    ) {
+                        TextButton(onClick = { editingSavingGoal = null }) {
+                            Text("Batal")
+                        }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Button(
+                            onClick = {
+                                val cleanAmt = targetAmtInput.filter { it.isDigit() }
+                                val targetAmt = cleanAmt.toDoubleOrNull() ?: 0.0
+                                if (goalTitle.isNotEmpty() && targetAmt > 0) {
+                                    val updatedGoal = currentGoal.copy(
+                                        title = goalTitle,
+                                        targetAmount = targetAmt,
+                                        targetDate = targetDateInput.ifEmpty { "Segera" },
+                                        category = categoryChoice
+                                    )
+                                    viewModel.updateSavingGoal(updatedGoal)
+                                    editingSavingGoal = null
+                                }
+                            },
+                            enabled = goalTitle.isNotEmpty() && targetAmtInput.filter { it.isDigit() }.isNotEmpty()
+                        ) {
+                            Text("Simpan Perubahan")
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     if (showBadgeUnlockDialog != null) {
         val badge = showBadgeUnlockDialog!!
         androidx.compose.ui.window.Dialog(onDismissRequest = { viewModel.dismissBadgeUnlockDialog() }) {
@@ -1227,6 +1114,7 @@ fun SavingGoalCard(
     goal: com.example.data.model.SavingGoal,
     rubelFormat: NumberFormat,
     currentBalance: Double,
+    onEdit: () -> Unit,
     onDelete: () -> Unit
 ) {
     val progressFraction = if (goal.targetAmount > 0) {
@@ -1252,7 +1140,10 @@ fun SavingGoalCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    modifier = Modifier.weight(1f),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                     Box(
                         modifier = Modifier
                             .size(40.dp)
@@ -1281,12 +1172,21 @@ fun SavingGoalCard(
                     }
                 }
 
-                IconButton(onClick = onDelete) {
-                    Icon(
-                        imageVector = Icons.Default.Delete,
-                        contentDescription = "Hapus Target",
-                        tint = MaterialTheme.colorScheme.error
-                    )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onClick = onEdit) {
+                        Icon(
+                            imageVector = Icons.Default.Edit,
+                            contentDescription = "Ubah Target",
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                    IconButton(onClick = onDelete) {
+                        Icon(
+                            imageVector = Icons.Default.Delete,
+                            contentDescription = "Hapus Target",
+                            tint = MaterialTheme.colorScheme.error
+                        )
+                    }
                 }
             }
 
