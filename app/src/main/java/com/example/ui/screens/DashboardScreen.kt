@@ -25,6 +25,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.TrendingDown
+import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
@@ -39,6 +41,13 @@ import androidx.compose.material.icons.filled.CreditCard
 import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.ListAlt
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material.icons.filled.QrCodeScanner
+import androidx.compose.material.icons.filled.Analytics
+import androidx.compose.material.icons.filled.TrendingUp
+import androidx.compose.material.icons.filled.Shield
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -58,6 +67,9 @@ import androidx.compose.material3.TextButton
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.input.KeyboardType
 import com.example.ui.components.RupiahVisualTransformation
+import com.example.ui.components.LockerSpeedDialMenu
+import com.example.ui.components.ReceiptScannerDialog
+import androidx.compose.animation.animateContentSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -83,6 +95,12 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.window.Dialog
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.foundation.BorderStroke
+import android.Manifest
+import android.content.pm.PackageManager
+import android.graphics.Bitmap
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
 import android.content.Intent
 import android.widget.Toast
 import com.example.data.model.Transaction
@@ -349,716 +367,482 @@ fun DashboardScreen(
     var showMlReportDialog by remember { mutableStateOf(false) }
     var showBillCalendar by remember { mutableStateOf(false) }
     var selectedCalendarDay by remember { mutableStateOf<Int?>(null) }
+    var isBalanceHidden by remember { mutableStateOf(false) }
 
-    val rubelFormat = NumberFormat.getCurrencyInstance(Locale("id", "ID"))
-    rubelFormat.maximumFractionDigits = 0
+    val selectedCurrency by viewModel.selectedCurrency.collectAsStateWithLifecycle()
+    val rubelFormat = remember(selectedCurrency) {
+        object {
+            fun format(amt: Double): String = viewModel.formatCurrency(amt)
+            fun format(amt: Long): String = viewModel.formatCurrency(amt.toDouble())
+            fun format(amt: Number): String = viewModel.formatCurrency(amt.toDouble())
+        }
+    }
+
+    var isSpeedDialExpanded by remember { mutableStateOf(false) }
+    var initialDialogType by remember { mutableStateOf("EXPENSE") }
+    var capturedReceiptBitmap by remember { mutableStateOf<Bitmap?>(null) }
+
+    val takePictureLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.TakePicturePreview()
+    ) { bitmap: Bitmap? ->
+        if (bitmap != null) {
+            capturedReceiptBitmap = bitmap
+        }
+    }
+
+    val cameraPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            takePictureLauncher.launch(null)
+        } else {
+            Toast.makeText(context, "Izin kamera diperlukan untuk memindai nota", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    fun launchDirectCamera() {
+        val hasPermission = ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.CAMERA
+        ) == PackageManager.PERMISSION_GRANTED
+
+        if (hasPermission) {
+            takePictureLauncher.launch(null)
+        } else {
+            cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+        }
+    }
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
         floatingActionButton = {
-            Column(
-                horizontalAlignment = Alignment.End,
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                // BUTTON FOR PRIVATE LOCAL ML ENGINE REPORT
-                FloatingActionButton(
-                    onClick = { showMlReportDialog = true },
-                    containerColor = if (themeDark) Color(0xFF5B21B6) else Color(0xFFDDD6FE),
-                    contentColor = if (themeDark) Color(0xFFF3E8FF) else Color(0xFF5B21B6),
-                    modifier = Modifier
-                        .testTag("ml_report_fab")
-                        .size(48.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.AutoAwesome, 
-                        contentDescription = "Buka Analisis ML",
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
-
-                FloatingActionButton(
-                    onClick = { showQuickAddDialog = true },
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    contentColor = MaterialTheme.colorScheme.onPrimary,
-                    modifier = Modifier
-                        .testTag("quick_add_transaction_fab")
-                        .padding(bottom = 8.dp)
-                ) {
-                    Icon(imageVector = Icons.Default.Add, contentDescription = "Quick Add Expense")
-                }
-            }
+            LockerSpeedDialMenu(
+                isExpanded = isSpeedDialExpanded,
+                onToggleExpand = { isSpeedDialExpanded = !isSpeedDialExpanded },
+                onSelectExpense = {
+                    initialDialogType = "EXPENSE"
+                    showQuickAddDialog = true
+                },
+                onSelectIncome = {
+                    initialDialogType = "INCOME"
+                    showQuickAddDialog = true
+                },
+                onSelectScanReceipt = {
+                    launchDirectCamera()
+                },
+                modifier = Modifier
+                    .padding(bottom = 72.dp, end = 4.dp)
+                    .testTag("dashboard_speed_dial_menu")
+            )
         }
     ) { innerPadding ->
-        LazyColumn(
+        Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
-                .padding(horizontal = 16.dp),
+                .padding(horizontal = 16.dp)
+                .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // Welcome Card + Connection Sync Indicator
-            item {
-                Row(
+            Spacer(modifier = Modifier.height(8.dp))
+            
+            // BENTO: Welcome & Profile Header
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text(
+                        text = "Good Morning,",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = userName,
+                        style = MaterialTheme.typography.headlineMedium,
+                        fontWeight = FontWeight.Black,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        letterSpacing = (-1).sp
+                    )
+                }
+                Box(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                        .size(54.dp)
+                        .background(MaterialTheme.colorScheme.surfaceVariant, CircleShape)
+                        .clickable { viewModel.triggerAutoSync() },
+                    contentAlignment = Alignment.Center
                 ) {
-                    Column {
-                        Text(
-                            text = "Halo, $userName",
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Black,
-                            color = MaterialTheme.colorScheme.onSurface
+                    if (isSyncing) {
+                        androidx.compose.material3.CircularProgressIndicator(
+                            modifier = Modifier.size(24.dp),
+                            color = MaterialTheme.colorScheme.primary,
+                            strokeWidth = 2.dp
                         )
+                    } else {
                         Text(
-                            text = "Analisis real-time keuangan Anda",
-                            style = MaterialTheme.typography.bodySmall,
+                            text = userName.take(1).uppercase(),
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
             }
 
-            // Interactive Warning Alert System (Budget Alerts)
-            item {
-                AnimatedVisibility(
-                    visible = budgetAlert != null,
-                    enter = fadeIn(),
-                    exit = fadeOut() + shrinkVertically()
-                ) {
-                    budgetAlert?.let { alertMsg ->
-                        Card(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .testTag("dashboard_budget_alert_card"),
-                            colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.95f)
-                            ),
-                            shape = RoundedCornerShape(16.dp)
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(16.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.NotificationsActive,
-                                    contentDescription = "Alert icon",
-                                    tint = MaterialTheme.colorScheme.error,
-                                    modifier = Modifier.size(24.dp)
-                                )
-                                Spacer(modifier = Modifier.width(12.dp))
-                                Text(
-                                    text = alertMsg,
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onErrorContainer,
-                                    modifier = Modifier.weight(1f),
-                                    fontWeight = FontWeight.Medium
-                                )
-                                IconButton(
-                                    onClick = { viewModel.dismissBudgetAlert() }
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Close,
-                                        contentDescription = "Close",
-                                        tint = MaterialTheme.colorScheme.error
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            // Elegant Metallic Wallet Balance Card (Material M3 Expressive Card with visual gradients)
-            item {
-                val premiumGradient = Brush.linearGradient(
-                    colors = if (themeDark) {
-                        listOf(Color(0xFF2E1065), Color(0xFF6D28D9), Color(0xFFBD287C))
-                    } else {
-                        listOf(Color(0xFF6D28D9), Color(0xFF8B5CF6), Color(0xFFEC4899))
-                    }
-                )
-
-                Card(
+            // BENTO: Main Balance Card (Glass/Mesh style)
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .aspectRatio(1.6f)
+                    .clip(RoundedCornerShape(32.dp))
+                    .background(
+                        Brush.linearGradient(
+                            colors = if (themeDark) listOf(Color(0xFF1E293B), Color(0xFF0F172A))
+                                     else listOf(Color(0xFFF1F5F9), Color(0xFFE2E8F0))
+                        )
+                    )
+                    .border(
+                        1.dp,
+                        if (themeDark) Color.White.copy(alpha = 0.1f) else Color.Black.copy(alpha = 0.05f),
+                        RoundedCornerShape(32.dp)
+                    )
+            ) {
+                // Decorative mesh/blur shapes could go here
+                Box(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .testTag("wallet_balance_gradient_card"),
-                    shape = RoundedCornerShape(24.dp),
-                    border = BorderStroke(
-                        width = 1.6.dp,
-                        color = if (themeDark) Color(0xFF4A2B8F) else Color(0xFFDDD6FE)
-                    ),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .background(premiumGradient)
-                            .padding(22.dp)
-                    ) {
-                        Column {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(
-                                        imageVector = Icons.Default.AccountBalanceWallet,
-                                        contentDescription = "Wallet Icon",
-                                        tint = Color.White.copy(alpha = 0.9f),
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text(
-                                        text = "Total Saldo Gabungan",
-                                        style = MaterialTheme.typography.titleMedium,
-                                        fontWeight = FontWeight.Bold,
-                                        color = Color.White
-                                    )
-                                }
-                                Text(
-                                    text = "Keamanan Aktif",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color.White.copy(alpha = 0.7f),
-                                    fontSize = 11.sp,
-                                    modifier = Modifier
-                                        .background(Color.White.copy(alpha = 0.15f), RoundedCornerShape(12.dp))
-                                        .padding(horizontal = 8.dp, vertical = 4.dp)
-                                )
-                            }
-
-                            Spacer(modifier = Modifier.height(16.dp))
-
-                            Text(
-                                text = rubelFormat.format(totalBalance),
-                                style = MaterialTheme.typography.headlineLarge,
-                                fontWeight = FontWeight.Black,
-                                color = Color.White,
-                                fontSize = 34.sp
-                            )
-
-                            Spacer(modifier = Modifier.height(20.dp))
-
-                            // Glassmorphism-inspired Info Row
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .background(Color.White.copy(alpha = 0.08f), RoundedCornerShape(18.dp))
-                                    .border(1.dp, Color.White.copy(alpha = 0.15f), RoundedCornerShape(18.dp))
-                                    .padding(14.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Column {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Box(
-                                            modifier = Modifier
-                                                .size(20.dp)
-                                                .background(Color.White.copy(alpha = 0.2f), CircleShape),
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            Icon(
-                                                imageVector = Icons.Default.ArrowUpward,
-                                                contentDescription = "Inflow",
-                                                tint = Color(0xFF6EE7B7),
-                                                modifier = Modifier.size(12.dp)
-                                            )
-                                        }
-                                        Spacer(modifier = Modifier.width(6.dp))
-                                        Text(
-                                            text = "Pemasukan",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            fontWeight = FontWeight.Bold,
-                                            color = Color.White.copy(alpha = 0.85f)
-                                        )
-                                    }
-                                    Spacer(modifier = Modifier.height(4.dp))
-                                    Text(
-                                        text = rubelFormat.format(totalIncome),
-                                        style = MaterialTheme.typography.titleMedium,
-                                        fontWeight = FontWeight.Bold,
-                                        color = Color.White
-                                    )
-                                }
-
-                                Column(horizontalAlignment = Alignment.End) {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Box(
-                                            modifier = Modifier
-                                                .size(20.dp)
-                                                .background(Color.White.copy(alpha = 0.2f), CircleShape),
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            Icon(
-                                                imageVector = Icons.Default.ArrowDownward,
-                                                contentDescription = "Outflow",
-                                                tint = Color(0xFFFCA5A5),
-                                                modifier = Modifier.size(12.dp)
-                                            )
-                                        }
-                                        Spacer(modifier = Modifier.width(6.dp))
-                                        Text(
-                                            text = "Pengeluaran",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            fontWeight = FontWeight.Bold,
-                                            color = Color.White.copy(alpha = 0.85f)
-                                        )
-                                    }
-                                    Spacer(modifier = Modifier.height(4.dp))
-                                    Text(
-                                        text = rubelFormat.format(totalExpense),
-                                        style = MaterialTheme.typography.titleMedium,
-                                        fontWeight = FontWeight.Bold,
-                                        color = Color.White
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            // DETEKSI NOTIFIKASI BANK CARD & SIMULATOR
-            if (!bankNotificationEnabled) {
-                item {
-                    var isNotifAccessGranted by remember { mutableStateOf(false) }
-                
-                LaunchedEffect(Unit) {
-                    isNotifAccessGranted = isNotificationServiceEnabled(context)
-                }
-
-                val cardBg = if (themeDark) Color(0xFF1A1625) else Color(0xFFFAF5FF)
-                val cardBorder = if (themeDark) Color(0xFF3A2B5E) else Color(0xFFE9E2FC)
-
-                val textTitleColor = if (themeDark) Color.White else Color(0xFF311062)
-                val textDescColor = if (themeDark) Color(0xFFD1CDDB) else Color(0xFF5A5266)
-
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .testTag("bank_notif_sync_card"),
-                    shape = RoundedCornerShape(24.dp),
-                    colors = CardDefaults.cardColors(containerColor = cardBg),
-                    border = BorderStroke(1.2.dp, cardBorder),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                        .fillMaxSize()
+                        .padding(24.dp)
                 ) {
                     Column(
-                        modifier = Modifier.padding(20.dp),
-                        verticalArrangement = Arrangement.spacedBy(14.dp)
+                        modifier = Modifier.fillMaxSize(),
+                        verticalArrangement = Arrangement.SpaceBetween
                     ) {
                         Row(
-                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
-                            modifier = Modifier.fillMaxWidth()
+                            verticalAlignment = Alignment.Top
                         ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(40.dp)
-                                        .background(
-                                            if (isNotifAccessGranted) {
-                                                if (themeDark) Color(0xFF0F2D24) else Color(0xFFE6F4EA)
-                                            } else {
-                                                if (themeDark) Color(0xFF3B2E1E) else Color(0xFFFFF7E6)
-                                            },
-                                            CircleShape
-                                        ),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(
-                                        imageVector = if (isNotifAccessGranted) Icons.Default.Check else Icons.Default.NotificationsActive,
-                                        contentDescription = "Sync Icon",
-                                        tint = if (isNotifAccessGranted) Color(0xFF10B981) else Color(0xFFF59E0B),
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                }
-                                Spacer(modifier = Modifier.width(12.dp))
-                                Column {
-                                    Text(
-                                        text = "Detektor Notifikasi Bank",
-                                        fontWeight = FontWeight.Bold,
-                                        style = MaterialTheme.typography.titleSmall,
-                                        color = textTitleColor
-                                    )
-                                    Spacer(modifier = Modifier.height(2.dp))
-                                    Text(
-                                        text = if (isNotifAccessGranted) "Sistem Pendeteksi Aktif" else "Menunggu Akses Izin Notifikasi",
-                                        fontSize = 11.sp,
-                                        color = if (isNotifAccessGranted) Color(0xFF10B981) else Color(0xFFF59E0B),
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                }
+                            Column {
+                                Text(
+                                    text = "Total Balance",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = if (themeDark) Color.White.copy(alpha = 0.6f) else Color.Black.copy(alpha = 0.6f)
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(
+                                    text = if (isBalanceHidden) "Rp ••••••••" else rubelFormat.format(totalBalance),
+                                    style = MaterialTheme.typography.displaySmall,
+                                    fontWeight = FontWeight.Black,
+                                    color = if (themeDark) Color.White else Color.Black,
+                                    letterSpacing = (-1).sp
+                                )
                             }
-                            
-                            if (!isNotifAccessGranted) {
-                                Button(
-                                    onClick = {
-                                        try {
-                                            viewModel.setBankNotificationEnabled(true)
-                                            val intent = Intent("android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS")
-                                            context.startActivity(intent)
-                                        } catch (e: Exception) {
-                                            Toast.makeText(context, "Gagal membuka menu Pengaturan", Toast.LENGTH_SHORT).show()
-                                        }
-                                    },
-                                    colors = ButtonDefaults.buttonColors(
-                                        containerColor = if (themeDark) Color(0xFF8B5CF6) else Color(0xFF6D28D9)
-                                    ),
-                                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
-                                    shape = RoundedCornerShape(14.dp)
-                                ) {
-                                    Text("Aktifkan", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                                }
+                            IconButton(
+                                onClick = { isBalanceHidden = !isBalanceHidden },
+                                modifier = Modifier
+                                    .background(
+                                        if (themeDark) Color.White.copy(alpha = 0.1f) else Color.Black.copy(alpha = 0.05f),
+                                        CircleShape
+                                    )
+                            ) {
+                                Icon(
+                                    imageVector = if (isBalanceHidden) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                                    contentDescription = "Toggle",
+                                    tint = if (themeDark) Color.White else Color.Black
+                                )
                             }
                         }
 
-                        Text(
-                            text = if (isNotifAccessGranted) 
-                                "Membaca & merekam otomatis mutasi masuk/keluar dari notifikasi m-banking (BCA, Mandiri, BRI, BNI, OVO, GoPay) secara real-time."
-                                else "Aktifkan izin membaca notifikasi agar pengeluaran/pemasukan di m-banking & e-wallet otomatis tercatat tanpa perlu input manual.",
-                            style = MaterialTheme.typography.bodySmall,
-                            fontSize = 12.sp,
-                            lineHeight = 16.sp,
-                            color = textDescColor
-                        )
+                        // Bottom Actions inside card
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Button(
+                                onClick = { showQuickAddDialog = true },
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(54.dp),
+                                shape = RoundedCornerShape(16.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = if (themeDark) Color.White else Color.Black,
+                                    contentColor = if (themeDark) Color.Black else Color.White
+                                )
+                            ) {
+                                Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("Add", fontWeight = FontWeight.Bold)
+                            }
+                            Button(
+                                onClick = { onNavigateToTransactions() },
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(54.dp),
+                                shape = RoundedCornerShape(16.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = if (themeDark) Color.White.copy(alpha = 0.1f) else Color.Black.copy(alpha = 0.05f),
+                                    contentColor = if (themeDark) Color.White else Color.Black
+                                ),
+                                elevation = null
+                            ) {
+                                Icon(Icons.Default.ListAlt, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("History", fontWeight = FontWeight.Bold)
+                            }
+                        }
                     }
                 }
             }
+
+            // BENTO: 2 Column Grid (Income / Expense)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                // Income Bento Box
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(130.dp)
+                        .clip(RoundedCornerShape(32.dp))
+                        .background(
+                            Brush.linearGradient(
+                                colors = listOf(Color(0xFFD1FAE5), Color(0xFFA7F3D0))
+                            )
+                        )
+                        .padding(20.dp)
+                ) {
+                    Column(
+                        modifier = Modifier.fillMaxSize(),
+                        verticalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(48.dp)
+                                .background(Color(0xFF059669).copy(alpha = 0.15f), CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(Icons.Default.ArrowUpward, contentDescription = null, tint = Color(0xFF059669))
+                        }
+                        Column {
+                            Text(
+                                text = "Income",
+                                style = MaterialTheme.typography.labelLarge,
+                                color = Color(0xFF065F46).copy(alpha = 0.8f)
+                            )
+                            Text(
+                                text = if (isBalanceHidden) "•••" else rubelFormat.format(totalIncome),
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.Black,
+                                color = Color(0xFF064E3B),
+                                fontSize = 18.sp,
+                                maxLines = 1
+                            )
+                        }
+                    }
+                }
+
+                // Expense Bento Box
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(130.dp)
+                        .clip(RoundedCornerShape(32.dp))
+                        .background(
+                            Brush.linearGradient(
+                                colors = listOf(Color(0xFFFFE4E6), Color(0xFFFECDD3))
+                            )
+                        )
+                        .padding(20.dp)
+                ) {
+                    Column(
+                        modifier = Modifier.fillMaxSize(),
+                        verticalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(48.dp)
+                                .background(Color(0xFFE11D48).copy(alpha = 0.15f), CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(Icons.Default.ArrowDownward, contentDescription = null, tint = Color(0xFFE11D48))
+                        }
+                        Column {
+                            Text(
+                                text = "Expense",
+                                style = MaterialTheme.typography.labelLarge,
+                                color = Color(0xFF9F1239).copy(alpha = 0.8f)
+                            )
+                            Text(
+                                text = if (isBalanceHidden) "•••" else rubelFormat.format(totalExpense),
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.Black,
+                                color = Color(0xFF881337),
+                                fontSize = 18.sp,
+                                maxLines = 1
+                            )
+                        }
+                    }
+                }
             }
 
-            // Monthly Income vs Expense comparison bar chart (Recharts style)
-            item {
-                MonthlyBarComparisonChart(transactions = transactions)
-            }
-
-            // Weekly Trend line chart
-            item {
-                TransactionWeeklyTrendLineChart(transactions = transactions)
-            }
-
-            // Donut category split
-            item {
-                TransactionCategoryDonutChart(transactions = transactions)
-            }
-
-            // Tagihan Berkala (Recurring Bills) Panel
-            item {
+            // BENTO: Analytics & AI Card
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(32.dp))
+                    .background(
+                        Brush.linearGradient(
+                            colors = if (themeDark) listOf(Color(0xFF4C1D95), Color(0xFF312E81))
+                                     else listOf(Color(0xFFEDE9FE), Color(0xFFDDD6FE))
+                        )
+                    )
+                    .clickable { showMlReportDialog = true }
+            ) {
                 Row(
-                    modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(24.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        text = "Tagihan Berkala (Jatuh Tempo)",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        modifier = Modifier.weight(1f)
-                    )
-                    
-                    // Toggle Calendar / List
-                    IconButton(
-                        onClick = { showBillCalendar = !showBillCalendar },
-                        modifier = Modifier.size(36.dp).testTag("bill_toggle_calendar_view_btn")
-                    ) {
-                        Icon(
-                            imageVector = if (showBillCalendar) Icons.Default.ListAlt else Icons.Default.CalendarToday,
-                            contentDescription = if (showBillCalendar) "Tampilan Daftar" else "Tampilan Kalender",
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(20.dp)
+                    Column(modifier = Modifier.weight(1f)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                Icons.Default.AutoAwesome,
+                                contentDescription = null,
+                                tint = if (themeDark) Color(0xFFC4B5FD) else Color(0xFF7C3AED),
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "AI Insights",
+                                style = MaterialTheme.typography.labelLarge,
+                                color = if (themeDark) Color(0xFFC4B5FD) else Color(0xFF7C3AED),
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "Tap to view smart financial analysis",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = if (themeDark) Color.White else Color(0xFF4C1D95)
                         )
                     }
-                    
-                    Spacer(modifier = Modifier.width(4.dp))
-
-                    TextButton(onClick = { showAddBillDialog = true }) {
-                        Icon(imageVector = Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Tambah")
+                    Box(
+                        modifier = Modifier
+                            .size(48.dp)
+                            .background(if (themeDark) Color.White.copy(alpha = 0.2f) else Color.White.copy(alpha = 0.5f), CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            Icons.Default.Analytics,
+                            contentDescription = null,
+                            tint = if (themeDark) Color.White else Color(0xFF4C1D95)
+                        )
                     }
                 }
             }
+            
+            // BENTO: Recent Transactions
+            Text(
+                text = "Recent Activity",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Black,
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.padding(top = 8.dp)
+            )
 
-            if (showBillCalendar) {
-                item {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f), RoundedCornerShape(16.dp))
-                            .padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        // Month Header
-                        val monthName = java.text.SimpleDateFormat("MMMM yyyy", java.util.Locale("id", "ID")).format(java.util.Date())
-                        Text(
-                            text = monthName,
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.align(Alignment.CenterHorizontally)
-                        )
-                        
-                        Spacer(modifier = Modifier.height(4.dp))
-                        
-                        // Weekdays Row
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            listOf("Sen", "Sel", "Rab", "Kam", "Jum", "Sab", "Min").forEach { day ->
+            if (recentTxs.isEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 32.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        "No transactions yet",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            } else {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .animateContentSize()
+                        .clip(RoundedCornerShape(32.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
+                        .padding(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    recentTxs.forEach { tx ->
+                        // BENTO: Compact Transaction Row
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(24.dp))
+                                .background(MaterialTheme.colorScheme.surface)
+                                .padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(42.dp)
+                                    .background(
+                                        if (tx.type == "INCOME") Color(0xFF10B981).copy(alpha = 0.1f)
+                                        else Color(0xFFEF4444).copy(alpha = 0.1f),
+                                        CircleShape
+                                    ),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = if (tx.type == "INCOME") Icons.Default.ArrowUpward else Icons.Default.ArrowDownward,
+                                    contentDescription = null,
+                                    tint = if (tx.type == "INCOME") Color(0xFF10B981) else Color(0xFFEF4444),
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column(modifier = Modifier.weight(1f)) {
                                 Text(
-                                    text = day,
-                                    modifier = Modifier.weight(1f),
-                                    textAlign = TextAlign.Center,
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.SemiBold,
+                                    text = tx.title,
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    maxLines = 1
+                                )
+                                Text(
+                                    text = tx.category,
+                                    style = MaterialTheme.typography.labelMedium,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
+                            Text(
+                                text = (if (tx.type == "INCOME") "+" else "-") + rubelFormat.format(tx.amount),
+                                style = MaterialTheme.typography.bodyLarge,
+                                fontWeight = FontWeight.Black,
+                                color = if (tx.type == "INCOME") Color(0xFF10B981) else Color(0xFFEF4444)
+                            )
                         }
-                        
-                        val calendar = java.util.Calendar.getInstance()
-                        val todayDay = calendar.get(java.util.Calendar.DAY_OF_MONTH)
-                        val maxDays = calendar.getActualMaximum(java.util.Calendar.DAY_OF_MONTH)
-                        
-                        val firstDayCal = java.util.Calendar.getInstance().apply {
-                            set(java.util.Calendar.DAY_OF_MONTH, 1)
-                        }
-                        val firstDayOfWeek = (firstDayCal.get(java.util.Calendar.DAY_OF_WEEK) + 5) % 7
-                        
-                        val totalSlots = firstDayOfWeek + maxDays
-                        val rows = (totalSlots + 6) / 7
-                        
-                        var currentDayToDraw = 1
-                        for (r in 0 until rows) {
-                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                for (c in 0..6) {
-                                    val slotIndex = r * 7 + c
-                                    if (slotIndex < firstDayOfWeek || currentDayToDraw > maxDays) {
-                                        Spacer(modifier = Modifier.weight(1f))
-                                    } else {
-                                        val dayNum = currentDayToDraw
-                                        val isToday = dayNum == todayDay
-                                        
-                                        val billsDueThisDay = recurringBills.filter { bill ->
-                                            viewModel.extractDayFromDueDate(bill.dueDate) == dayNum
-                                        }
-                                        val hasBill = billsDueThisDay.isNotEmpty()
-                                        
-                                        val isSelected = selectedCalendarDay == dayNum
-                                        
-                                        Box(
-                                            modifier = Modifier
-                                                .weight(1f)
-                                                .aspectRatio(1f)
-                                                .clip(RoundedCornerShape(8.dp))
-                                                .background(
-                                                    color = if (isSelected) {
-                                                        MaterialTheme.colorScheme.primary
-                                                    } else if (isToday) {
-                                                        MaterialTheme.colorScheme.primaryContainer
-                                                    } else {
-                                                        Color.Transparent
-                                                    }
-                                                )
-                                                .clickable {
-                                                    selectedCalendarDay = if (isSelected) null else dayNum
-                                                },
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            Column(
-                                                horizontalAlignment = Alignment.CenterHorizontally,
-                                                verticalArrangement = Arrangement.Center
-                                            ) {
-                                                Text(
-                                                    text = dayNum.toString(),
-                                                    fontSize = 12.sp,
-                                                    fontWeight = if (isToday || isSelected) FontWeight.Bold else FontWeight.Normal,
-                                                    color = if (isSelected) {
-                                                        MaterialTheme.colorScheme.onPrimary
-                                                    } else if (isToday) {
-                                                        MaterialTheme.colorScheme.onPrimaryContainer
-                                                    } else {
-                                                        MaterialTheme.colorScheme.onSurface
-                                                    }
-                                                )
-                                                if (hasBill) {
-                                                    Box(
-                                                        modifier = Modifier
-                                                            .size(5.dp)
-                                                            .clip(RoundedCornerShape(2.5.dp))
-                                                            .background(
-                                                                if (isSelected) MaterialTheme.colorScheme.onPrimary else Color(0xFFF06292)
-                                                            )
-                                                    )
-                                                }
-                                            }
-                                        }
-                                        currentDayToDraw++
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-
-                if (selectedCalendarDay != null) {
-                    val dayNum = selectedCalendarDay!!
-                    val billsForDay = recurringBills.filter { bill ->
-                        viewModel.extractDayFromDueDate(bill.dueDate) == dayNum
-                    }
-                    
-                    item {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 8.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = "Tagihan Tanggal $dayNum:",
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 12.sp,
-                                    color = MaterialTheme.colorScheme.primary
-                                )
-                                TextButton(onClick = { selectedCalendarDay = null }) {
-                                    Text("Tutup", fontSize = 11.sp)
-                                }
-                            }
-                            
-                            if (billsForDay.isEmpty()) {
-                                Card(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.1f)),
-                                    shape = RoundedCornerShape(12.dp)
-                                ) {
-                                    Text(
-                                        text = "Tidak ada tagihan jatuh tempo pada tanggal ini.",
-                                        fontSize = 11.sp,
-                                        modifier = Modifier.padding(12.dp),
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                            } else {
-                                billsForDay.forEach { bill ->
-                                    RecurringBillItemCard(
-                                        bill = bill,
-                                        rubelFormat = rubelFormat,
-                                        themeDark = themeDark,
-                                        onPay = { viewModel.payRecurringBill(bill) },
-                                        onDelete = { viewModel.deleteRecurringBill(bill) }
-                                    )
-                                }
-                            }
-                        }
-                    }
-                } else {
-                    item {
-                        Text(
-                            text = "💡 Pilih tanggal dengan indikator titik pink untuk melihat detail tagihan.",
-                            style = MaterialTheme.typography.bodySmall,
-                            fontSize = 11.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                            textAlign = TextAlign.Center
-                        )
-                    }
-                }
-            } else {
-                if (recurringBills.isEmpty()) {
-                    item {
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f)),
-                            shape = RoundedCornerShape(16.dp)
-                        ) {
-                            Column(
-                                modifier = Modifier.fillMaxWidth().padding(16.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.spacedBy(4.dp)
-                            ) {
-                                Text("Tidak Ada Tagihan Aktif", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyMedium)
-                                Text("Tambahkan langganan Spotify, Netflix, PLN atau tagihan WIFI Anda di sini.", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
-                            }
-                        }
-                    }
-                } else {
-                    items(recurringBills, key = { "bill_${it.id}" }) { bill ->
-                        RecurringBillItemCard(
-                            bill = bill,
-                            rubelFormat = rubelFormat,
-                            themeDark = themeDark,
-                            onPay = { viewModel.payRecurringBill(bill) },
-                            onDelete = { viewModel.deleteRecurringBill(bill) }
-                        )
                     }
                 }
             }
 
-            // Recent Transactions header list
-            item {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "Riwayat Transaksi Terbaru",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    TextButton(onClick = onNavigateToTransactions) {
-                        Text("Lihat Semua")
-                    }
-                }
-            }
-
-            if (recentTxs.isEmpty()) {
-                item {
-                    Text(
-                        text = "Belum ada transaksi masukan/luaran.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(vertical = 12.dp)
-                    )
-                }
-            } else {
-                items(recentTxs, key = { "tx_${it.id}" }) { tx ->
-                    TransactionItemRow(
-                        tx = tx,
-                        onDelete = { viewModel.deleteTransaction(it) },
-                        onUpdate = { viewModel.updateTransaction(it) }
-                    )
-                }
-            }
-
-            // Extra space
-            item {
-                Spacer(modifier = Modifier.height(40.dp))
-            }
+            Spacer(modifier = Modifier.height(40.dp))
         }
     }
-
     // Interactive Quick Add Expense/Income dialog screen
     if (showQuickAddDialog) {
         var txTitle by remember { mutableStateOf("") }
         var txAmount by remember { mutableStateOf("") }
-        var txType by remember { mutableStateOf("EXPENSE") } // or INCOME
-        var txCategory by remember { mutableStateOf("Makanan") }
-
-        val categories = listOf("Makanan", "Belanja", "Transportasi", "Gaji", "Investasi", "Sewa", "Lainnya")
+        val txType = initialDialogType
+        var txCategory by remember(initialDialogType) { mutableStateOf(if (initialDialogType == "INCOME") "Gaji" else "Makanan") }
 
         Dialog(onDismissRequest = { showQuickAddDialog = false }) {
             Surface(
-                shape = RoundedCornerShape(24.dp),
+                shape = RoundedCornerShape(32.dp),
                 color = MaterialTheme.colorScheme.surface,
                 tonalElevation = 6.dp,
                 modifier = Modifier
@@ -1069,62 +853,39 @@ fun DashboardScreen(
                     modifier = Modifier.padding(24.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    Text(
-                        text = "Transaksi Cepat",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-
-                    // Inflow / Outflow Segmented Control capsule toggler
+                    // Header indicating transaction type directly without extra switches
                     Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(44.dp)
-                            .background(
-                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                                shape = RoundedCornerShape(22.dp)
-                            )
-                            .padding(4.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         Box(
                             modifier = Modifier
-                                .weight(1f)
-                                .fillMaxHeight()
-                                .clip(RoundedCornerShape(18.dp))
+                                .size(44.dp)
                                 .background(
-                                    color = if (txType == "EXPENSE") MaterialTheme.colorScheme.errorContainer else Color.Transparent
-                                )
-                                .clickable { txType = "EXPENSE" },
+                                    color = if (txType == "INCOME") Color(0xFF10B981).copy(alpha = 0.15f) else Color(0xFFEF4444).copy(alpha = 0.15f),
+                                    shape = CircleShape
+                                ),
                             contentAlignment = Alignment.Center
                         ) {
-                            Text(
-                                text = "Pengeluaran",
-                                color = if (txType == "EXPENSE") MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.onSurfaceVariant,
-                                style = MaterialTheme.typography.bodyMedium,
-                                fontWeight = FontWeight.Bold,
-                                maxLines = 1
+                            Icon(
+                                imageVector = if (txType == "INCOME") Icons.AutoMirrored.Filled.TrendingUp else Icons.AutoMirrored.Filled.TrendingDown,
+                                contentDescription = null,
+                                tint = if (txType == "INCOME") Color(0xFF10B981) else Color(0xFFEF4444),
+                                modifier = Modifier.size(24.dp)
                             )
                         }
-
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .fillMaxHeight()
-                                .clip(RoundedCornerShape(18.dp))
-                                .background(
-                                    color = if (txType == "INCOME") MaterialTheme.colorScheme.primaryContainer else Color.Transparent
-                                )
-                                .clickable { txType = "INCOME" },
-                            contentAlignment = Alignment.Center
-                        ) {
+                        Column {
                             Text(
-                                text = "Pemasukan",
-                                color = if (txType == "INCOME") MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
-                                style = MaterialTheme.typography.bodyMedium,
+                                text = if (txType == "INCOME") "Catat Pemasukan" else "Catat Pengeluaran",
+                                style = MaterialTheme.typography.titleLarge,
                                 fontWeight = FontWeight.Bold,
-                                maxLines = 1
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = if (txType == "INCOME") "Pemasukan Dana Baru" else "Pengeluaran Biaya Baru",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = if (txType == "INCOME") Color(0xFF10B981) else Color(0xFFEF4444),
+                                fontWeight = FontWeight.SemiBold
                             )
                         }
                     }
@@ -1140,9 +901,14 @@ fun DashboardScreen(
                             }
                         },
                         label = { Text("Deskripsi Transaksi") },
-                        placeholder = { Text("misal: Sate Ayam, Beli Bensin") },
+                        placeholder = { Text(if (txType == "INCOME") "misal: Gaji Bulanan, Bonus Proyek" else "misal: Sate Ayam, Beli Bensin") },
                         singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
+                        shape = RoundedCornerShape(24.dp),
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = if (themeDark) androidx.compose.ui.graphics.Color(0xFFC084FC) else androidx.compose.ui.graphics.Color(0xFF6D28D9),
+                            unfocusedBorderColor = if (themeDark) androidx.compose.ui.graphics.Color.White.copy(alpha = 0.15f) else androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.15f)
+                        )
                     )
 
                     OutlinedTextField(
@@ -1153,12 +919,17 @@ fun DashboardScreen(
                                 txAmount = clean
                             }
                         },
-                        label = { Text("Jumlah (IDR)") },
-                        placeholder = { Text("misal: 45.000") },
+                        label = { Text("Jumlah (${if (selectedCurrency == "USD") "USD $" else "Rupiah Rp"})") },
+                        placeholder = { Text(if (selectedCurrency == "USD") "misal: 25" else "misal: 45.000") },
                         singleLine = true,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        visualTransformation = RupiahVisualTransformation(),
-                        modifier = Modifier.fillMaxWidth()
+                        visualTransformation = RupiahVisualTransformation(isUsd = selectedCurrency == "USD"),
+                        shape = RoundedCornerShape(24.dp),
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = if (themeDark) androidx.compose.ui.graphics.Color(0xFFC084FC) else androidx.compose.ui.graphics.Color(0xFF6D28D9),
+                            unfocusedBorderColor = if (themeDark) androidx.compose.ui.graphics.Color.White.copy(alpha = 0.15f) else androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.15f)
+                        )
                     )
 
                     // Category dropdown text label options
@@ -1174,7 +945,7 @@ fun DashboardScreen(
                             .padding(bottom = 6.dp),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        val rowCats = if (txType == "INCOME") listOf("Gaji", "Investasi", "Lainnya") else listOf("Makanan", "Belanja", "Transportasi", "Sewa", "Lainnya")
+                        val rowCats = if (txType == "INCOME") listOf("Gaji", "Bonus", "Investasi", "Penjualan", "Hadiah", "Lainnya") else listOf("Makanan", "Belanja", "Transportasi", "Tagihan", "Hiburan", "Kesehatan", "Sewa", "Lainnya")
                         rowCats.forEach { cat ->
                             val isSelected = txCategory == cat
                             Box(
@@ -1229,6 +1000,27 @@ fun DashboardScreen(
         }
     }
 
+    if (capturedReceiptBitmap != null) {
+        ReceiptScannerDialog(
+            viewModel = viewModel,
+            bitmap = capturedReceiptBitmap!!,
+            onDismiss = { capturedReceiptBitmap = null },
+            onRelaunchCamera = {
+                capturedReceiptBitmap = null
+                launchDirectCamera()
+            },
+            onConfirmAdd = { scannedTitle, scannedAmount, scannedType, scannedCategory ->
+                viewModel.addTransaction(
+                    title = scannedTitle,
+                    amount = scannedAmount,
+                    type = scannedType,
+                    category = scannedCategory
+                )
+                capturedReceiptBitmap = null
+            }
+        )
+    }
+
     if (showAddBillDialog) {
         var billTitle by remember { mutableStateOf("") }
         var billAmountInput by remember { mutableStateOf("") }
@@ -1251,7 +1043,7 @@ fun DashboardScreen(
 
         Dialog(onDismissRequest = { showAddBillDialog = false }) {
             Surface(
-                shape = RoundedCornerShape(28.dp),
+                shape = RoundedCornerShape(32.dp),
                 color = MaterialTheme.colorScheme.surface,
                 tonalElevation = 8.dp,
                 modifier = Modifier
@@ -1365,7 +1157,12 @@ fun DashboardScreen(
                         label = { Text("Nama Tagihan") },
                         placeholder = { Text("misal: Langganan Spotify Family") },
                         singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
+                        shape = RoundedCornerShape(24.dp),
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = if (themeDark) androidx.compose.ui.graphics.Color(0xFFC084FC) else androidx.compose.ui.graphics.Color(0xFF6D28D9),
+                            unfocusedBorderColor = if (themeDark) androidx.compose.ui.graphics.Color.White.copy(alpha = 0.15f) else androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.15f)
+                        )
                     )
 
                     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -1377,11 +1174,11 @@ fun DashboardScreen(
                                     billAmountInput = clean
                                 }
                             },
-                            label = { Text("Nominal Tagihan (IDR)") },
-                            placeholder = { Text("misal: 125.000") },
+                            label = { Text("Nominal Tagihan (${if (selectedCurrency == "USD") "USD $" else "Rupiah Rp"})") },
+                            placeholder = { Text(if (selectedCurrency == "USD") "misal: 10" else "misal: 125.000") },
                             singleLine = true,
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                            visualTransformation = RupiahVisualTransformation(),
+                            visualTransformation = RupiahVisualTransformation(isUsd = selectedCurrency == "USD"),
                             modifier = Modifier.fillMaxWidth()
                         )
 
@@ -1423,7 +1220,12 @@ fun DashboardScreen(
                         label = { Text("Jatuh Tempo (Hari / Tanggal)") },
                         placeholder = { Text("misal: Tanggal 15, Senin pertama") },
                         singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
+                        shape = RoundedCornerShape(24.dp),
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = if (themeDark) androidx.compose.ui.graphics.Color(0xFFC084FC) else androidx.compose.ui.graphics.Color(0xFF6D28D9),
+                            unfocusedBorderColor = if (themeDark) androidx.compose.ui.graphics.Color.White.copy(alpha = 0.15f) else androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.15f)
+                        )
                     )
 
                     Text("Siklus Tagihan Berkala:", fontWeight = FontWeight.Bold, fontSize = 12.sp)
@@ -1546,11 +1348,11 @@ fun DashboardScreen(
                     .fillMaxWidth(0.94f)
                     .fillMaxHeight(0.88f)
                     .testTag("ml_report_dialog_container"),
-                shape = RoundedCornerShape(26.dp),
-                color = if (themeDark) Color(0xFF110D1C) else Color(0xFFFAFAFE),
+                shape = RoundedCornerShape(32.dp),
+                color = if (themeDark) Color(0xFF110D1C) else Color.White,
                 border = BorderStroke(
-                    width = 1.6.dp,
-                    color = if (themeDark) Color(0xFF4C229E) else Color(0xFFDCD3FD)
+                    width = 1.dp,
+                    color = if (themeDark) Color(0xFF4C229E) else Color(0xFFE2E8F0)
                 ),
                 tonalElevation = 10.dp
             ) {
@@ -1826,8 +1628,8 @@ fun DashboardScreen(
                                     }
 
                                     Card(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        shape = RoundedCornerShape(20.dp),
+                                        modifier = Modifier.fillMaxWidth().animateContentSize(),
+                                        shape = RoundedCornerShape(24.dp),
                                         colors = CardDefaults.cardColors(
                                             containerColor = if (themeDark) Color(0xFF1B1527) else Color(0xFFF5F2FB)
                                         ),
@@ -1854,6 +1656,11 @@ fun DashboardScreen(
                                                 modifier = Modifier.size(110.dp)
                                             ) {
                                                 // Dial outline
+                                                val animatedSweepAngle by androidx.compose.animation.core.animateFloatAsState(
+                                                    targetValue = 260f * (insights.financialHealthScore / 100f).coerceIn(0f, 1f),
+                                                    animationSpec = androidx.compose.animation.core.tween(durationMillis = 1500, easing = androidx.compose.animation.core.FastOutSlowInEasing),
+                                                    label = "scoreSweepAnim"
+                                                )
                                                 androidx.compose.foundation.Canvas(modifier = Modifier.fillMaxSize()) {
                                                     drawArc(
                                                         color = scoreColor.copy(alpha = if (themeDark) 0.15f else 0.1f),
@@ -1868,7 +1675,7 @@ fun DashboardScreen(
                                                     drawArc(
                                                         color = scoreColor,
                                                         startAngle = 140f,
-                                                        sweepAngle = 260f * (insights.financialHealthScore / 100f).coerceIn(0f, 1f),
+                                                        sweepAngle = animatedSweepAngle,
                                                         useCenter = false,
                                                         style = androidx.compose.ui.graphics.drawscope.Stroke(
                                                             width = 9.dp.toPx(),
@@ -1922,8 +1729,8 @@ fun DashboardScreen(
                                     }
 
                                     Card(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        shape = RoundedCornerShape(20.dp),
+                                        modifier = Modifier.fillMaxWidth().animateContentSize(),
+                                        shape = RoundedCornerShape(24.dp),
                                         colors = CardDefaults.cardColors(
                                             containerColor = if (themeDark) Color(0xFF1B1527) else Color(0xFFF5F2FB)
                                         ),
@@ -2880,10 +2687,22 @@ fun TransactionItemRow(
     tx: Transaction,
     onDelete: (Transaction) -> Unit,
     onUpdate: (Transaction) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    isUsd: Boolean = false,
+    formatAmount: ((Double) -> String)? = null
 ) {
-    val currencyFormat = NumberFormat.getCurrencyInstance(Locale("id", "ID"))
-    currencyFormat.maximumFractionDigits = 0
+    val themeDark = androidx.compose.foundation.isSystemInDarkTheme()
+    val currencyFormat = remember(isUsd) {
+        if (isUsd) {
+            NumberFormat.getCurrencyInstance(Locale.US).apply {
+                maximumFractionDigits = 2
+            }
+        } else {
+            NumberFormat.getCurrencyInstance(Locale("id", "ID")).apply {
+                maximumFractionDigits = 0
+            }
+        }
+    }
 
     val dateFormat = SimpleDateFormat("dd MMM, HH:mm", Locale("id", "ID"))
     val cleanDate = dateFormat.format(Date(tx.timestamp))
@@ -2904,7 +2723,7 @@ fun TransactionItemRow(
 
         Dialog(onDismissRequest = { showEditDialog = false }) {
             Surface(
-                shape = RoundedCornerShape(24.dp),
+                shape = RoundedCornerShape(32.dp),
                 color = MaterialTheme.colorScheme.surface,
                 tonalElevation = 6.dp,
                 modifier = Modifier.fillMaxWidth()
@@ -2976,7 +2795,11 @@ fun TransactionItemRow(
                         value = title,
                         onValueChange = { title = it },
                         label = { Text("Keterangan") },
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = if (themeDark) androidx.compose.ui.graphics.Color(0xFFC084FC) else androidx.compose.ui.graphics.Color(0xFF6D28D9),
+                            unfocusedBorderColor = if (themeDark) androidx.compose.ui.graphics.Color.White.copy(alpha = 0.15f) else androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.15f)
+                        )
                     )
 
                     OutlinedTextField(
@@ -2987,11 +2810,16 @@ fun TransactionItemRow(
                                 amount = clean
                             }
                         },
-                        label = { Text("Jumlah (IDR)") },
+                        label = { Text("Jumlah (${if (isUsd) "USD $" else "Rupiah Rp"})") },
                         singleLine = true,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        visualTransformation = RupiahVisualTransformation(),
-                        modifier = Modifier.fillMaxWidth()
+                        visualTransformation = RupiahVisualTransformation(isUsd = isUsd),
+                        shape = RoundedCornerShape(24.dp),
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = if (themeDark) androidx.compose.ui.graphics.Color(0xFFC084FC) else androidx.compose.ui.graphics.Color(0xFF6D28D9),
+                            unfocusedBorderColor = if (themeDark) androidx.compose.ui.graphics.Color.White.copy(alpha = 0.15f) else androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.15f)
+                        )
                     )
 
                     Text("Kategori:", fontWeight = FontWeight.Bold, fontSize = 12.sp)
@@ -3119,11 +2947,16 @@ fun TransactionItemRow(
                 modifier = Modifier.weight(1f)
             ) {
                 // Colored status indicator icon
+                val isDarkTheme = MaterialTheme.colorScheme.surface.let { it.red * 0.299 + it.green * 0.587 + it.blue * 0.114 < 0.5f }
                 Box(
                     modifier = Modifier
-                        .size(40.dp)
+                        .size(42.dp)
                         .background(
-                            color = if (tx.type == "INCOME") Color(0xFFE8F5E9) else Color(0xFFFFEBEE),
+                            color = if (tx.type == "INCOME") {
+                                if (isDarkTheme) Color(0xFF0F2D1E) else Color(0xFFD1FAE5)
+                            } else {
+                                if (isDarkTheme) Color(0xFF3E121E) else Color(0xFFFFE4E6)
+                            },
                             shape = CircleShape
                         ),
                     contentAlignment = Alignment.Center
@@ -3131,7 +2964,11 @@ fun TransactionItemRow(
                     Icon(
                         imageVector = if (tx.type == "INCOME") Icons.Default.ArrowUpward else Icons.Default.ArrowDownward,
                         contentDescription = tx.type,
-                        tint = if (tx.type == "INCOME") Color(0xFF2E7D32) else Color(0xFFC62828),
+                        tint = if (tx.type == "INCOME") {
+                            if (isDarkTheme) Color(0xFF34D399) else Color(0xFF059669)
+                        } else {
+                            if (isDarkTheme) Color(0xFFFB7185) else Color(0xFFE11D48)
+                        },
                         modifier = Modifier.size(18.dp)
                     )
                 }
@@ -3169,7 +3006,8 @@ fun TransactionItemRow(
                 horizontalAlignment = Alignment.End,
                 modifier = Modifier.padding(start = 8.dp)
             ) {
-                val valueStr = (if (tx.type == "INCOME") "+" else "-") + currencyFormat.format(tx.amount).replace(",00", "")
+                val formattedAmount = formatAmount?.invoke(tx.amount) ?: currencyFormat.format(tx.amount).replace(",00", "")
+                val valueStr = (if (tx.type == "INCOME") "+" else "-") + formattedAmount
                 Text(
                     text = valueStr,
                     style = MaterialTheme.typography.bodyLarge,

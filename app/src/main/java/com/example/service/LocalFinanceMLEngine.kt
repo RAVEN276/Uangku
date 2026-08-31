@@ -116,15 +116,34 @@ object LocalFinanceMLEngine {
      * Incorporates K-Means Clustering, Holt's Double Exponential Time-Series forecasting, Robust IQR Anomalies,
      * and a dynamic Financial Health Score.
      */
-    fun analyzeTransactions(transactions: List<Transaction>, userName: String): MLInsight {
+    fun analyzeTransactions(
+        transactions: List<Transaction>,
+        userName: String,
+        currency: String = "IDR",
+        exchangeRate: Double = 16250.0
+    ): MLInsight {
         val expenses = transactions.filter { it.type == "EXPENSE" }.sortedBy { it.timestamp }
         val incomes = transactions.filter { it.type == "INCOME" }
         val totalIncomeAmt = incomes.sumOf { it.amount }
         val totalExpenseAmt = expenses.sumOf { it.amount }
         val currentBalance = totalIncomeAmt - totalExpenseAmt
 
-        val rp = NumberFormat.getCurrencyInstance(Locale("id", "ID")).apply {
-            maximumFractionDigits = 0
+        val formatMoney: (Double) -> String = { amount ->
+            if (currency == "USD") {
+                val inUsd = amount / exchangeRate
+                NumberFormat.getCurrencyInstance(Locale.US).apply {
+                    maximumFractionDigits = 2
+                    minimumFractionDigits = 2
+                }.format(inUsd)
+            } else {
+                NumberFormat.getCurrencyInstance(Locale("id", "ID")).apply {
+                    maximumFractionDigits = 0
+                    minimumFractionDigits = 0
+                }.format(amount)
+            }
+        }
+        val rp = object {
+            fun format(amt: Double): String = formatMoney(amt)
         }
 
         if (expenses.isEmpty()) {

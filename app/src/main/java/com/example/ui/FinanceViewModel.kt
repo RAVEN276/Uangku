@@ -1,5 +1,7 @@
 package com.example.ui
 
+import com.example.MainActivity
+
 import android.app.Application
 import android.content.Context
 import android.widget.Toast
@@ -41,6 +43,7 @@ import java.io.FileOutputStream
 import java.io.ByteArrayOutputStream
 import java.util.Calendar
 import com.example.service.LocalFinanceMLEngine
+import com.example.service.BudgetMonitoringScheduler
 
 class FinanceViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -84,6 +87,17 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
 
     private val _bankNotificationEnabled = MutableStateFlow(prefs.getBoolean("bank_notification_enabled", false))
     val bankNotificationEnabled = _bankNotificationEnabled.asStateFlow()
+
+    private val _budgetMonitoringEnabled = MutableStateFlow(BudgetMonitoringScheduler.isMonitoringEnabled(application))
+    val budgetMonitoringEnabled = _budgetMonitoringEnabled.asStateFlow()
+
+    // Currency Selection (IDR vs USD) with live exchange rate
+    private val _selectedCurrency = MutableStateFlow(prefs.getString("selected_currency", "IDR") ?: "IDR")
+    val selectedCurrency = _selectedCurrency.asStateFlow()
+
+    // Default USD to IDR exchange rate (e.g. 1 USD = Rp 16.250)
+    private val _usdToIdrRate = MutableStateFlow(prefs.getFloat("usd_to_idr_rate", 16250.0f).toDouble())
+    val usdToIdrRate = _usdToIdrRate.asStateFlow()
 
     // Alert message for Budget triggers
     private val _budgetAlert = MutableStateFlow<String?>(null)
@@ -152,11 +166,16 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
             baseBalance + inc - exp + connectedBanksBalance
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), baseBalance)
 
-        mlInsights = combine(allTransactions, userName) { txs, name ->
+        mlInsights = combine(allTransactions, userName, selectedCurrency, usdToIdrRate) { txs, name, curr, rate ->
             if (txs.isEmpty()) null
             else {
                 try {
-                    LocalFinanceMLEngine.analyzeTransactions(txs, name)
+                    LocalFinanceMLEngine.analyzeTransactions(
+                        transactions = txs,
+                        userName = name,
+                        currency = curr,
+                        exchangeRate = rate
+                    )
                 } catch (e: Exception) {
                     null
                 }
@@ -280,7 +299,12 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
                 // Add a small delay for delightful UX to show on-device machine learning at work
                 delay(800)
                 
-                val result = LocalFinanceMLEngine.analyzeTransactions(txs, _userName.value)
+                val result = LocalFinanceMLEngine.analyzeTransactions(
+                    transactions = txs,
+                    userName = _userName.value,
+                    currency = _selectedCurrency.value,
+                    exchangeRate = _usdToIdrRate.value
+                )
                 val report = result.markdownReport
                 
                 _mlWeeklySummary.value = report
@@ -299,6 +323,46 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
+    // --- Currency Methods ---
+    fun setCurrency(currency: String) {
+        prefs.edit().putString("selected_currency", currency).apply()
+        _selectedCurrency.value = currency
+        fetchWeeklySummary(force = true)
+    }
+
+    fun setUsdRate(rate: Double) {
+        if (rate > 0) {
+            prefs.edit().putFloat("usd_to_idr_rate", rate.toFloat()).apply()
+            _usdToIdrRate.value = rate
+            fetchWeeklySummary(force = true)
+        }
+    }
+
+    fun formatCurrency(amount: Double): String {
+        return if (_selectedCurrency.value == "USD") {
+            val inUsd = amount / _usdToIdrRate.value
+            val formatter = NumberFormat.getCurrencyInstance(Locale.US).apply {
+                maximumFractionDigits = 2
+                minimumFractionDigits = 2
+            }
+            formatter.format(inUsd)
+        } else {
+            val formatter = NumberFormat.getCurrencyInstance(Locale("id", "ID")).apply {
+                maximumFractionDigits = 0
+                minimumFractionDigits = 0
+            }
+            formatter.format(amount)
+        }
+    }
+
+    fun getCurrencySymbol(): String {
+        return if (_selectedCurrency.value == "USD") "$" else "Rp"
+    }
+
+    fun getCurrencyCode(): String {
+        return _selectedCurrency.value
+    }
+
     fun toggleTheme() {
         val nextVal = !_themeDark.value
         prefs.edit().putBoolean("theme_dark", nextVal).apply()
@@ -313,6 +377,16 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     fun setBankNotificationEnabled(enabled: Boolean) {
         prefs.edit().putBoolean("bank_notification_enabled", enabled).apply()
         _bankNotificationEnabled.value = enabled
+    }
+
+    fun setBudgetMonitoringEnabled(enabled: Boolean) {
+        BudgetMonitoringScheduler.setMonitoringEnabled(getApplication(), enabled)
+        _budgetMonitoringEnabled.value = enabled
+    }
+
+    fun triggerManualBudgetCheck(context: Context) {
+        BudgetMonitoringScheduler.triggerImmediateCheck(context)
+        Toast.makeText(context, "Memeriksa status limit pengeluaran bulanan di latar belakang...", Toast.LENGTH_SHORT).show()
     }
 
     fun updateSystemThemeDefault(systemDark: Boolean) {
@@ -333,6 +407,7 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
             )
             repository.insertTransaction(transaction)
             triggerAutoSync()
+            BudgetMonitoringScheduler.triggerImmediateCheck(getApplication())
         }
     }
 
@@ -342,6 +417,7 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
             viewModelScope.launch {
                 repository.insertTransaction(parsed)
                 triggerAutoSync()
+                BudgetMonitoringScheduler.triggerImmediateCheck(getApplication())
             }
             return true
         }
@@ -352,6 +428,7 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
         viewModelScope.launch {
             repository.deleteTransaction(transaction)
             triggerAutoSync()
+            BudgetMonitoringScheduler.triggerImmediateCheck(getApplication())
         }
     }
 
@@ -359,6 +436,7 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
         viewModelScope.launch {
             repository.insertTransaction(transaction)
             triggerAutoSync()
+            BudgetMonitoringScheduler.triggerImmediateCheck(getApplication())
         }
     }
 
@@ -368,6 +446,7 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
             val budget = Budget(category = category, limitAmount = amount, alertThresholdPercent = alertThreshold)
             repository.insertBudget(budget)
             triggerAutoSync()
+            BudgetMonitoringScheduler.triggerImmediateCheck(getApplication())
         }
     }
 
@@ -375,6 +454,7 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
         viewModelScope.launch {
             repository.deleteBudget(budget)
             triggerAutoSync()
+            BudgetMonitoringScheduler.triggerImmediateCheck(getApplication())
         }
     }
 
@@ -524,10 +604,8 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
                     if (budget.limitAmount > 0) {
                         val usagePercent = (spent / budget.limitAmount) * 100
                         if (usagePercent >= budget.alertThresholdPercent) {
-                            val format = NumberFormat.getCurrencyInstance(Locale("id", "ID"))
-                            format.maximumFractionDigits = 0
-                            val limitStr = format.format(budget.limitAmount)
-                            val spentStr = format.format(spent)
+                            val limitStr = formatCurrency(budget.limitAmount)
+                            val spentStr = formatCurrency(spent)
                             alertText = when (budget.category) {
                                 "ALL" -> "⚠️ Peringatan Anggaran: Total pengeluaran Anda ($spentStr) telah melampaui ${budget.alertThresholdPercent}% dari limit bulanan ($limitStr)!"
                                 "DAILY" -> "⚠️ Peringatan Anggaran: Pengeluaran harian Anda hari ini ($spentStr) telah melampaui ${budget.alertThresholdPercent}% dari limit harian ($limitStr)!"
@@ -780,9 +858,9 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
         txReport.append("=========================================\n")
         txReport.append("Nama Pengguna   : ${_userName.value}\n")
         txReport.append("Tanggal Dokumen : $dateStr\n")
-        txReport.append("Total Bersih    : ${currencyFormat.format(totalBalance.value)}\n")
-        txReport.append("Pemasukan       : ${currencyFormat.format(totalIncome.value)}\n")
-        txReport.append("Pengeluaran     : ${currencyFormat.format(totalExpense.value)}\n")
+        txReport.append("Total Bersih    : ${formatCurrency(totalBalance.value)}\n")
+        txReport.append("Pemasukan       : ${formatCurrency(totalIncome.value)}\n")
+        txReport.append("Pengeluaran     : ${formatCurrency(totalExpense.value)}\n")
         txReport.append("-----------------------------------------\n\n")
 
         txReport.append("LIMIT & ANGGARAN:\n")
@@ -796,7 +874,7 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
                     "DAILY" -> "Limit Pengeluaran Harian"
                     else -> "Kategori ${budget.category}"
                 }
-                txReport.append("- $label: Limit ${currencyFormat.format(budget.limitAmount)}\n")
+                txReport.append("- $label: Limit ${formatCurrency(budget.limitAmount)}\n")
             }
         }
 
@@ -968,8 +1046,9 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
             style = Paint.Style.FILL
         }
 
-        val currencyFormat = NumberFormat.getCurrencyInstance(Locale("id", "ID"))
-        currencyFormat.maximumFractionDigits = 0
+        val currencyFormat = object {
+            fun format(amt: Double): String = formatCurrency(amt)
+        }
 
         var y = 55f
 

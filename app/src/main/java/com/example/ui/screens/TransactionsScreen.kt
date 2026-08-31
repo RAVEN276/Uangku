@@ -1,417 +1,336 @@
 package com.example.ui.screens
 
-import java.text.NumberFormat
-import java.text.SimpleDateFormat
-import java.util.Calendar
-import java.util.Date
-import java.util.Locale
-import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import android.Manifest
+import android.content.pm.PackageManager
+import android.graphics.Bitmap
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.material.icons.automirrored.filled.TrendingDown
+import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
-import androidx.compose.material.icons.filled.DeleteSweep
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.FilterList
-import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.ElevatedCard
-import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.RadioButton
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
+import androidx.compose.material3.SwipeToDismissBox
+import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.ui.text.input.KeyboardType
-import com.example.ui.components.RupiahVisualTransformation
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.data.model.Transaction
 import com.example.ui.FinanceViewModel
+import com.example.ui.components.LockerSpeedDialMenu
+import com.example.ui.components.ReceiptScannerDialog
+import com.example.ui.components.RupiahVisualTransformation
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TransactionsScreen(
     viewModel: FinanceViewModel,
     modifier: Modifier = Modifier
 ) {
-    val transactions by viewModel.allTransactions.collectAsStateWithLifecycle()
-    val themeDark by viewModel.themeDark.collectAsStateWithLifecycle()
-
-    var searchQuery by remember { mutableStateOf("") }
-    var selectedTypeFilter by remember { mutableStateOf("ALL") } // ALL, INCOME, EXPENSE
-    var selectedCategoryFilter by remember { mutableStateOf("ALL") } // ALL or categories
-
+    val context = LocalContext.current
+    val txs by viewModel.allTransactions.collectAsStateWithLifecycle()
+    val selectedCurrency by viewModel.selectedCurrency.collectAsStateWithLifecycle()
     var showAddDialog by remember { mutableStateOf(false) }
+    var capturedReceiptBitmap by remember { mutableStateOf<Bitmap?>(null) }
+    var isSpeedDialExpanded by remember { mutableStateOf(false) }
+    var defaultNewType by remember { mutableStateOf("EXPENSE") }
+    var transactionToEdit by remember { mutableStateOf<Transaction?>(null) }
 
-    val rubelFormat = remember {
-        val format = NumberFormat.getCurrencyInstance(Locale("id", "ID"))
-        format.maximumFractionDigits = 0
-        format
-    }
-
-    // List filtration
-    val filteredTransactions = remember(transactions, searchQuery, selectedTypeFilter, selectedCategoryFilter) {
-        transactions.filter { tx ->
-            val matchesSearch = tx.title.contains(searchQuery, ignoreCase = true) ||
-                    tx.category.contains(searchQuery, ignoreCase = true)
-
-            val matchesType = selectedTypeFilter == "ALL" || tx.type == selectedTypeFilter
-            val matchesCategory = selectedCategoryFilter == "ALL" || tx.category == selectedCategoryFilter
-
-            matchesSearch && matchesType && matchesCategory
+    val takePictureLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.TakePicturePreview()
+    ) { bitmap: Bitmap? ->
+        if (bitmap != null) {
+            capturedReceiptBitmap = bitmap
         }
     }
 
-    // Statistics for the currently filtered view
-    val totalIncome = remember(filteredTransactions) {
-        filteredTransactions.filter { it.type == "INCOME" }.sumOf { it.amount }
-    }
-    val totalExpense = remember(filteredTransactions) {
-        filteredTransactions.filter { it.type == "EXPENSE" }.sumOf { it.amount }
-    }
-
-    // Grouping by Date descending
-    val groupedTransactions = remember(filteredTransactions) {
-        val groups = filteredTransactions.groupBy { tx ->
-            val cal = Calendar.getInstance().apply { timeInMillis = tx.timestamp }
-            val today = Calendar.getInstance()
-            val yesterday = Calendar.getInstance().apply { add(Calendar.DATE, -1) }
-
-            val isToday = cal.get(Calendar.YEAR) == today.get(Calendar.YEAR) &&
-                    cal.get(Calendar.DAY_OF_YEAR) == today.get(Calendar.DAY_OF_YEAR)
-            val isYesterday = cal.get(Calendar.YEAR) == yesterday.get(Calendar.YEAR) &&
-                    cal.get(Calendar.DAY_OF_YEAR) == yesterday.get(Calendar.DAY_OF_YEAR)
-
-            when {
-                isToday -> "Hari Ini"
-                isYesterday -> "Kemarin"
-                else -> SimpleDateFormat("dd MMMM yyyy", Locale("id", "ID")).format(Date(tx.timestamp))
-            }
-        }
-        groups.toList().sortedWith { a, b ->
-            val txA = a.second.maxByOrNull { it.timestamp }?.timestamp ?: 0L
-            val txB = b.second.maxByOrNull { it.timestamp }?.timestamp ?: 0L
-            txB.compareTo(txA)
+    val cameraPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            takePictureLauncher.launch(null)
+        } else {
+            Toast.makeText(context, "Izin kamera diperlukan untuk memindai nota", Toast.LENGTH_SHORT).show()
         }
     }
+
+    fun launchDirectCamera() {
+        val hasPermission = ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.CAMERA
+        ) == PackageManager.PERMISSION_GRANTED
+
+        if (hasPermission) {
+            takePictureLauncher.launch(null)
+        } else {
+            cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+        }
+    }
+    
+    // Filters
+    var filterType by remember { mutableStateOf("ALL") } // ALL, INCOME, EXPENSE
+    var searchQuery by remember { mutableStateOf("") }
+    
+    val filteredTxs = txs.filter { tx ->
+        val matchesType = when (filterType) {
+            "INCOME" -> tx.type == "INCOME"
+            "EXPENSE" -> tx.type == "EXPENSE"
+            else -> true
+        }
+        val matchesSearch = tx.title.contains(searchQuery, ignoreCase = true) || 
+                            tx.category.contains(searchQuery, ignoreCase = true)
+        matchesType && matchesSearch
+    }.sortedByDescending { it.timestamp }
+
+    // Grouping by Date
+    val df = SimpleDateFormat("dd MMM yyyy", Locale("id", "ID"))
+    val groupedTxs = filteredTxs.groupBy { df.format(Date(it.timestamp)) }
+
+    val themeDark = MaterialTheme.colorScheme.surface.let { it.red * 0.299 + it.green * 0.587 + it.blue * 0.114 < 0.5f }
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
+        containerColor = Color.Transparent,
         floatingActionButton = {
-            FloatingActionButton(
-                onClick = { showAddDialog = true },
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = MaterialTheme.colorScheme.onPrimary,
-                modifier = Modifier.testTag("transactions_add_floating_btn")
-            ) {
-                Icon(imageVector = Icons.Default.Add, contentDescription = "Add Item")
-            }
+            LockerSpeedDialMenu(
+                isExpanded = isSpeedDialExpanded,
+                onToggleExpand = { isSpeedDialExpanded = !isSpeedDialExpanded },
+                onSelectExpense = {
+                    defaultNewType = "EXPENSE"
+                    transactionToEdit = null
+                    showAddDialog = true
+                },
+                onSelectIncome = {
+                    defaultNewType = "INCOME"
+                    transactionToEdit = null
+                    showAddDialog = true
+                },
+                onSelectScanReceipt = {
+                    launchDirectCamera()
+                },
+                modifier = Modifier
+                    .padding(bottom = 72.dp, end = 8.dp)
+                    .testTag("transactions_speed_dial_locker")
+            )
         }
     ) { innerPadding ->
-        Column(
+        Box(
             modifier = Modifier
                 .fillMaxSize()
+                .background(
+                    Brush.verticalGradient(
+                        colors = if (themeDark) listOf(Color(0xFF0F172A), Color(0xFF020617))
+                                 else listOf(Color(0xFFF8FAFC), Color(0xFFE2E8F0))
+                    )
+                )
                 .padding(innerPadding)
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            // Screen Title
-            Text(
-                text = "Daftar Transaksi",
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.Black,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-
-            // Horizontal Summary Statistics Cards
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            Column(
+                modifier = Modifier.fillMaxSize()
             ) {
-                Card(
-                    modifier = Modifier.weight(1f),
-                    colors = CardDefaults.cardColors(
-                        containerColor = if (themeDark) Color(0xFF0F2D1E) else Color(0xFFE8F5E9)
-                    ),
-                    shape = RoundedCornerShape(16.dp),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, if (themeDark) Color(0xFF1B5E20) else Color(0xFFC8E6C9))
-                ) {
-                    Column(modifier = Modifier.padding(12.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Box(
-                                modifier = Modifier
-                                    .size(20.dp)
-                                    .background(if (themeDark) Color(0xFF1B5E20) else Color(0xFFC8E6C9), CircleShape),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.ArrowUpward,
-                                    contentDescription = null,
-                                    tint = if (themeDark) Color(0xFFC8E6C9) else Color(0xFF1B5E20),
-                                    modifier = Modifier.size(12.dp)
-                                )
-                            }
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text("Pemasukan", fontSize = 10.sp, color = if (themeDark) Color(0xFF81C784) else Color(0xFF2E7D32), fontWeight = FontWeight.Bold)
-                        }
-                        Spacer(modifier = Modifier.height(6.dp))
-                        Text(
-                            text = rubelFormat.format(totalIncome).replace(",00", ""),
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Black,
-                            color = if (themeDark) Color(0xFFC8E6C9) else Color(0xFF1B5E20),
-                            maxLines = 1
-                        )
-                    }
-                }
-
-                Card(
-                    modifier = Modifier.weight(1f),
-                    colors = CardDefaults.cardColors(
-                        containerColor = if (themeDark) Color(0xFF3E121E) else Color(0xFFFFEBEE)
-                    ),
-                    shape = RoundedCornerShape(16.dp),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, if (themeDark) Color(0xFFB71C1C) else Color(0xFFFFCDD2))
-                ) {
-                    Column(modifier = Modifier.padding(12.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Box(
-                                modifier = Modifier
-                                    .size(20.dp)
-                                    .background(if (themeDark) Color(0xFFB71C1C) else Color(0xFFFFCDD2), CircleShape),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.ArrowDownward,
-                                    contentDescription = null,
-                                    tint = if (themeDark) Color(0xFFFFCDD2) else Color(0xFFB71C1C),
-                                    modifier = Modifier.size(12.dp)
-                                )
-                            }
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text("Pengeluaran", fontSize = 10.sp, color = if (themeDark) Color(0xFFE57373) else Color(0xFFC62828), fontWeight = FontWeight.Bold)
-                        }
-                        Spacer(modifier = Modifier.height(6.dp))
-                        Text(
-                            text = rubelFormat.format(totalExpense).replace(",00", ""),
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Black,
-                            color = if (themeDark) Color(0xFFFFCDD2) else Color(0xFFB71C1C),
-                            maxLines = 1
-                        )
-                    }
-                }
-            }
-
-            // Search Bar & Filters
-            OutlinedTextField(
-                value = searchQuery,
-                onValueChange = { searchQuery = it },
-                label = { Text("Cari Transaksi...") },
-                leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Cari") },
-                singleLine = true,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .testTag("transactions_search_input")
-            )
-
-            // Beautifully Reworked Pill Tabs Toggles (Semua, Pemasukan, Pengeluaran)
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                listOf(
-                    "ALL" to "Semua",
-                    "INCOME" to "Pemasukan",
-                    "EXPENSE" to "Pengeluaran"
-                ).forEach { (filterVal, label) ->
-                    val isSelected = selectedTypeFilter == filterVal
-                    val bgCol = if (isSelected) {
-                        MaterialTheme.colorScheme.primary
-                    } else {
-                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
-                    }
-                    val txtCol = if (isSelected) {
-                        MaterialTheme.colorScheme.onPrimary
-                    } else {
-                        MaterialTheme.colorScheme.onSurfaceVariant
-                    }
-                    val iconVector = when (filterVal) {
-                        "INCOME" -> Icons.Default.ArrowUpward
-                        "EXPENSE" -> Icons.Default.ArrowDownward
-                        else -> Icons.Default.Info
-                    }
-
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .background(bgCol, RoundedCornerShape(16.dp))
-                            .clickable { selectedTypeFilter = filterVal }
-                            .padding(vertical = 10.dp, horizontal = 4.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.Center
-                        ) {
-                            Icon(
-                                imageVector = iconVector,
-                                contentDescription = null,
-                                tint = txtCol,
-                                modifier = Modifier.size(14.dp)
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = label,
-                                style = MaterialTheme.typography.bodyMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = txtCol
-                            )
-                        }
-                    }
-                }
-            }
-
-            // Category filter row buttons
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(imageVector = Icons.Default.FilterList, contentDescription = "Filter", tint = MaterialTheme.colorScheme.primary)
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("Kategori:", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
-                Spacer(modifier = Modifier.width(12.dp))
-
-                // Scroll of categories
-                val categoriesList = listOf("ALL", "Makanan", "Belanja", "Transportasi", "Gaji", "Investasi", "Sewa", "Lainnya")
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    modifier = Modifier
-                        .weight(1f)
-                        .horizontalScroll(rememberScrollState())
-                        .padding(vertical = 4.dp)
-                ) {
-                    categoriesList.forEach { cat ->
-                        val isSelected = selectedCategoryFilter == cat
-                        Box(
-                            modifier = Modifier
-                                .background(
-                                    color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
-                                    shape = RoundedCornerShape(8.dp)
-                                )
-                                .clickable { selectedCategoryFilter = cat }
-                                .padding(horizontal = 8.dp, vertical = 4.dp)
-                        ) {
-                            Text(
-                                text = cat,
-                                fontSize = 10.sp,
-                                color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                    }
-                }
-            }
-
-            // Transaction lists scroll with Date Grouping Header
-            if (filteredTransactions.isEmpty()) {
+                // SPATIAL HEADER
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .weight(1f),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Icon(
-                            imageVector = Icons.Default.DeleteSweep,
-                            contentDescription = "Empty",
-                            modifier = Modifier.size(64.dp),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                        .clip(RoundedCornerShape(bottomStart = 32.dp, bottomEnd = 32.dp))
+                        .background(
+                            if (themeDark) Color(0xFF1E293B).copy(alpha = 0.9f) 
+                            else Color.White.copy(alpha = 0.9f)
                         )
-                        Spacer(modifier = Modifier.height(12.dp))
-                        Text("Transaksi tidak ditemukan", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                }
-            } else {
-                LazyColumn(
-                    modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                        .border(
+                            1.dp,
+                            if (themeDark) Color.White.copy(alpha = 0.1f) else Color.Black.copy(alpha = 0.05f),
+                            RoundedCornerShape(bottomStart = 32.dp, bottomEnd = 32.dp)
+                        )
+                        .padding(top = 48.dp, bottom = 24.dp, start = 24.dp, end = 24.dp)
                 ) {
-                    groupedTransactions.forEach { (dateHeader, list) ->
-                        item {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 4.dp, horizontal = 2.dp)
-                            ) {
-                                Text(
-                                    text = dateHeader,
-                                    style = MaterialTheme.typography.labelSmall,
-                                    fontWeight = FontWeight.ExtraBold,
-                                    color = MaterialTheme.colorScheme.primary,
-                                    letterSpacing = 0.5.sp
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
+                    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                        Text(
+                            text = "Riwayat Transaksi",
+                            style = MaterialTheme.typography.headlineLarge,
+                            fontWeight = FontWeight.Black,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            letterSpacing = (-1).sp
+                        )
+
+                        // Bento Search Bar
+                        OutlinedTextField(
+                            value = searchQuery,
+                            onValueChange = { searchQuery = it },
+                            placeholder = { Text("Cari aktivitas...") },
+                            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                            singleLine = true,
+                            shape = RoundedCornerShape(24.dp),
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                unfocusedBorderColor = if (themeDark) Color.White.copy(alpha = 0.1f) else Color.Black.copy(alpha = 0.1f),
+                                focusedBorderColor = Color(0xFF10B981)
+                            )
+                        )
+                        
+                        // Filter Pills
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.horizontalScroll(rememberScrollState())
+                        ) {
+                            listOf("ALL" to "Semua", "INCOME" to "Pemasukan", "EXPENSE" to "Pengeluaran").forEach { (type, label) ->
+                                val isSelected = filterType == type
                                 Box(
                                     modifier = Modifier
-                                        .weight(1f)
-                                        .height(1.dp)
-                                        .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f))
-                                )
+                                        .clip(RoundedCornerShape(24.dp))
+                                        .background(
+                                            if (isSelected) Color(0xFF10B981)
+                                            else if (themeDark) Color(0xFF334155) else Color(0xFFF1F5F9)
+                                        )
+                                        .clickable { filterType = type }
+                                        .padding(horizontal = 16.dp, vertical = 8.dp)
+                                ) {
+                                    Text(
+                                        text = label,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
                             }
                         }
+                    }
+                }
 
-                        items(list, key = { "tx_${it.id}" }) { tx ->
-                            TransactionItemRow(
-                                tx = tx,
-                                onDelete = { viewModel.deleteTransaction(it) },
-                                onUpdate = { viewModel.updateTransaction(it) }
+                // LIST OF TRANSACTIONS
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = 16.dp),
+                    contentPadding = PaddingValues(top = 16.dp, bottom = 120.dp),
+                    verticalArrangement = Arrangement.spacedBy(24.dp)
+                ) {
+                    if (groupedTxs.isEmpty()) {
+                        item {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 64.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Icon(
+                                        Icons.Default.FilterList,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(64.dp),
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                                    )
+                                    Spacer(modifier = Modifier.height(16.dp))
+                                    Text(
+                                        text = "Tidak ada transaksi ditemukan",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    for ((dateStr, txList) in groupedTxs) {
+                        item {
+                            Text(
+                                text = dateStr,
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.animateItem().padding(start = 8.dp, bottom = 8.dp)
                             )
+                            Column(
+                                modifier = Modifier
+                                    .animateItem()
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(32.dp))
+                                    .background(
+                                        if (themeDark) Color(0xFF1E293B).copy(alpha = 0.6f) 
+                                        else Color.White.copy(alpha = 0.7f)
+                                    )
+                                    .border(
+                                        1.dp,
+                                        if (themeDark) Color.White.copy(alpha = 0.05f) else Color.Black.copy(alpha = 0.05f),
+                                        RoundedCornerShape(32.dp)
+                                    )
+                                    .padding(8.dp),
+                                verticalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                for (tx in txList) {
+                                    TransactionItemRowBento(
+                                        tx = tx,
+                                        themeDark = themeDark,
+                                        viewModel = viewModel,
+                                        onDelete = { viewModel.deleteTransaction(it) },
+                                        onUpdate = { 
+                                            transactionToEdit = it
+                                            showAddDialog = true 
+                                        }
+                                    )
+                                }
+                            }
                         }
                     }
                 }
@@ -419,162 +338,343 @@ fun TransactionsScreen(
         }
     }
 
-    // Modal dialog add screen
     if (showAddDialog) {
-        var title by remember { mutableStateOf("") }
-        var amount by remember { mutableStateOf("") }
-        var type by remember { mutableStateOf("EXPENSE") }
-        var category by remember { mutableStateOf("Makanan") }
+        AddTransactionModalBento(
+            viewModel = viewModel,
+            themeDark = themeDark,
+            initialTransaction = transactionToEdit,
+            defaultType = defaultNewType,
+            onDismiss = { 
+                showAddDialog = false
+                transactionToEdit = null
+            }
+        )
+    }
 
-        Dialog(onDismissRequest = { showAddDialog = false }) {
-            Surface(
-                shape = RoundedCornerShape(24.dp),
-                color = MaterialTheme.colorScheme.surface,
-                tonalElevation = 6.dp,
-                modifier = Modifier.fillMaxWidth()
+    if (capturedReceiptBitmap != null) {
+        ReceiptScannerDialog(
+            viewModel = viewModel,
+            bitmap = capturedReceiptBitmap!!,
+            onDismiss = { capturedReceiptBitmap = null },
+            onRelaunchCamera = {
+                capturedReceiptBitmap = null
+                launchDirectCamera()
+            },
+            onConfirmAdd = { title, amount, type, category ->
+                viewModel.addTransaction(
+                    title = title,
+                    amount = amount,
+                    type = type,
+                    category = category
+                )
+                capturedReceiptBitmap = null
+            }
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun TransactionItemRowBento(
+    tx: Transaction,
+    themeDark: Boolean,
+    viewModel: FinanceViewModel,
+    onDelete: (Transaction) -> Unit,
+    onUpdate: (Transaction) -> Unit
+) {
+    val dismissState = rememberSwipeToDismissBoxState(
+        confirmValueChange = { dismissValue ->
+            when (dismissValue) {
+                SwipeToDismissBoxValue.StartToEnd -> {
+                    onUpdate(tx)
+                    false // Bounce back
+                }
+                SwipeToDismissBoxValue.EndToStart -> {
+                    onDelete(tx)
+                    true // Dismiss item
+                }
+                else -> false
+            }
+        }
+    )
+
+    SwipeToDismissBox(
+        state = dismissState,
+        backgroundContent = {
+            val direction = dismissState.dismissDirection
+            val color by animateColorAsState(
+                when (dismissState.targetValue) {
+                    SwipeToDismissBoxValue.Settled -> Color.Transparent
+                    SwipeToDismissBoxValue.StartToEnd -> Color(0xFF3B82F6) // Blue for edit
+                    SwipeToDismissBoxValue.EndToStart -> Color(0xFFEF4444) // Red for delete
+                }
+            )
+            val alignment = when (direction) {
+                SwipeToDismissBoxValue.StartToEnd -> Alignment.CenterStart
+                SwipeToDismissBoxValue.EndToStart -> Alignment.CenterEnd
+                else -> Alignment.Center
+            }
+            val icon = when (direction) {
+                SwipeToDismissBoxValue.StartToEnd -> Icons.Default.Edit
+                SwipeToDismissBoxValue.EndToStart -> Icons.Default.Delete
+                else -> Icons.Default.Delete
+            }
+
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clip(RoundedCornerShape(24.dp))
+                    .background(color)
+                    .padding(horizontal = 24.dp),
+                contentAlignment = alignment
             ) {
-                Column(
-                    modifier = Modifier.padding(24.dp),
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                if (direction != SwipeToDismissBoxValue.Settled) {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.size(28.dp)
+                    )
+                }
+            }
+        },
+        content = {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(24.dp))
+                    .background(if (themeDark) Color(0xFF0F172A) else Color(0xFFF8FAFC))
+                    .padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(48.dp)
+                        .background(
+                            if (tx.type == "INCOME") Color(0xFF10B981).copy(alpha = 0.15f)
+                            else Color(0xFFEF4444).copy(alpha = 0.15f),
+                            CircleShape
+                        ),
+                    contentAlignment = Alignment.Center
                 ) {
+                    Icon(
+                        imageVector = if (tx.type == "INCOME") Icons.Default.ArrowUpward else Icons.Default.ArrowDownward,
+                        contentDescription = null,
+                        tint = if (tx.type == "INCOME") Color(0xFF10B981) else Color(0xFFEF4444),
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+                Spacer(modifier = Modifier.width(16.dp))
+                Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = "Tambah Transaksi Manual",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold
+                        text = tx.title,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1
                     )
-
-                    // Segmented capsule toggler
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(44.dp)
-                            .background(
-                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                                shape = RoundedCornerShape(22.dp)
-                            )
-                            .padding(4.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
                         Box(
                             modifier = Modifier
-                                .weight(1f)
-                                .fillMaxHeight()
-                                .clip(RoundedCornerShape(18.dp))
                                 .background(
-                                    color = if (type == "EXPENSE") MaterialTheme.colorScheme.errorContainer else Color.Transparent
+                                    if (themeDark) Color.White.copy(alpha = 0.1f) else Color.Black.copy(alpha = 0.05f),
+                                    RoundedCornerShape(8.dp)
                                 )
-                                .clickable { type = "EXPENSE" },
-                            contentAlignment = Alignment.Center
+                                .padding(horizontal = 6.dp, vertical = 2.dp)
                         ) {
                             Text(
-                                text = "Pengeluaran",
-                                color = if (type == "EXPENSE") MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.onSurfaceVariant,
-                                style = MaterialTheme.typography.bodyMedium,
+                                text = tx.category,
+                                fontSize = 10.sp,
                                 fontWeight = FontWeight.Bold,
-                                maxLines = 1
-                            )
-                        }
-
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .fillMaxHeight()
-                                .clip(RoundedCornerShape(18.dp))
-                                .background(
-                                    color = if (type == "INCOME") MaterialTheme.colorScheme.primaryContainer else Color.Transparent
-                                )
-                                .clickable { type = "INCOME" },
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = "Pemasukan",
-                                color = if (type == "INCOME") MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
-                                style = MaterialTheme.typography.bodyMedium,
-                                fontWeight = FontWeight.Bold,
-                                maxLines = 1
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                     }
+                }
+                Text(
+                    text = (if (tx.type == "INCOME") "+" else "-") + viewModel.formatCurrency(tx.amount),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Black,
+                    color = if (tx.type == "INCOME") Color(0xFF10B981) else Color(0xFFEF4444)
+                )
+            }
+        }
+    )
+}
 
-                    OutlinedTextField(
-                        value = title,
-                        onValueChange = { title = it },
-                        label = { Text("Keterangan") },
-                        modifier = Modifier.fillMaxWidth()
-                    )
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun AddTransactionModalBento(
+    viewModel: FinanceViewModel,
+    themeDark: Boolean,
+    initialTransaction: Transaction? = null,
+    defaultType: String = "EXPENSE",
+    onDismiss: () -> Unit
+) {
+    val selectedCurrency by viewModel.selectedCurrency.collectAsStateWithLifecycle()
+    var title by remember { mutableStateOf(initialTransaction?.title ?: "") }
+    var amount by remember { mutableStateOf(initialTransaction?.amount?.toLong()?.toString() ?: "") }
+    val type = initialTransaction?.type ?: defaultType
+    val categories = if (type == "INCOME") listOf("Gaji", "Bonus", "Investasi", "Penjualan", "Hadiah", "Lainnya") else listOf("Makanan", "Belanja", "Transportasi", "Tagihan", "Hiburan", "Kesehatan", "Sewa", "Lainnya")
+    var category by remember { mutableStateOf(initialTransaction?.category ?: (if (type == "INCOME") "Gaji" else "Makanan")) }
 
-                    OutlinedTextField(
-                        value = amount,
-                        onValueChange = { input ->
-                            val clean = input.filter { it.isDigit() }
-                            if (clean.length <= 15) {
-                                amount = clean
-                            }
-                        },
-                        label = { Text("Jumlah (IDR)") },
-                        singleLine = true,
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        visualTransformation = RupiahVisualTransformation(),
-                        modifier = Modifier.fillMaxWidth()
-                    )
-
-                    Text("Kategori:", fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                    val catRows = listOf("Makanan", "Belanja", "Transportasi", "Gaji", "Investasi", "Sewa", "Lainnya")
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            shape = RoundedCornerShape(32.dp),
+            color = if (themeDark) Color(0xFF1E293B) else Color.White,
+            modifier = Modifier.fillMaxWidth().testTag("add_transaction_modal_surface")
+        ) {
+            Column(
+                modifier = Modifier.padding(24.dp),
+                verticalArrangement = Arrangement.spacedBy(20.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                     Row(
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .horizontalScroll(rememberScrollState())
-                            .padding(vertical = 4.dp)
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        catRows.forEach { cat ->
-                            val isSelected = category == cat
-                            Box(
-                                modifier = Modifier
-                                    .background(
-                                        color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
-                                        shape = RoundedCornerShape(10.dp)
-                                    )
-                                    .clickable { category = cat }
-                                    .padding(horizontal = 10.dp, vertical = 6.dp)
-                            ) {
-                                Text(
-                                    text = cat,
-                                    fontSize = 11.sp,
-                                    color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
+                        Box(
+                            modifier = Modifier
+                                .size(42.dp)
+                                .background(
+                                    color = if (type == "INCOME") Color(0xFF10B981).copy(alpha = 0.15f) else Color(0xFFEF4444).copy(alpha = 0.15f),
+                                    shape = CircleShape
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = if (type == "INCOME") Icons.AutoMirrored.Filled.TrendingUp else Icons.AutoMirrored.Filled.TrendingDown,
+                                contentDescription = null,
+                                tint = if (type == "INCOME") Color(0xFF10B981) else Color(0xFFEF4444),
+                                modifier = Modifier.size(22.dp)
+                            )
+                        }
+                        Column {
+                            Text(
+                                text = if (initialTransaction == null) {
+                                    if (type == "INCOME") "Catat Pemasukan" else "Catat Pengeluaran"
+                                } else {
+                                    if (type == "INCOME") "Edit Pemasukan" else "Edit Pengeluaran"
+                                },
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.Black
+                            )
+                            Text(
+                                text = if (type == "INCOME") "Pemasukan Dana Baru" else "Pengeluaran Biaya Baru",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = if (type == "INCOME") Color(0xFF10B981) else Color(0xFFEF4444),
+                                fontWeight = FontWeight.SemiBold
+                            )
                         }
                     }
+                    IconButton(onClick = onDismiss, modifier = Modifier.size(32.dp)) {
+                        Icon(Icons.Default.Close, contentDescription = "Close")
+                    }
+                }
 
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.End
-                    ) {
-                        TextButton(onClick = { showAddDialog = false }) {
-                            Text("Batal")
+                OutlinedTextField(
+                    value = title,
+                    onValueChange = { title = it },
+                    label = { Text("Keterangan") },
+                    placeholder = { Text(if (type == "INCOME") "cth. Gaji Bulanan, Bonus Proyek" else "cth. Belanja Bulanan, Bensin") },
+                    shape = RoundedCornerShape(24.dp),
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = if (type == "INCOME") Color(0xFF10B981) else Color(0xFFEF4444)
+                    )
+                )
+
+                OutlinedTextField(
+                    value = amount,
+                    onValueChange = { input ->
+                        val clean = input.filter { it.isDigit() }
+                        if (clean.length <= 15) amount = clean
+                    },
+                    label = { Text("Nominal (${if (selectedCurrency == "USD") "USD $" else "Rupiah Rp"})") },
+                    placeholder = { Text(if (selectedCurrency == "USD") "misal: 25" else "misal: 45.000") },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    visualTransformation = RupiahVisualTransformation(isUsd = selectedCurrency == "USD"),
+                    shape = RoundedCornerShape(24.dp),
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = if (type == "INCOME") Color(0xFF10B981) else Color(0xFFEF4444)
+                    )
+                )
+
+                Text("Kategori", fontWeight = FontWeight.Bold)
+                
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState())
+                ) {
+                    categories.forEach { cat ->
+                        val isSelected = category == cat
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(16.dp))
+                                .background(
+                                    if (isSelected) (if (type == "INCOME") Color(0xFF10B981) else Color(0xFFEF4444))
+                                    else if (themeDark) Color.White.copy(alpha = 0.1f) else Color.Black.copy(alpha = 0.05f)
+                                )
+                                .clickable { category = cat }
+                                .padding(horizontal = 16.dp, vertical = 10.dp)
+                        ) {
+                            Text(
+                                text = cat,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                         }
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Button(
-                            onClick = {
-                                val cleanAmt = amount.filter { it.isDigit() }
-                                val dAmount = cleanAmt.toDoubleOrNull() ?: 0.0
-                                if (title.isNotBlank() && dAmount > 0) {
-                                    viewModel.addTransaction(
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Button(
+                    onClick = {
+                        val cleanAmt = amount.filter { it.isDigit() }
+                        val dAmount = cleanAmt.toDoubleOrNull() ?: 0.0
+                        if (title.isNotBlank() && dAmount > 0) {
+                            if (initialTransaction != null) {
+                                viewModel.updateTransaction(
+                                    initialTransaction.copy(
                                         title = title,
                                         amount = dAmount,
                                         type = type,
-                                        category = if (type == "INCOME" && category == "Makanan") "Gaji" else category
+                                        category = category
                                     )
-                                    showAddDialog = false
-                                }
-                            },
-                            enabled = title.isNotBlank() && amount.filter { it.isDigit() }.isNotEmpty()
-                        ) {
-                            Text("Simpan")
+                                )
+                            } else {
+                                viewModel.addTransaction(
+                                    title = title,
+                                    amount = dAmount,
+                                    type = type,
+                                    category = category
+                                )
+                            }
+                            onDismiss()
                         }
-                    }
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(56.dp),
+                    shape = RoundedCornerShape(28.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (type == "INCOME") Color(0xFF10B981) else Color(0xFFEF4444),
+                        contentColor = Color.White
+                    ),
+                    enabled = title.isNotBlank() && amount.filter { it.isDigit() }.isNotEmpty()
+                ) {
+                    Text("Simpan Transaksi", fontSize = 16.sp, fontWeight = FontWeight.Bold)
                 }
             }
         }

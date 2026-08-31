@@ -5,21 +5,22 @@ import androidx.compose.ui.text.input.OffsetMapping
 import androidx.compose.ui.text.input.TransformedText
 import androidx.compose.ui.text.input.VisualTransformation
 
-class RupiahVisualTransformation : VisualTransformation {
+class RupiahVisualTransformation(private val isUsd: Boolean = false) : VisualTransformation {
     override fun filter(text: AnnotatedString): TransformedText {
         val originalText = text.text
         if (originalText.isEmpty()) {
             return TransformedText(text, OffsetMapping.Identity)
         }
 
-        // Format originalText (which is pure digits) with Indonesian style (e.g. 15.000)
+        // Format originalText (which is pure digits)
+        val separator = if (isUsd) ',' else '.'
         val sb = StringBuilder()
         val len = originalText.length
         for (i in 0 until len) {
             sb.append(originalText[i])
             val remaining = len - 1 - i
             if (remaining > 0 && remaining % 3 == 0) {
-                sb.append('.')
+                sb.append(separator)
             }
         }
         val formatted = sb.toString()
@@ -38,7 +39,7 @@ class RupiahVisualTransformation : VisualTransformation {
             val remaining = len - 1 - origIdx
             if (remaining > 0 && remaining % 3 == 0) {
                 transToOrig[transIdx] = origIdx + 1
-                transIdx++ // skip the dot
+                transIdx++ // skip separator
             }
             origIdx++
         }

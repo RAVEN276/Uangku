@@ -25,6 +25,9 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.LibraryAdd
 import androidx.compose.material.icons.filled.NotificationsActive
+import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material.icons.filled.Sync
+import androidx.compose.material.icons.filled.WarningAmber
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -35,8 +38,11 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.animation.animateContentSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -48,6 +54,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.foundation.border
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -85,6 +93,8 @@ fun BudgetScreen(
     val savingChallenges by viewModel.savingChallenges.collectAsStateWithLifecycle()
     val virtualBadges by viewModel.virtualBadges.collectAsStateWithLifecycle()
     val showBadgeUnlockDialog by viewModel.showBadgeUnlockDialog.collectAsStateWithLifecycle()
+    val budgetMonitoringEnabled by viewModel.budgetMonitoringEnabled.collectAsStateWithLifecycle()
+    val context = LocalContext.current
 
     androidx.compose.runtime.LaunchedEffect(Unit) {
         viewModel.loadSavingChallengesAndBadges()
@@ -95,8 +105,14 @@ fun BudgetScreen(
     var showAddSavingGoalDialog by remember { mutableStateOf(false) }
     var editingSavingGoal by remember { mutableStateOf<com.example.data.model.SavingGoal?>(null) }
 
-    val rubelFormat = NumberFormat.getCurrencyInstance(Locale("id", "ID"))
-    rubelFormat.maximumFractionDigits = 0
+    val selectedCurrency by viewModel.selectedCurrency.collectAsStateWithLifecycle()
+    val rubelFormat = remember(selectedCurrency) {
+        object {
+            fun format(amt: Double): String = viewModel.formatCurrency(amt)
+            fun format(amt: Long): String = viewModel.formatCurrency(amt.toDouble())
+            fun format(amt: Number): String = viewModel.formatCurrency(amt.toDouble())
+        }
+    }
 
     // Group expenses by category
     val expenses = transactions.filter { it.type == "EXPENSE" }
@@ -125,14 +141,15 @@ fun BudgetScreen(
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
+        containerColor = Color.Transparent,
         floatingActionButton = {
             if (activeTab == 0) {
                 Button(
                     onClick = { showAddBudgetDialog = true },
-                    shape = RoundedCornerShape(16.dp),
+                    shape = RoundedCornerShape(32.dp),
                     modifier = Modifier
                         .testTag("budget_add_floating_action_btn")
-                        .padding(bottom = 8.dp)
+                        .padding(bottom = 72.dp)
                 ) {
                     Icon(imageVector = Icons.Default.LibraryAdd, contentDescription = "Limit Baru")
                     Spacer(modifier = Modifier.width(8.dp))
@@ -141,11 +158,11 @@ fun BudgetScreen(
             } else {
                 Button(
                     onClick = { showAddSavingGoalDialog = true },
-                    shape = RoundedCornerShape(16.dp),
+                    shape = RoundedCornerShape(32.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
                     modifier = Modifier
                         .testTag("saving_goal_add_floating_action_btn")
-                        .padding(bottom = 8.dp)
+                        .padding(bottom = 72.dp)
                 ) {
                     Icon(imageVector = Icons.Default.Add, contentDescription = "Target Baru")
                     Spacer(modifier = Modifier.width(8.dp))
@@ -154,72 +171,220 @@ fun BudgetScreen(
             }
         }
     ) { innerPadding ->
-        LazyColumn(
+        Box(
             modifier = Modifier
                 .fillMaxSize()
+                .background(
+                    Brush.verticalGradient(
+                        colors = if (themeDark) listOf(Color(0xFF0F172A), Color(0xFF020617))
+                                 else listOf(Color(0xFFF8FAFC), Color(0xFFE2E8F0))
+                    )
+                )
                 .padding(innerPadding)
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            item {
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(
-                        text = if (activeTab == 0) "Anggaran & Alarm" else "Target Menabung",
-                        style = MaterialTheme.typography.headlineMedium,
-                        fontWeight = FontWeight.Black,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Text(
-                        text = if (activeTab == 0) "Atur sasaran pengeluaran bulanan agar terhindar dari pemborosan berlebih." else "Lacak kemajuan menabung Anda untuk membeli barang atau tujuan impian.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-
-            item {
-                Row(
+            Column(
+                modifier = Modifier.fillMaxSize()
+            ) {
+                // SPATIAL HEADER
+                Box(
                     modifier = Modifier
                         .fillMaxWidth()
+                        .clip(RoundedCornerShape(bottomStart = 32.dp, bottomEnd = 32.dp))
                         .background(
-                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                            shape = RoundedCornerShape(12.dp)
+                            if (themeDark) Color(0xFF1E293B).copy(alpha = 0.9f) 
+                            else Color.White.copy(alpha = 0.9f)
                         )
-                        .padding(4.dp),
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        .border(
+                            1.dp,
+                            if (themeDark) Color.White.copy(alpha = 0.1f) else Color.Black.copy(alpha = 0.05f),
+                            RoundedCornerShape(bottomStart = 32.dp, bottomEnd = 32.dp)
+                        )
+                        .padding(top = 48.dp, bottom = 24.dp, start = 24.dp, end = 24.dp)
                 ) {
-                    val activeBtnColor = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.primary,
-                        contentColor = MaterialTheme.colorScheme.onPrimary
-                    )
-                    val inactiveBtnColor = ButtonDefaults.buttonColors(
-                        containerColor = Color.Transparent,
-                        contentColor = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                        Text(
+                            text = "Anggaran & Target",
+                            style = MaterialTheme.typography.headlineLarge,
+                            fontWeight = FontWeight.Black,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            letterSpacing = (-1).sp
+                        )
+                        
+                        // Tab Selector Row
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .animateContentSize()
+                                .background(
+                                    color = if (themeDark) Color.White.copy(alpha = 0.05f) else Color.Black.copy(alpha = 0.05f),
+                                    shape = RoundedCornerShape(32.dp)
+                                )
+                                .padding(4.dp),
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            val activeBtnColor = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.primary,
+                                contentColor = MaterialTheme.colorScheme.onPrimary
+                            )
+                            val inactiveBtnColor = ButtonDefaults.buttonColors(
+                                containerColor = Color.Transparent,
+                                contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
 
-                    Button(
-                        onClick = { activeTab = 0 },
-                        colors = if (activeTab == 0) activeBtnColor else inactiveBtnColor,
-                        shape = RoundedCornerShape(8.dp),
-                        modifier = Modifier.weight(1f),
-                        contentPadding = PaddingValues(vertical = 8.dp)
-                    ) {
-                        Text("Anggaran", fontWeight = FontWeight.Bold, fontSize = 11.sp)
-                    }
+                            Button(
+                                onClick = { activeTab = 0 },
+                                colors = if (activeTab == 0) activeBtnColor else inactiveBtnColor,
+                                shape = RoundedCornerShape(32.dp),
+                                modifier = Modifier.weight(1f),
+                                contentPadding = PaddingValues(vertical = 12.dp)
+                            ) {
+                                Text("Anggaran", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                            }
 
-                    Button(
-                        onClick = { activeTab = 1 },
-                        colors = if (activeTab == 1) activeBtnColor else inactiveBtnColor,
-                        shape = RoundedCornerShape(8.dp),
-                        modifier = Modifier.weight(1f),
-                        contentPadding = PaddingValues(vertical = 8.dp)
-                    ) {
-                        Text("Target", fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                            Button(
+                                onClick = { activeTab = 1 },
+                                colors = if (activeTab == 1) activeBtnColor else inactiveBtnColor,
+                                shape = RoundedCornerShape(32.dp),
+                                modifier = Modifier.weight(1f),
+                                contentPadding = PaddingValues(vertical = 12.dp)
+                            ) {
+                                Text("Target", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                            }
+                        }
                     }
                 }
-            }
-
+                
+                // Content Below Header
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                    contentPadding = PaddingValues(top = 16.dp, bottom = 100.dp)
+                ) {
             if (activeTab == 0) {
+                // Background Worker Monitoring Status Bento Card
+                item {
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .animateContentSize()
+                            .testTag("budget_background_worker_card"),
+                        colors = CardDefaults.cardColors(
+                            containerColor = if (themeDark) Color(0xFF1E293B).copy(alpha = 0.95f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+                            contentColor = MaterialTheme.colorScheme.onSurface
+                        ),
+                        shape = RoundedCornerShape(32.dp),
+                        border = CardDefaults.outlinedCardBorder()
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(20.dp),
+                            verticalArrangement = Arrangement.spacedBy(14.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(42.dp)
+                                            .clip(RoundedCornerShape(14.dp))
+                                            .background(
+                                                if (budgetMonitoringEnabled) MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
+                                                else MaterialTheme.colorScheme.surfaceVariant
+                                            ),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Schedule,
+                                            contentDescription = "Background Worker",
+                                            tint = if (budgetMonitoringEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                            modifier = Modifier.size(22.dp)
+                                        )
+                                    }
+
+                                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                        Text(
+                                            text = "Pemantauan Latar Belakang",
+                                            style = MaterialTheme.typography.titleMedium,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        )
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                        ) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(8.dp)
+                                                    .clip(RoundedCornerShape(4.dp))
+                                                    .background(
+                                                        if (budgetMonitoringEnabled) Color(0xFF10B981)
+                                                        else Color(0xFF94A3B8)
+                                                    )
+                                            )
+                                            Text(
+                                                text = if (budgetMonitoringEnabled) "WorkManager Aktif" else "Nonaktif",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                fontWeight = FontWeight.Bold,
+                                                color = if (budgetMonitoringEnabled) Color(0xFF10B981) else MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                    }
+                                }
+
+                                Switch(
+                                    checked = budgetMonitoringEnabled,
+                                    onCheckedChange = { viewModel.setBudgetMonitoringEnabled(it) },
+                                    modifier = Modifier.testTag("budget_worker_toggle_switch")
+                                )
+                            }
+
+                            Text(
+                                text = "Layanan latar belakang mengevaluasi transaksi bulan berjalan dan mengirimkan notifikasi sistem secara otomatis saat pengeluaran kategori mendekati atau melebihi limit anggaran.",
+                                style = MaterialTheme.typography.bodySmall,
+                                lineHeight = 18.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+
+                            if (budgetMonitoringEnabled) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.End
+                                ) {
+                                    Button(
+                                        onClick = { viewModel.triggerManualBudgetCheck(context) },
+                                        shape = RoundedCornerShape(20.dp),
+                                        colors = ButtonDefaults.buttonColors(
+                                            containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
+                                            contentColor = MaterialTheme.colorScheme.primary
+                                        ),
+                                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
+                                        modifier = Modifier.testTag("budget_manual_check_btn")
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Sync,
+                                            contentDescription = "Check Now",
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text(
+                                            "Periksa Limit Sekarang",
+                                            style = MaterialTheme.typography.labelMedium,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
                 // Overall and Daily budgets if configured
                 val overallBudget = budgets.find { it.category == "ALL" }
                 val dailyBudget = budgets.find { it.category == "DAILY" }
@@ -229,9 +394,10 @@ fun BudgetScreen(
                         Card(
                             modifier = Modifier
                                 .fillMaxWidth()
+                                .animateContentSize()
                                 .testTag("empty_budget_placeholder"),
                             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                            shape = RoundedCornerShape(16.dp),
+                            shape = RoundedCornerShape(32.dp),
                             border = CardDefaults.outlinedCardBorder()
                         ) {
                             Row(
@@ -259,11 +425,13 @@ fun BudgetScreen(
                             Card(
                                 modifier = Modifier
                                     .fillMaxWidth()
+                                    .animateContentSize()
                                     .testTag("overall_budget_card"),
                                 colors = CardDefaults.cardColors(
-                                    containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+                                    containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f),
+                                    contentColor = MaterialTheme.colorScheme.onSurface
                                 ),
-                                shape = RoundedCornerShape(24.dp)
+                                shape = RoundedCornerShape(32.dp)
                             ) {
                                 Column(modifier = Modifier.padding(20.dp)) {
                                     Row(
@@ -282,7 +450,8 @@ fun BudgetScreen(
                                             Text(
                                                 text = "Limit Pengeluaran Bulanan",
                                                 style = MaterialTheme.typography.titleMedium,
-                                                fontWeight = FontWeight.Bold
+                                                fontWeight = FontWeight.Bold,
+                                                color = MaterialTheme.colorScheme.onSurface
                                             )
                                         }
 
@@ -333,11 +502,16 @@ fun BudgetScreen(
                                             .clip(RoundedCornerShape(5.dp))
                                             .background(MaterialTheme.colorScheme.surfaceVariant)
                                     ) {
-                                        val progressFraction = if (overallBudget.limitAmount > 0) {
+                                        val targetProgressFraction = if (overallBudget.limitAmount > 0) {
                                             (totalExpenseSum / overallBudget.limitAmount).toFloat().coerceIn(0f, 1f)
                                         } else {
                                             0f
                                         }
+                                        val progressFraction by androidx.compose.animation.core.animateFloatAsState(
+                                            targetValue = targetProgressFraction, 
+                                            animationSpec = androidx.compose.animation.core.tween(durationMillis = 1000, easing = androidx.compose.animation.core.FastOutSlowInEasing),
+                                            label = "progressAnim1"
+                                        )
                                         Box(
                                             modifier = Modifier
                                                 .fillMaxWidth(progressFraction)
@@ -382,11 +556,13 @@ fun BudgetScreen(
                             Card(
                                 modifier = Modifier
                                     .fillMaxWidth()
+                                    .animateContentSize()
                                         .testTag("daily_budget_card"),
                                     colors = CardDefaults.cardColors(
-                                        containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.3f)
+                                        containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.45f),
+                                        contentColor = MaterialTheme.colorScheme.onSurface
                                     ),
-                                shape = RoundedCornerShape(24.dp)
+                                shape = RoundedCornerShape(32.dp)
                             ) {
                                 Column(modifier = Modifier.padding(20.dp)) {
                                     Row(
@@ -405,7 +581,8 @@ fun BudgetScreen(
                                             Text(
                                                 text = "Limit Pengeluaran Harian",
                                                 style = MaterialTheme.typography.titleMedium,
-                                                fontWeight = FontWeight.Bold
+                                                fontWeight = FontWeight.Bold,
+                                                color = MaterialTheme.colorScheme.onSurface
                                             )
                                         }
 
@@ -456,11 +633,16 @@ fun BudgetScreen(
                                             .clip(RoundedCornerShape(5.dp))
                                             .background(MaterialTheme.colorScheme.surfaceVariant)
                                     ) {
-                                        val progressFractionDaily = if (dailyBudget.limitAmount > 0) {
+                                        val targetProgressFractionDaily = if (dailyBudget.limitAmount > 0) {
                                             (todayExpenseSum / dailyBudget.limitAmount).toFloat().coerceIn(0f, 1f)
                                         } else {
                                             0f
                                         }
+                                        val progressFractionDaily by androidx.compose.animation.core.animateFloatAsState(
+                                            targetValue = targetProgressFractionDaily,
+                                            animationSpec = androidx.compose.animation.core.tween(durationMillis = 1000, easing = androidx.compose.animation.core.FastOutSlowInEasing),
+                                            label = "progressAnim2"
+                                        )
                                         Box(
                                             modifier = Modifier
                                                 .fillMaxWidth(progressFractionDaily)
@@ -527,10 +709,12 @@ fun BudgetScreen(
 
                         Card(
                             modifier = Modifier
+                                .animateItem()
                                 .fillMaxWidth()
+                                .animateContentSize()
                                 .testTag("category_budget_${budget.category}"),
                             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                            shape = RoundedCornerShape(16.dp),
+                            shape = RoundedCornerShape(32.dp),
                             border = CardDefaults.outlinedCardBorder()
                         ) {
                             Column(modifier = Modifier.padding(16.dp)) {
@@ -592,11 +776,16 @@ fun BudgetScreen(
 
                                 Spacer(modifier = Modifier.height(8.dp))
 
-                                val progressFraction = if (budget.limitAmount > 0) {
+                                val targetProgressFraction = if (budget.limitAmount > 0) {
                                     (spentOnCategory / budget.limitAmount).toFloat().coerceIn(0f, 1f)
                                 } else {
                                     0f
                                 }
+                                val progressFraction by androidx.compose.animation.core.animateFloatAsState(
+                                    targetValue = targetProgressFraction,
+                                    animationSpec = androidx.compose.animation.core.tween(durationMillis = 1000, easing = androidx.compose.animation.core.FastOutSlowInEasing),
+                                    label = "progressAnim3"
+                                )
                                 LinearProgressIndicator(
                                     progress = { progressFraction },
                                     modifier = Modifier
@@ -635,13 +824,15 @@ fun BudgetScreen(
                         Card(
                             modifier = Modifier
                                 .fillMaxWidth()
+                                .animateContentSize()
                                 .padding(vertical = 16.dp),
                             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f)),
-                            shape = RoundedCornerShape(16.dp)
+                            shape = RoundedCornerShape(32.dp)
                         ) {
                             Column(
                                 modifier = Modifier
                                     .fillMaxWidth()
+                                    .animateContentSize()
                                     .padding(32.dp),
                                 horizontalAlignment = Alignment.CenterHorizontally,
                                 verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -669,8 +860,9 @@ fun BudgetScreen(
                 } else {
                     items(savingGoals, key = { "goal_${it.id}" }) { goal ->
                         SavingGoalCard(
+                            modifier = Modifier.animateItem(),
                             goal = goal,
-                            rubelFormat = rubelFormat,
+                            rubelFormat = { rubelFormat.format(it) },
                             currentBalance = totalBalance,
                             onEdit = { editingSavingGoal = goal },
                             onDelete = { viewModel.deleteSavingGoal(goal) }
@@ -682,6 +874,8 @@ fun BudgetScreen(
             item {
                 Spacer(modifier = Modifier.height(60.dp))
             }
+        }
+        }
         }
     }
 
@@ -707,7 +901,7 @@ fun BudgetScreen(
 
         Dialog(onDismissRequest = { showAddBudgetDialog = false }) {
             Surface(
-                shape = RoundedCornerShape(24.dp),
+                shape = RoundedCornerShape(32.dp),
                 color = MaterialTheme.colorScheme.surface,
                 tonalElevation = 6.dp,
                 modifier = Modifier.fillMaxWidth()
@@ -737,6 +931,7 @@ fun BudgetScreen(
                             Box(
                                 modifier = Modifier
                                     .fillMaxWidth()
+                                    .animateContentSize()
                                     .background(
                                         color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
                                         shape = RoundedCornerShape(8.dp)
@@ -762,12 +957,17 @@ fun BudgetScreen(
                                 limitInput = clean
                             }
                         },
-                        label = { Text("Limit Anggaran Berbelanja (IDR)") },
-                        placeholder = { Text("misal: 1.500.000") },
+                        label = { Text("Limit Anggaran Berbelanja (${if (selectedCurrency == "USD") "USD $" else "Rupiah Rp"})") },
+                        placeholder = { Text(if (selectedCurrency == "USD") "misal: 100" else "misal: 1.500.000") },
                         singleLine = true,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        visualTransformation = RupiahVisualTransformation(),
-                        modifier = Modifier.fillMaxWidth()
+                        visualTransformation = RupiahVisualTransformation(isUsd = selectedCurrency == "USD"),
+                        shape = RoundedCornerShape(24.dp),
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = if (themeDark) androidx.compose.ui.graphics.Color(0xFFC084FC) else androidx.compose.ui.graphics.Color(0xFF6D28D9),
+                            unfocusedBorderColor = if (themeDark) androidx.compose.ui.graphics.Color.White.copy(alpha = 0.15f) else androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.15f)
+                        )
                     )
 
                     OutlinedTextField(
@@ -775,7 +975,12 @@ fun BudgetScreen(
                         onValueChange = { alertPercentInput = it },
                         label = { Text("Persentase Alarm Trigger (%)") },
                         placeholder = { Text("default: 80") },
-                        modifier = Modifier.fillMaxWidth()
+                        shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp),
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = if (themeDark) androidx.compose.ui.graphics.Color(0xFFC084FC) else androidx.compose.ui.graphics.Color(0xFF6D28D9),
+                            unfocusedBorderColor = if (themeDark) androidx.compose.ui.graphics.Color.White.copy(alpha = 0.15f) else androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.15f)
+                        )
                     )
 
                     Row(
@@ -820,7 +1025,7 @@ fun BudgetScreen(
 
         Dialog(onDismissRequest = { showAddSavingGoalDialog = false }) {
             Surface(
-                shape = RoundedCornerShape(24.dp),
+                shape = RoundedCornerShape(32.dp),
                 color = MaterialTheme.colorScheme.surface,
                 tonalElevation = 6.dp,
                 modifier = Modifier.fillMaxWidth()
@@ -840,7 +1045,12 @@ fun BudgetScreen(
                         onValueChange = { goalTitle = it },
                         label = { Text("Nama Rencana / Impian") },
                         placeholder = { Text("misal: Beli Laptop Baru") },
-                        modifier = Modifier.fillMaxWidth()
+                        shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp),
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = if (themeDark) androidx.compose.ui.graphics.Color(0xFFC084FC) else androidx.compose.ui.graphics.Color(0xFF6D28D9),
+                            unfocusedBorderColor = if (themeDark) androidx.compose.ui.graphics.Color.White.copy(alpha = 0.15f) else androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.15f)
+                        )
                     )
 
                     OutlinedTextField(
@@ -851,12 +1061,17 @@ fun BudgetScreen(
                                 targetAmtInput = clean
                             }
                         },
-                        label = { Text("Target Minimal Nominal (IDR)") },
-                        placeholder = { Text("misal: 10.000.000") },
+                        label = { Text("Target Minimal Nominal (${if (selectedCurrency == "USD") "USD $" else "Rupiah Rp"})") },
+                        placeholder = { Text(if (selectedCurrency == "USD") "misal: 500" else "misal: 10.000.000") },
                         singleLine = true,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        visualTransformation = RupiahVisualTransformation(),
-                        modifier = Modifier.fillMaxWidth()
+                        visualTransformation = RupiahVisualTransformation(isUsd = selectedCurrency == "USD"),
+                        shape = RoundedCornerShape(24.dp),
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = if (themeDark) androidx.compose.ui.graphics.Color(0xFFC084FC) else androidx.compose.ui.graphics.Color(0xFF6D28D9),
+                            unfocusedBorderColor = if (themeDark) androidx.compose.ui.graphics.Color.White.copy(alpha = 0.15f) else androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.15f)
+                        )
                     )
 
                     OutlinedTextField(
@@ -864,7 +1079,12 @@ fun BudgetScreen(
                         onValueChange = { targetDateInput = it },
                         label = { Text("Target Tanggal Pencapaian") },
                         placeholder = { Text("misal: Desember 2026") },
-                        modifier = Modifier.fillMaxWidth()
+                        shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp),
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = if (themeDark) androidx.compose.ui.graphics.Color(0xFFC084FC) else androidx.compose.ui.graphics.Color(0xFF6D28D9),
+                            unfocusedBorderColor = if (themeDark) androidx.compose.ui.graphics.Color.White.copy(alpha = 0.15f) else androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.15f)
+                        )
                     )
 
                     Text("Pilih Kategori:", fontWeight = FontWeight.Bold, fontSize = 12.sp)
@@ -941,7 +1161,7 @@ fun BudgetScreen(
 
         Dialog(onDismissRequest = { editingSavingGoal = null }) {
             Surface(
-                shape = RoundedCornerShape(24.dp),
+                shape = RoundedCornerShape(32.dp),
                 color = MaterialTheme.colorScheme.surface,
                 tonalElevation = 6.dp,
                 modifier = Modifier.fillMaxWidth()
@@ -961,7 +1181,12 @@ fun BudgetScreen(
                         onValueChange = { goalTitle = it },
                         label = { Text("Nama Rencana / Impian") },
                         placeholder = { Text("misal: Beli Laptop Baru") },
-                        modifier = Modifier.fillMaxWidth()
+                        shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp),
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = if (themeDark) androidx.compose.ui.graphics.Color(0xFFC084FC) else androidx.compose.ui.graphics.Color(0xFF6D28D9),
+                            unfocusedBorderColor = if (themeDark) androidx.compose.ui.graphics.Color.White.copy(alpha = 0.15f) else androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.15f)
+                        )
                     )
 
                     OutlinedTextField(
@@ -972,12 +1197,17 @@ fun BudgetScreen(
                                 targetAmtInput = clean
                             }
                         },
-                        label = { Text("Target Minimal Nominal (IDR)") },
-                        placeholder = { Text("misal: 10.000.000") },
+                        label = { Text("Target Minimal Nominal (${if (selectedCurrency == "USD") "USD $" else "Rupiah Rp"})") },
+                        placeholder = { Text(if (selectedCurrency == "USD") "misal: 500" else "misal: 10.000.000") },
                         singleLine = true,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        visualTransformation = RupiahVisualTransformation(),
-                        modifier = Modifier.fillMaxWidth()
+                        visualTransformation = RupiahVisualTransformation(isUsd = selectedCurrency == "USD"),
+                        shape = RoundedCornerShape(24.dp),
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = if (themeDark) androidx.compose.ui.graphics.Color(0xFFC084FC) else androidx.compose.ui.graphics.Color(0xFF6D28D9),
+                            unfocusedBorderColor = if (themeDark) androidx.compose.ui.graphics.Color.White.copy(alpha = 0.15f) else androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.15f)
+                        )
                     )
 
                     OutlinedTextField(
@@ -985,7 +1215,12 @@ fun BudgetScreen(
                         onValueChange = { targetDateInput = it },
                         label = { Text("Target Tanggal Pencapaian") },
                         placeholder = { Text("misal: Desember 2026") },
-                        modifier = Modifier.fillMaxWidth()
+                        shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp),
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = if (themeDark) androidx.compose.ui.graphics.Color(0xFFC084FC) else androidx.compose.ui.graphics.Color(0xFF6D28D9),
+                            unfocusedBorderColor = if (themeDark) androidx.compose.ui.graphics.Color.White.copy(alpha = 0.15f) else androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.15f)
+                        )
                     )
 
                     Text("Pilih Kategori:", fontWeight = FontWeight.Bold, fontSize = 12.sp)
@@ -1058,7 +1293,7 @@ fun BudgetScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(16.dp),
-                shape = RoundedCornerShape(24.dp),
+                shape = RoundedCornerShape(32.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                 border = CardDefaults.outlinedCardBorder()
             ) {
@@ -1111,22 +1346,29 @@ fun BudgetScreen(
 
 @Composable
 fun SavingGoalCard(
+    modifier: Modifier = Modifier,
     goal: com.example.data.model.SavingGoal,
-    rubelFormat: NumberFormat,
+    rubelFormat: (Double) -> String,
     currentBalance: Double,
     onEdit: () -> Unit,
     onDelete: () -> Unit
 ) {
-    val progressFraction = if (goal.targetAmount > 0) {
+    val targetProgressFraction = if (goal.targetAmount > 0) {
         (currentBalance / goal.targetAmount).toFloat().coerceIn(0f, 1f)
     } else {
         0f
     }
+    val progressFraction by androidx.compose.animation.core.animateFloatAsState(
+        targetValue = targetProgressFraction,
+        animationSpec = androidx.compose.animation.core.tween(durationMillis = 1000, easing = androidx.compose.animation.core.FastOutSlowInEasing),
+        label = "progressAnim4"
+    )
     val progressPercent = (progressFraction * 100).toInt()
 
     Card(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
+            .animateContentSize()
             .testTag("saving_goal_card_${goal.id}"),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
@@ -1197,13 +1439,13 @@ fun SavingGoalCard(
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Text(
-                    text = "Terkumpul: ${rubelFormat.format(currentBalance).replace(",00", "")}",
+                    text = "Terkumpul: ${rubelFormat(currentBalance).replace(",00", "")}",
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.primary
                 )
                 Text(
-                    text = "Impian: ${rubelFormat.format(goal.targetAmount).replace(",00", "")}",
+                    text = "Impian: ${rubelFormat(goal.targetAmount).replace(",00", "")}",
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -1244,7 +1486,7 @@ fun SavingGoalCard(
                 val sisa = (goal.targetAmount - currentBalance).coerceAtLeast(0.0)
                 if (sisa > 0) {
                     Text(
-                        text = "Sisa: ${rubelFormat.format(sisa).replace(",00", "")}",
+                        text = "Sisa: ${rubelFormat(sisa).replace(",00", "")}",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 11.sp

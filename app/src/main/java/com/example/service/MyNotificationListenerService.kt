@@ -40,6 +40,7 @@ class MyNotificationListenerService : NotificationListenerService() {
                     val db = AppDatabase.getDatabase(applicationContext)
                     db.financeDao().insertTransaction(transaction)
                     Log.d("UangkuNotif", "Success inserting Transaction: ${transaction.title}")
+                    BudgetMonitoringScheduler.triggerImmediateCheck(applicationContext)
                 } catch (e: Exception) {
                     Log.e("UangkuNotif", "Error inserting transaction", e)
                 }

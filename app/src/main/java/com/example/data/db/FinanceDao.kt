@@ -20,6 +20,12 @@ interface FinanceDao {
     @Query("SELECT * FROM transactions ORDER BY timestamp DESC")
     fun getAllTransactions(): Flow<List<Transaction>>
 
+    @Query("SELECT * FROM transactions ORDER BY timestamp DESC")
+    suspend fun getAllTransactionsList(): List<Transaction>
+
+    @Query("SELECT * FROM transactions WHERE timestamp >= :startTime AND timestamp <= :endTime ORDER BY timestamp DESC")
+    suspend fun getTransactionsInTimeRange(startTime: Long, endTime: Long): List<Transaction>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertTransaction(transaction: Transaction)
 
@@ -32,6 +38,9 @@ interface FinanceDao {
     // --- Budgets ---
     @Query("SELECT * FROM budgets")
     fun getAllBudgets(): Flow<List<Budget>>
+
+    @Query("SELECT * FROM budgets")
+    suspend fun getAllBudgetsList(): List<Budget>
 
     @Query("SELECT * FROM budgets WHERE category = :category LIMIT 1")
     suspend fun getBudgetByCategory(category: String): Budget?

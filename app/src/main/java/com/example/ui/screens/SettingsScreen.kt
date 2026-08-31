@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -57,6 +58,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Box
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontFamily
@@ -80,6 +84,9 @@ fun SettingsScreen(
     val currentName by viewModel.userName.collectAsStateWithLifecycle()
     val isPinEnabled by viewModel.isPinEnabled.collectAsStateWithLifecycle()
     val bankNotificationEnabled by viewModel.bankNotificationEnabled.collectAsStateWithLifecycle()
+    val budgetMonitoringEnabled by viewModel.budgetMonitoringEnabled.collectAsStateWithLifecycle()
+    val selectedCurrency by viewModel.selectedCurrency.collectAsStateWithLifecycle()
+    val usdToIdrRate by viewModel.usdToIdrRate.collectAsStateWithLifecycle()
 
     var showPinDialog by remember { mutableStateOf(false) }
     var pinInputValue by remember { mutableStateOf(currentPin) }
@@ -87,31 +94,71 @@ fun SettingsScreen(
     var showNameDialog by remember { mutableStateOf(false) }
     var nameInputValue by remember { mutableStateOf(currentName) }
 
+    var showRateDialog by remember { mutableStateOf(false) }
+    var rateInputValue by remember { mutableStateOf(usdToIdrRate.toInt().toString()) }
+
     var showPdfReportDialog by remember { mutableStateOf(false) }
     var pdfReportText by remember { mutableStateOf("") }
 
     Scaffold(
-        modifier = modifier.fillMaxSize()
+        modifier = modifier.fillMaxSize(),
+        containerColor = Color.Transparent
     ) { innerPadding ->
-        Column(
+        Box(
             modifier = Modifier
                 .fillMaxSize()
+                .background(
+                    Brush.verticalGradient(
+                        colors = if (themeDark) listOf(Color(0xFF0F172A), Color(0xFF020617))
+                                 else listOf(Color(0xFFF8FAFC), Color(0xFFE2E8F0))
+                    )
+                )
                 .padding(innerPadding)
-                .padding(16.dp)
-                .verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            Text(
-                text = "Pengaturan & Laporan",
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.Black,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-            Text(
-                text = "Atur preferensi keamanan, akses akun, dan ekspor seluruh dokumen keuangan secara lokal dan aman di perangkat Anda.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+            Column(
+                modifier = Modifier.fillMaxSize()
+            ) {
+                // SPATIAL HEADER
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(bottomStart = 32.dp, bottomEnd = 32.dp))
+                        .background(
+                            if (themeDark) Color(0xFF1E293B).copy(alpha = 0.9f) 
+                            else Color.White.copy(alpha = 0.9f)
+                        )
+                        .border(
+                            1.dp,
+                            if (themeDark) Color.White.copy(alpha = 0.1f) else Color.Black.copy(alpha = 0.05f),
+                            RoundedCornerShape(bottomStart = 32.dp, bottomEnd = 32.dp)
+                        )
+                        .padding(top = 48.dp, bottom = 24.dp, start = 24.dp, end = 24.dp)
+                ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                        Text(
+                            text = "Pengaturan",
+                            style = MaterialTheme.typography.headlineLarge,
+                            fontWeight = FontWeight.Black,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            letterSpacing = (-1).sp
+                        )
+                        Text(
+                            text = "Atur preferensi keamanan, akses akun, dan ekspor seluruh dokumen keuangan secara lokal.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+                
+                // Content Below Header
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = 16.dp)
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    Spacer(modifier = Modifier.height(8.dp))
 
             // --- PROFIL PENGGUNA SECTION ---
             Text(
@@ -387,6 +434,195 @@ fun SettingsScreen(
                 }
             }
 
+            // --- PEMANTAUAN ANGGARAN LATAR BELAKANG SECTION ---
+            Text(
+                text = "Pemantauan Anggaran & Peringatan Sistem",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.padding(top = 8.dp)
+            )
+
+            Card(
+                modifier = Modifier.fillMaxWidth().testTag("budget_worker_settings_card"),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                shape = RoundedCornerShape(20.dp),
+                border = CardDefaults.outlinedCardBorder()
+            ) {
+                Column(modifier = Modifier.padding(4.dp)) {
+                    SecuritySettingRow(
+                        title = "Pemantauan Latar Belakang (WorkManager)",
+                        subtitle = "Evaluasi otomatis pengeluaran bulanan secara berkala dan kirim notifikasi jika melebihi batas limit anggaran.",
+                        icon = {
+                            Icon(
+                                imageVector = Icons.Default.NotificationsActive,
+                                contentDescription = "Budget Monitoring Worker",
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                        },
+                        trailing = {
+                            Switch(
+                                checked = budgetMonitoringEnabled,
+                                onCheckedChange = {
+                                    viewModel.setBudgetMonitoringEnabled(it)
+                                    if (it) {
+                                        Toast.makeText(context, "Pemantauan latar belakang diaktifkan.", Toast.LENGTH_SHORT).show()
+                                    } else {
+                                        Toast.makeText(context, "Pemantauan latar belakang dinonaktifkan.", Toast.LENGTH_SHORT).show()
+                                    }
+                                },
+                                modifier = Modifier.testTag("budget_monitoring_enabled_switch")
+                            )
+                        }
+                    )
+
+                    if (budgetMonitoringEnabled) {
+                        SecuritySettingRow(
+                            title = "Periksa Batas Anggaran Sekarang",
+                            subtitle = "Jalankan worker pemeriksaan pengeluaran bulanan dan limit kategori saat ini.",
+                            icon = {
+                                Icon(
+                                    imageVector = Icons.Default.Sync,
+                                    contentDescription = "Run Budget Worker Now",
+                                    tint = MaterialTheme.colorScheme.secondary
+                                )
+                            },
+                            onClick = {
+                                viewModel.triggerManualBudgetCheck(context)
+                            },
+                            trailing = {
+                                Text("Cek Sekarang", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                            }
+                        )
+                    }
+                }
+            }
+
+            // --- MATA UANG & KURS GLOBAL SECTION ---
+            Text(
+                text = "Mata Uang & Kurs Global",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.padding(top = 8.dp)
+            )
+
+            Card(
+                modifier = Modifier.fillMaxWidth().testTag("currency_settings_card"),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                shape = RoundedCornerShape(20.dp),
+                border = CardDefaults.outlinedCardBorder()
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    Text(
+                        text = "Pilih mata uang utama aplikasi. Seluruh nominal transaksi, grafik, dan laporan akan otomatis dikonversi sesuai kurs pilihan Anda.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    // Segmented Selector for Currency (IDR vs USD)
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(48.dp)
+                            .background(
+                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+                                shape = RoundedCornerShape(24.dp)
+                            )
+                            .padding(4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        // IDR Option
+                        val isIdr = selectedCurrency == "IDR"
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxHeight()
+                                .clip(RoundedCornerShape(20.dp))
+                                .background(
+                                    if (isIdr) MaterialTheme.colorScheme.primary else Color.Transparent
+                                )
+                                .clickable {
+                                    viewModel.setCurrency("IDR")
+                                    Toast.makeText(context, "Mata uang diubah ke Rupiah (IDR)", Toast.LENGTH_SHORT).show()
+                                },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "🇮🇩 IDR (Rp)",
+                                color = if (isIdr) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+
+                        // USD Option
+                        val isUsd = selectedCurrency == "USD"
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxHeight()
+                                .clip(RoundedCornerShape(20.dp))
+                                .background(
+                                    if (isUsd) MaterialTheme.colorScheme.primary else Color.Transparent
+                                )
+                                .clickable {
+                                    viewModel.setCurrency("USD")
+                                    Toast.makeText(context, "Mata uang diubah ke Dollar AS (USD)", Toast.LENGTH_SHORT).show()
+                                },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "🇺🇸 USD ($)",
+                                color = if (isUsd) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+
+                    // Exchange Rate Info Banner
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(
+                                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f),
+                                shape = RoundedCornerShape(14.dp)
+                            )
+                            .padding(horizontal = 12.dp, vertical = 10.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text(
+                                text = "Kurs Acuan Dollar",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Text(
+                                text = "1 USD = Rp ${String.format("%,d", usdToIdrRate.toInt()).replace(',', '.')}",
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.Black,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+
+                        OutlinedButton(
+                            onClick = {
+                                rateInputValue = usdToIdrRate.toInt().toString()
+                                showRateDialog = true
+                            },
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Text("Sesuaikan Kurs", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
+
             // --- THEME OVERRIDES ---
             Text(
                 text = "Tampilan Aplikasi",
@@ -425,7 +661,7 @@ fun SettingsScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(60.dp))
+            Spacer(modifier = Modifier.height(110.dp))
         }
     }
 
@@ -434,7 +670,7 @@ fun SettingsScreen(
         Dialog(onDismissRequest = { showNameDialog = false }) {
             Card(
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                shape = RoundedCornerShape(24.dp)
+                shape = RoundedCornerShape(32.dp)
             ) {
                 Column(
                     modifier = Modifier.padding(24.dp),
@@ -447,6 +683,7 @@ fun SettingsScreen(
                         onValueChange = { nameInputValue = it },
                         label = { Text("Nama Panggilan") },
                         singleLine = true,
+                        shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp),
                         modifier = Modifier
                             .fillMaxWidth()
                             .testTag("new_username_input")
@@ -484,7 +721,7 @@ fun SettingsScreen(
         Dialog(onDismissRequest = { showPinDialog = false }) {
             Card(
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                shape = RoundedCornerShape(24.dp)
+                shape = RoundedCornerShape(32.dp)
             ) {
                 Column(
                     modifier = Modifier.padding(24.dp),
@@ -497,6 +734,7 @@ fun SettingsScreen(
                         onValueChange = { if (it.length <= 4 && it.all { c -> c.isDigit() }) pinInputValue = it },
                         label = { Text("PIN Baru (4 Digit Angka)") },
                         singleLine = true,
+                        shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp),
                         modifier = Modifier
                             .fillMaxWidth()
                             .testTag("new_security_pin_input")
@@ -521,6 +759,66 @@ fun SettingsScreen(
                             enabled = pinInputValue.length == 4
                         ) {
                             Text("Simpan PIN")
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Exchange Rate Configuration Dialog
+    if (showRateDialog) {
+        Dialog(onDismissRequest = { showRateDialog = false }) {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                shape = RoundedCornerShape(32.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(24.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    Text(
+                        text = "Sesuaikan Kurs USD / IDR",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold
+                    )
+
+                    Text(
+                        text = "Masukkan nilai kurs 1 Dollar AS (USD) ke Rupiah (IDR) saat ini.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    OutlinedTextField(
+                        value = rateInputValue,
+                        onValueChange = { if (it.all { c -> c.isDigit() }) rateInputValue = it },
+                        label = { Text("Nilai 1 USD dalam Rupiah (Rp)") },
+                        singleLine = true,
+                        shape = RoundedCornerShape(24.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End
+                    ) {
+                        TextButton(onClick = { showRateDialog = false }) {
+                            Text("Batal")
+                        }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Button(
+                            onClick = {
+                                val rateNum = rateInputValue.toDoubleOrNull()
+                                if (rateNum != null && rateNum > 0) {
+                                    viewModel.setUsdRate(rateNum)
+                                    showRateDialog = false
+                                    Toast.makeText(context, "Kurs USD berhasil diperbarui: 1 USD = Rp ${rateInputValue}", Toast.LENGTH_SHORT).show()
+                                } else {
+                                    Toast.makeText(context, "Nilai kurs tidak valid!", Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                        ) {
+                            Text("Simpan Kurs")
                         }
                     }
                 }
@@ -584,6 +882,8 @@ fun SettingsScreen(
                     }
                 }
             }
+        }
+    }
         }
     }
 }

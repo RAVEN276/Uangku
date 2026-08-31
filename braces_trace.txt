@@ -1,0 +1,1268 @@
+L1: D0 : package com.example.ui.screens
+L2: D0 : 
+L3: D0 : import androidx.compose.foundation.backg
+L4: D0 : import androidx.compose.foundation.click
+L5: D0 : import androidx.compose.foundation.layou
+L6: D0 : import androidx.compose.foundation.layou
+L7: D0 : import androidx.compose.foundation.layou
+L8: D0 : import androidx.compose.foundation.layou
+L9: D0 : import androidx.compose.foundation.layou
+L10: D0 : import androidx.compose.foundation.layou
+L11: D0 : import androidx.compose.foundation.layou
+L12: D0 : import androidx.compose.foundation.layou
+L13: D0 : import androidx.compose.foundation.layou
+L14: D0 : import androidx.compose.foundation.layou
+L15: D0 : import androidx.compose.foundation.layou
+L16: D0 : import androidx.compose.foundation.layou
+L17: D0 : import androidx.compose.foundation.verti
+L18: D0 : import androidx.compose.foundation.lazy.
+L19: D0 : import androidx.compose.foundation.lazy.
+L20: D0 : import androidx.compose.foundation.shape
+L21: D0 : import androidx.compose.material.icons.I
+L22: D0 : import androidx.compose.material.icons.f
+L23: D0 : import androidx.compose.material.icons.f
+L24: D0 : import androidx.compose.material.icons.f
+L25: D0 : import androidx.compose.material.icons.f
+L26: D0 : import androidx.compose.material.icons.f
+L27: D0 : import androidx.compose.material.icons.f
+L28: D0 : import androidx.compose.material3.Button
+L29: D0 : import androidx.compose.material3.Card
+L30: D0 : import androidx.compose.material3.CardDe
+L31: D0 : import androidx.compose.material3.Icon
+L32: D0 : import androidx.compose.material3.IconBu
+L33: D0 : import androidx.compose.material3.Linear
+L34: D0 : import androidx.compose.material3.Materi
+L35: D0 : import androidx.compose.material3.Outlin
+L36: D0 : import androidx.compose.material3.Scaffo
+L37: D0 : import androidx.compose.material3.Surfac
+L38: D0 : import androidx.compose.material3.Text
+L39: D0 : import androidx.compose.material3.TextBu
+L40: D0 : import androidx.compose.runtime.Composab
+L41: D0 : import androidx.compose.runtime.collectA
+L42: D0 : import androidx.lifecycle.compose.collec
+L43: D0 : import androidx.compose.runtime.getValue
+L44: D0 : import androidx.compose.runtime.mutableS
+L45: D0 : import androidx.compose.runtime.remember
+L46: D0 : import androidx.compose.runtime.setValue
+L47: D0 : import androidx.compose.ui.Alignment
+L48: D0 : import androidx.compose.ui.Modifier
+L49: D0 : import androidx.compose.ui.draw.clip
+L50: D0 : import androidx.compose.ui.graphics.Colo
+L51: D0 : import androidx.compose.ui.graphics.Brus
+L52: D0 : import androidx.compose.foundation.borde
+L53: D0 : import androidx.compose.ui.platform.test
+L54: D0 : import androidx.compose.ui.text.font.Fon
+L55: D0 : import androidx.compose.ui.unit.dp
+L56: D0 : import androidx.compose.ui.unit.sp
+L57: D0 : import androidx.compose.ui.window.Dialog
+L58: D0 : import androidx.compose.foundation.text.
+L59: D0 : import androidx.compose.ui.text.input.Ke
+L60: D0 : import com.example.ui.components.RupiahV
+L61: D0 : import androidx.compose.foundation.layou
+L62: D0 : import androidx.compose.material3.Button
+L63: D0 : import androidx.compose.ui.draw.alpha
+L64: D0 : import androidx.compose.material.icons.f
+L65: D0 : import androidx.compose.material.icons.f
+L66: D0 : import androidx.compose.material.icons.f
+L67: D0 : import androidx.compose.material.icons.f
+L68: D0 : import androidx.compose.ui.text.style.Te
+L69: D0 : import com.example.data.model.Budget
+L70: D0 : import com.example.ui.FinanceViewModel
+L71: D0 : import androidx.compose.foundation.remem
+L72: D0 : import androidx.compose.foundation.horiz
+L73: D0 : import java.text.NumberFormat
+L74: D0 : import java.util.Locale
+L75: D0 : 
+L76: D0 : @Composable
+L77: D0 : fun BudgetScreen(
+L78: D0 : viewModel: FinanceViewModel,
+L79: D0 : modifier: Modifier = Modifier
+L80: D1 : ) {
+L81: D1 : val budgets by viewModel.allBudgets.coll
+L82: D1 : val transactions by viewModel.allTransac
+L83: D1 : val savingGoals by viewModel.allSavingGo
+L84: D1 : val totalBalance by viewModel.totalBalan
+L85: D1 : val themeDark by viewModel.themeDark.col
+L86: D1 : 
+L87: D1 : val savingChallenges by viewModel.saving
+L88: D1 : val virtualBadges by viewModel.virtualBa
+L89: D1 : val showBadgeUnlockDialog by viewModel.s
+L90: D1 : 
+L91: D2 : androidx.compose.runtime.LaunchedEffect(
+L92: D2 : viewModel.loadSavingChallengesAndBadges(
+L93: D1 : }
+L94: D1 : 
+L95: D1 : var activeTab by remember { mutableState
+L96: D1 : var showAddBudgetDialog by remember { mu
+L97: D1 : var showAddSavingGoalDialog by remember 
+L98: D1 : var editingSavingGoal by remember { muta
+L99: D1 : 
+L100: D1 : val rubelFormat = NumberFormat.getCurren
+L101: D1 : rubelFormat.maximumFractionDigits = 0
+L102: D1 : 
+L103: D1 : // Group expenses by category
+L104: D1 : val expenses = transactions.filter { it.
+L105: D1 : 
+L106: D1 : // Filter expenses to current calendar m
+L107: D2 : val currentMonthExpenses = expenses.filt
+L108: D2 : val cal1 = java.util.Calendar.getInstanc
+L109: D2 : cal1.timeInMillis = tx.timestamp
+L110: D2 : val cal2 = java.util.Calendar.getInstanc
+L111: D2 : cal1.get(java.util.Calendar.YEAR) == cal
+L112: D2 : cal1.get(java.util.Calendar.MONTH) == ca
+L113: D1 : }
+L114: D1 : 
+L115: D1 : val totalExpenseSum = currentMonthExpens
+L116: D1 : 
+L117: D1 : val expensesByCategory = currentMonthExp
+L118: D1 : .mapValues { (_, txs) -> txs.sumOf { it.
+L119: D1 : 
+L120: D2 : val todayExpenseSum = expenses.filter { 
+L121: D2 : val cal1 = java.util.Calendar.getInstanc
+L122: D2 : cal1.timeInMillis = tx.timestamp
+L123: D2 : val cal2 = java.util.Calendar.getInstanc
+L124: D2 : cal1.get(java.util.Calendar.YEAR) == cal
+L125: D2 : cal1.get(java.util.Calendar.DAY_OF_YEAR)
+L126: D1 : }.sumOf { it.amount }
+L127: D1 : 
+L128: D1 : Scaffold(
+L129: D1 : modifier = modifier.fillMaxSize(),
+L130: D2 : floatingActionButton = {
+L131: D3 : if (activeTab == 0) {
+L132: D3 : Button(
+L133: D3 : onClick = { showAddBudgetDialog = true }
+L134: D3 : shape = RoundedCornerShape(32.dp),
+L135: D3 : modifier = Modifier
+L136: D3 : .testTag("budget_add_floating_action_btn
+L137: D3 : .padding(bottom = 8.dp)
+L138: D4 : ) {
+L139: D4 : Icon(imageVector = Icons.Default.Library
+L140: D4 : Spacer(modifier = Modifier.width(8.dp))
+L141: D4 : Text("Batas Baru")
+L142: D3 : }
+L143: D3 : } else {
+L144: D3 : Button(
+L145: D3 : onClick = { showAddSavingGoalDialog = tr
+L146: D3 : shape = RoundedCornerShape(32.dp),
+L147: D3 : colors = ButtonDefaults.buttonColors(con
+L148: D3 : modifier = Modifier
+L149: D3 : .testTag("saving_goal_add_floating_actio
+L150: D3 : .padding(bottom = 8.dp)
+L151: D4 : ) {
+L152: D4 : Icon(imageVector = Icons.Default.Add, co
+L153: D4 : Spacer(modifier = Modifier.width(8.dp))
+L154: D4 : Text("Target Baru")
+L155: D3 : }
+L156: D2 : }
+L157: D1 : }
+L158: D2 : ) { innerPadding ->
+L159: D2 : LazyColumn(
+L160: D2 : modifier = Modifier
+L161: D2 : .fillMaxSize()
+L162: D2 : .padding(innerPadding)
+L163: D2 : .padding(16.dp),
+L164: D2 : verticalArrangement = Arrangement.spaced
+L165: D3 : ) {
+L166: D4 : item {
+L167: D5 : Column(verticalArrangement = Arrangement
+L168: D5 : Text(
+L169: D5 : text = if (activeTab == 0) "Anggaran & A
+L170: D5 : style = MaterialTheme.typography.headlin
+L171: D5 : fontWeight = FontWeight.Black,
+L172: D5 : color = MaterialTheme.colorScheme.onSurf
+L173: D5 : )
+L174: D5 : Text(
+L175: D5 : text = if (activeTab == 0) "Atur sasaran
+L176: D5 : style = MaterialTheme.typography.bodySma
+L177: D5 : color = MaterialTheme.colorScheme.onSurf
+L178: D5 : )
+L179: D4 : }
+L180: D3 : }
+L181: D3 : 
+L182: D4 : item {
+L183: D4 : Row(
+L184: D4 : modifier = Modifier
+L185: D4 : .fillMaxWidth()
+L186: D4 : .background(
+L187: D4 : color = MaterialTheme.colorScheme.surfac
+L188: D4 : shape = RoundedCornerShape(32.dp)
+L189: D4 : )
+L190: D4 : .padding(4.dp),
+L191: D4 : horizontalArrangement = Arrangement.spac
+L192: D5 : ) {
+L193: D5 : val activeBtnColor = ButtonDefaults.butt
+L194: D5 : containerColor = MaterialTheme.colorSche
+L195: D5 : contentColor = MaterialTheme.colorScheme
+L196: D5 : )
+L197: D5 : val inactiveBtnColor = ButtonDefaults.bu
+L198: D5 : containerColor = Color.Transparent,
+L199: D5 : contentColor = MaterialTheme.colorScheme
+L200: D5 : )
+L201: D5 : 
+L202: D5 : Button(
+L203: D5 : onClick = { activeTab = 0 },
+L204: D5 : colors = if (activeTab == 0) activeBtnCo
+L205: D5 : shape = RoundedCornerShape(32.dp),
+L206: D5 : modifier = Modifier.weight(1f),
+L207: D5 : contentPadding = PaddingValues(vertical 
+L208: D6 : ) {
+L209: D6 : Text("Anggaran", fontWeight = FontWeight
+L210: D5 : }
+L211: D5 : 
+L212: D5 : Button(
+L213: D5 : onClick = { activeTab = 1 },
+L214: D5 : colors = if (activeTab == 1) activeBtnCo
+L215: D5 : shape = RoundedCornerShape(32.dp),
+L216: D5 : modifier = Modifier.weight(1f),
+L217: D5 : contentPadding = PaddingValues(vertical 
+L218: D6 : ) {
+L219: D6 : Text("Target", fontWeight = FontWeight.B
+L220: D5 : }
+L221: D4 : }
+L222: D3 : }
+L223: D3 : 
+L224: D4 : if (activeTab == 0) {
+L225: D4 : // Overall and Daily budgets if configur
+L226: D4 : val overallBudget = budgets.find { it.ca
+L227: D4 : val dailyBudget = budgets.find { it.cate
+L228: D4 : 
+L229: D5 : if (overallBudget == null && dailyBudget
+L230: D6 : item {
+L231: D6 : Card(
+L232: D6 : modifier = Modifier
+L233: D6 : .fillMaxWidth()
+L234: D6 : .testTag("empty_budget_placeholder"),
+L235: D6 : colors = CardDefaults.cardColors(contain
+L236: D6 : shape = RoundedCornerShape(32.dp),
+L237: D6 : border = CardDefaults.outlinedCardBorder
+L238: D7 : ) {
+L239: D7 : Row(
+L240: D7 : modifier = Modifier.padding(16.dp),
+L241: D7 : verticalAlignment = Alignment.CenterVert
+L242: D8 : ) {
+L243: D8 : Icon(imageVector = Icons.Default.Info, c
+L244: D8 : Spacer(modifier = Modifier.width(12.dp))
+L245: D9 : Column {
+L246: D9 : Text("Batas Pengeluaran Kosong", fontWei
+L247: D9 : Text("Kamu belum menyetel limit total pe
+L248: D8 : }
+L249: D7 : }
+L250: D6 : }
+L251: D5 : }
+L252: D5 : } else {
+L253: D6 : if (overallBudget != null) {
+L254: D7 : item {
+L255: D8 : val progressPercent = if (overallBudget.
+L256: D8 : (totalExpenseSum / overallBudget.limitAm
+L257: D8 : } else {
+L258: D8 : 0
+L259: D7 : }
+L260: D7 : 
+L261: D7 : Card(
+L262: D7 : modifier = Modifier
+L263: D7 : .fillMaxWidth()
+L264: D7 : .testTag("overall_budget_card"),
+L265: D7 : colors = CardDefaults.cardColors(
+L266: D7 : containerColor = MaterialTheme.colorSche
+L267: D7 : ),
+L268: D7 : shape = RoundedCornerShape(32.dp)
+L269: D8 : ) {
+L270: D9 : Column(modifier = Modifier.padding(20.dp
+L271: D9 : Row(
+L272: D9 : modifier = Modifier.fillMaxWidth(),
+L273: D9 : horizontalArrangement = Arrangement.Spac
+L274: D9 : verticalAlignment = Alignment.CenterVert
+L275: D10 : ) {
+L276: D11 : Row(verticalAlignment = Alignment.Center
+L277: D11 : Icon(
+L278: D11 : imageVector = Icons.Default.Notification
+L279: D11 : contentDescription = "Notification",
+L280: D11 : tint = MaterialTheme.colorScheme.primary
+L281: D11 : modifier = Modifier.size(24.dp)
+L282: D11 : )
+L283: D11 : Spacer(modifier = Modifier.width(8.dp))
+L284: D11 : Text(
+L285: D11 : text = "Limit Pengeluaran Bulanan",
+L286: D11 : style = MaterialTheme.typography.titleMe
+L287: D11 : fontWeight = FontWeight.Bold
+L288: D11 : )
+L289: D10 : }
+L290: D10 : 
+L291: D11 : IconButton(onClick = { viewModel.deleteB
+L292: D11 : Icon(
+L293: D11 : imageVector = Icons.Default.Delete,
+L294: D11 : contentDescription = "Hapus",
+L295: D11 : tint = MaterialTheme.colorScheme.error
+L296: D11 : )
+L297: D10 : }
+L298: D9 : }
+L299: D9 : 
+L300: D9 : Spacer(modifier = Modifier.height(16.dp)
+L301: D9 : 
+L302: D9 : Row(
+L303: D9 : modifier = Modifier.fillMaxWidth(),
+L304: D9 : horizontalArrangement = Arrangement.Spac
+L305: D10 : ) {
+L306: D10 : Text(
+L307: D10 : text = "Terpakai: ${rubelFormat.format(t
+L308: D10 : style = MaterialTheme.typography.bodyMed
+L309: D10 : fontWeight = FontWeight.Bold,
+L310: D10 : color = MaterialTheme.colorScheme.onSurf
+L311: D10 : )
+L312: D10 : Text(
+L313: D10 : text = "Limit: ${rubelFormat.format(over
+L314: D10 : style = MaterialTheme.typography.bodyMed
+L315: D10 : fontWeight = FontWeight.Bold,
+L316: D10 : color = MaterialTheme.colorScheme.onSurf
+L317: D10 : )
+L318: D9 : }
+L319: D9 : 
+L320: D9 : Spacer(modifier = Modifier.height(10.dp)
+L321: D9 : 
+L322: D9 : // Colored progress bar based on warning
+L323: D10 : val progressBarColor = if (progressPerce
+L324: D10 : MaterialTheme.colorScheme.error
+L325: D10 : } else if (progressPercent >= 50) {
+L326: D10 : Color(0xFFFFB74D) // Amber/Orange
+L327: D10 : } else {
+L328: D10 : MaterialTheme.colorScheme.primary
+L329: D9 : }
+L330: D9 : 
+L331: D9 : Box(
+L332: D9 : modifier = Modifier
+L333: D9 : .fillMaxWidth()
+L334: D9 : .height(10.dp)
+L335: D9 : .clip(RoundedCornerShape(5.dp))
+L336: D9 : .background(MaterialTheme.colorScheme.su
+L337: D10 : ) {
+L338: D11 : val progressFraction = if (overallBudget
+L339: D11 : (totalExpenseSum / overallBudget.limitAm
+L340: D11 : } else {
+L341: D11 : 0f
+L342: D10 : }
+L343: D10 : Box(
+L344: D10 : modifier = Modifier
+L345: D10 : .fillMaxWidth(progressFraction)
+L346: D10 : .fillMaxSize()
+L347: D10 : .background(progressBarColor)
+L348: D10 : )
+L349: D9 : }
+L350: D9 : 
+L351: D9 : Spacer(modifier = Modifier.height(8.dp))
+L352: D9 : 
+L353: D9 : Row(
+L354: D9 : modifier = Modifier.fillMaxWidth(),
+L355: D9 : horizontalArrangement = Arrangement.Spac
+L356: D10 : ) {
+L357: D10 : Text(
+L358: D10 : text = "Porsi penggunaan: $progressPerce
+L359: D10 : style = MaterialTheme.typography.bodySma
+L360: D10 : color = if (progressPercent >= overallBu
+L361: D10 : fontWeight = FontWeight.Bold
+L362: D10 : )
+L363: D10 : 
+L364: D10 : Text(
+L365: D10 : text = "Notifikasi aktif pada ${overallB
+L366: D10 : style = MaterialTheme.typography.bodySma
+L367: D10 : color = MaterialTheme.colorScheme.onSurf
+L368: D10 : fontSize = 11.sp
+L369: D10 : )
+L370: D9 : }
+L371: D8 : }
+L372: D7 : }
+L373: D6 : }
+L374: D5 : }
+L375: D5 : 
+L376: D6 : if (dailyBudget != null) {
+L377: D7 : item {
+L378: D8 : val progressPercentDaily = if (dailyBudg
+L379: D8 : (todayExpenseSum / dailyBudget.limitAmou
+L380: D8 : } else {
+L381: D8 : 0
+L382: D7 : }
+L383: D7 : 
+L384: D7 : Card(
+L385: D7 : modifier = Modifier
+L386: D7 : .fillMaxWidth()
+L387: D7 : .testTag("daily_budget_card"),
+L388: D7 : colors = CardDefaults.cardColors(
+L389: D7 : containerColor = MaterialTheme.colorSche
+L390: D7 : ),
+L391: D7 : shape = RoundedCornerShape(32.dp)
+L392: D8 : ) {
+L393: D9 : Column(modifier = Modifier.padding(20.dp
+L394: D9 : Row(
+L395: D9 : modifier = Modifier.fillMaxWidth(),
+L396: D9 : horizontalArrangement = Arrangement.Spac
+L397: D9 : verticalAlignment = Alignment.CenterVert
+L398: D10 : ) {
+L399: D11 : Row(verticalAlignment = Alignment.Center
+L400: D11 : Icon(
+L401: D11 : imageVector = Icons.Default.AddAlert,
+L402: D11 : contentDescription = "Alert",
+L403: D11 : tint = MaterialTheme.colorScheme.seconda
+L404: D11 : modifier = Modifier.size(24.dp)
+L405: D11 : )
+L406: D11 : Spacer(modifier = Modifier.width(8.dp))
+L407: D11 : Text(
+L408: D11 : text = "Limit Pengeluaran Harian",
+L409: D11 : style = MaterialTheme.typography.titleMe
+L410: D11 : fontWeight = FontWeight.Bold
+L411: D11 : )
+L412: D10 : }
+L413: D10 : 
+L414: D11 : IconButton(onClick = { viewModel.deleteB
+L415: D11 : Icon(
+L416: D11 : imageVector = Icons.Default.Delete,
+L417: D11 : contentDescription = "Hapus",
+L418: D11 : tint = MaterialTheme.colorScheme.error
+L419: D11 : )
+L420: D10 : }
+L421: D9 : }
+L422: D9 : 
+L423: D9 : Spacer(modifier = Modifier.height(16.dp)
+L424: D9 : 
+L425: D9 : Row(
+L426: D9 : modifier = Modifier.fillMaxWidth(),
+L427: D9 : horizontalArrangement = Arrangement.Spac
+L428: D10 : ) {
+L429: D10 : Text(
+L430: D10 : text = "Hari ini: ${rubelFormat.format(t
+L431: D10 : style = MaterialTheme.typography.bodyMed
+L432: D10 : fontWeight = FontWeight.Bold,
+L433: D10 : color = MaterialTheme.colorScheme.onSurf
+L434: D10 : )
+L435: D10 : Text(
+L436: D10 : text = "Limit: ${rubelFormat.format(dail
+L437: D10 : style = MaterialTheme.typography.bodyMed
+L438: D10 : fontWeight = FontWeight.Bold,
+L439: D10 : color = MaterialTheme.colorScheme.onSurf
+L440: D10 : )
+L441: D9 : }
+L442: D9 : 
+L443: D9 : Spacer(modifier = Modifier.height(10.dp)
+L444: D9 : 
+L445: D9 : // Colored progress bar based on warning
+L446: D10 : val progressBarColorDaily = if (progress
+L447: D10 : MaterialTheme.colorScheme.error
+L448: D10 : } else if (progressPercentDaily >= 50) {
+L449: D10 : Color(0xFFFFB74D) // Amber/Orange
+L450: D10 : } else {
+L451: D10 : MaterialTheme.colorScheme.secondary
+L452: D9 : }
+L453: D9 : 
+L454: D9 : Box(
+L455: D9 : modifier = Modifier
+L456: D9 : .fillMaxWidth()
+L457: D9 : .height(10.dp)
+L458: D9 : .clip(RoundedCornerShape(5.dp))
+L459: D9 : .background(MaterialTheme.colorScheme.su
+L460: D10 : ) {
+L461: D11 : val progressFractionDaily = if (dailyBud
+L462: D11 : (todayExpenseSum / dailyBudget.limitAmou
+L463: D11 : } else {
+L464: D11 : 0f
+L465: D10 : }
+L466: D10 : Box(
+L467: D10 : modifier = Modifier
+L468: D10 : .fillMaxWidth(progressFractionDaily)
+L469: D10 : .fillMaxSize()
+L470: D10 : .background(progressBarColorDaily)
+L471: D10 : )
+L472: D9 : }
+L473: D9 : 
+L474: D9 : Spacer(modifier = Modifier.height(8.dp))
+L475: D9 : 
+L476: D9 : Row(
+L477: D9 : modifier = Modifier.fillMaxWidth(),
+L478: D9 : horizontalArrangement = Arrangement.Spac
+L479: D10 : ) {
+L480: D10 : Text(
+L481: D10 : text = "Porsi penggunaan: $progressPerce
+L482: D10 : style = MaterialTheme.typography.bodySma
+L483: D10 : color = if (progressPercentDaily >= dail
+L484: D10 : fontWeight = FontWeight.Bold
+L485: D10 : )
+L486: D10 : 
+L487: D10 : Text(
+L488: D10 : text = "Notifikasi aktif pada ${dailyBud
+L489: D10 : style = MaterialTheme.typography.bodySma
+L490: D10 : color = MaterialTheme.colorScheme.onSurf
+L491: D10 : fontSize = 11.sp
+L492: D10 : )
+L493: D9 : }
+L494: D8 : }
+L495: D7 : }
+L496: D6 : }
+L497: D5 : }
+L498: D4 : }
+L499: D4 : 
+L500: D4 : // Categories list headers
+L501: D5 : item {
+L502: D5 : Text(
+L503: D5 : text = "Batas Anggaran Kategori",
+L504: D5 : style = MaterialTheme.typography.titleMe
+L505: D5 : fontWeight = FontWeight.Bold,
+L506: D5 : modifier = Modifier.padding(top = 8.dp)
+L507: D5 : )
+L508: D4 : }
+L509: D4 : 
+L510: D4 : val categoryBudgets = budgets.filter { i
+L511: D5 : if (categoryBudgets.isEmpty()) {
+L512: D6 : item {
+L513: D6 : Text(
+L514: D6 : text = "Belum ada limit khusus kategori.
+L515: D6 : style = MaterialTheme.typography.bodyMed
+L516: D6 : color = MaterialTheme.colorScheme.onSurf
+L517: D6 : fontSize = 12.sp,
+L518: D6 : modifier = Modifier.padding(vertical = 1
+L519: D6 : )
+L520: D5 : }
+L521: D5 : } else {
+L522: D6 : items(categoryBudgets, key = { "budget_$
+L523: D6 : val spentOnCategory = expensesByCategory
+L524: D7 : val percent = if (budget.limitAmount > 0
+L525: D7 : (spentOnCategory / budget.limitAmount * 
+L526: D7 : } else {
+L527: D7 : 0
+L528: D6 : }
+L529: D6 : 
+L530: D6 : Card(
+L531: D6 : modifier = Modifier
+L532: D6 : .fillMaxWidth()
+L533: D6 : .testTag("category_budget_${budget.categ
+L534: D6 : colors = CardDefaults.cardColors(contain
+L535: D6 : shape = RoundedCornerShape(32.dp),
+L536: D6 : border = CardDefaults.outlinedCardBorder
+L537: D7 : ) {
+L538: D8 : Column(modifier = Modifier.padding(16.dp
+L539: D8 : Row(
+L540: D8 : modifier = Modifier.fillMaxWidth(),
+L541: D8 : horizontalArrangement = Arrangement.Spac
+L542: D8 : verticalAlignment = Alignment.CenterVert
+L543: D9 : ) {
+L544: D10 : Row(verticalAlignment = Alignment.Center
+L545: D10 : Box(
+L546: D10 : modifier = Modifier
+L547: D10 : .size(28.dp)
+L548: D10 : .background(MaterialTheme.colorScheme.pr
+L549: D10 : contentAlignment = Alignment.Center
+L550: D11 : ) {
+L551: D11 : Text(
+L552: D11 : text = budget.category.take(1),
+L553: D11 : fontWeight = FontWeight.Bold,
+L554: D11 : color = MaterialTheme.colorScheme.primar
+L555: D11 : )
+L556: D10 : }
+L557: D10 : Spacer(modifier = Modifier.width(12.dp))
+L558: D10 : Text(
+L559: D10 : text = budget.category,
+L560: D10 : style = MaterialTheme.typography.bodyLar
+L561: D10 : fontWeight = FontWeight.Bold
+L562: D10 : )
+L563: D9 : }
+L564: D9 : 
+L565: D10 : IconButton(onClick = { viewModel.deleteB
+L566: D10 : Icon(
+L567: D10 : imageVector = Icons.Default.Delete,
+L568: D10 : contentDescription = "Hapus",
+L569: D10 : tint = MaterialTheme.colorScheme.error,
+L570: D10 : modifier = Modifier.size(20.dp)
+L571: D10 : )
+L572: D9 : }
+L573: D8 : }
+L574: D8 : 
+L575: D8 : Spacer(modifier = Modifier.height(10.dp)
+L576: D8 : 
+L577: D8 : Row(
+L578: D8 : modifier = Modifier.fillMaxWidth(),
+L579: D8 : horizontalArrangement = Arrangement.Spac
+L580: D8 : verticalAlignment = Alignment.CenterVert
+L581: D9 : ) {
+L582: D9 : Text(
+L583: D9 : text = "Terpakai: ${rubelFormat.format(s
+L584: D9 : style = MaterialTheme.typography.bodySma
+L585: D9 : fontWeight = FontWeight.Bold
+L586: D9 : )
+L587: D9 : Text(
+L588: D9 : text = "Sisa: ${rubelFormat.format((budg
+L589: D9 : style = MaterialTheme.typography.bodySma
+L590: D9 : color = if (spentOnCategory > budget.lim
+L591: D9 : fontWeight = FontWeight.Bold
+L592: D9 : )
+L593: D8 : }
+L594: D8 : 
+L595: D8 : Spacer(modifier = Modifier.height(8.dp))
+L596: D8 : 
+L597: D9 : val progressFraction = if (budget.limitA
+L598: D9 : (spentOnCategory / budget.limitAmount).t
+L599: D9 : } else {
+L600: D9 : 0f
+L601: D8 : }
+L602: D8 : LinearProgressIndicator(
+L603: D8 : progress = { progressFraction },
+L604: D8 : modifier = Modifier
+L605: D8 : .fillMaxWidth()
+L606: D8 : .height(6.dp)
+L607: D8 : .clip(RoundedCornerShape(3.dp)),
+L608: D8 : color = if (percent >= budget.alertThres
+L609: D8 : )
+L610: D8 : 
+L611: D8 : Spacer(modifier = Modifier.height(6.dp))
+L612: D8 : 
+L613: D8 : Row(
+L614: D8 : modifier = Modifier.fillMaxWidth(),
+L615: D8 : horizontalArrangement = Arrangement.Spac
+L616: D9 : ) {
+L617: D9 : Text(
+L618: D9 : text = "$percent% terpakai",
+L619: D9 : fontSize = 11.sp,
+L620: D9 : fontWeight = FontWeight.Bold,
+L621: D9 : color = if (percent >= budget.alertThres
+L622: D9 : )
+L623: D9 : 
+L624: D9 : Text(
+L625: D9 : text = "Limit: ${rubelFormat.format(budg
+L626: D9 : fontSize = 11.sp,
+L627: D9 : color = MaterialTheme.colorScheme.onSurf
+L628: D9 : )
+L629: D8 : }
+L630: D7 : }
+L631: D6 : }
+L632: D5 : }
+L633: D4 : }
+L634: D4 : } else if (activeTab == 1) {
+L635: D5 : if (savingGoals.isEmpty()) {
+L636: D6 : item {
+L637: D6 : Card(
+L638: D6 : modifier = Modifier
+L639: D6 : .fillMaxWidth()
+L640: D6 : .padding(vertical = 16.dp),
+L641: D6 : colors = CardDefaults.cardColors(contain
+L642: D6 : shape = RoundedCornerShape(32.dp)
+L643: D7 : ) {
+L644: D7 : Column(
+L645: D7 : modifier = Modifier
+L646: D7 : .fillMaxWidth()
+L647: D7 : .padding(32.dp),
+L648: D7 : horizontalAlignment = Alignment.CenterHo
+L649: D7 : verticalArrangement = Arrangement.spaced
+L650: D8 : ) {
+L651: D8 : Icon(
+L652: D8 : imageVector = Icons.Default.Savings,
+L653: D8 : contentDescription = null,
+L654: D8 : tint = MaterialTheme.colorScheme.primary
+L655: D8 : modifier = Modifier.size(48.dp)
+L656: D8 : )
+L657: D8 : Text(
+L658: D8 : text = "Belum Ada Target Menabung",
+L659: D8 : style = MaterialTheme.typography.titleMe
+L660: D8 : fontWeight = FontWeight.Bold
+L661: D8 : )
+L662: D8 : Text(
+L663: D8 : text = "Raih impian masa depan Anda deng
+L664: D8 : style = MaterialTheme.typography.bodySma
+L665: D8 : color = MaterialTheme.colorScheme.onSurf
+L666: D8 : textAlign = TextAlign.Center
+L667: D8 : )
+L668: D7 : }
+L669: D6 : }
+L670: D5 : }
+L671: D5 : } else {
+L672: D6 : items(savingGoals, key = { "goal_${it.id
+L673: D6 : SavingGoalCard(
+L674: D6 : goal = goal,
+L675: D6 : rubelFormat = rubelFormat,
+L676: D6 : currentBalance = totalBalance,
+L677: D6 : onEdit = { editingSavingGoal = goal },
+L678: D6 : onDelete = { viewModel.deleteSavingGoal(
+L679: D6 : )
+L680: D5 : }
+L681: D4 : }
+L682: D3 : }
+L683: D3 : 
+L684: D4 : item {
+L685: D4 : Spacer(modifier = Modifier.height(60.dp)
+L686: D3 : }
+L687: D2 : }
+L688: D1 : }
+L689: D0 : }
+L690: D-1 : }
+L691: D-1 : 
+L692: D-1 : // Modal dialogue limit set up
+L693: D0 : if (showAddBudgetDialog) {
+L694: D0 : val hasMonthly = budgets.any { it.catego
+L695: D0 : val hasDaily = budgets.any { it.category
+L696: D0 : 
+L697: D0 : val catsOptions = listOfNotNull(
+L698: D0 : if (!hasMonthly) "ALL" to "Total Belanja
+L699: D0 : if (!hasDaily) "DAILY" to "Total Belanja
+L700: D0 : "Makanan" to "Makanan",
+L701: D0 : "Belanja" to "Belanja",
+L702: D0 : "Transportasi" to "Transportasi",
+L703: D0 : "Sewa" to "Sewa",
+L704: D0 : "Lainnya" to "Lainnya"
+L705: D0 : )
+L706: D0 : 
+L707: D0 : val initialChoice = remember(catsOptions
+L708: D0 : var categoryChoice by remember(catsOptio
+L709: D0 : var limitInput by remember { mutableStat
+L710: D0 : var alertPercentInput by remember { muta
+L711: D0 : 
+L712: D1 : Dialog(onDismissRequest = { showAddBudge
+L713: D1 : Surface(
+L714: D1 : shape = RoundedCornerShape(32.dp),
+L715: D1 : color = MaterialTheme.colorScheme.surfac
+L716: D1 : tonalElevation = 6.dp,
+L717: D1 : modifier = Modifier.fillMaxWidth()
+L718: D2 : ) {
+L719: D2 : Column(
+L720: D2 : modifier = Modifier.padding(24.dp),
+L721: D2 : verticalArrangement = Arrangement.spaced
+L722: D3 : ) {
+L723: D3 : Text(
+L724: D3 : text = "Pasang Batas Anggaran",
+L725: D3 : style = MaterialTheme.typography.titleLa
+L726: D3 : fontWeight = FontWeight.Bold
+L727: D3 : )
+L728: D3 : 
+L729: D3 : Text("Pilih Target Kategori:", fontWeigh
+L730: D3 : 
+L731: D3 : // Scrollable select choices to avoid ke
+L732: D3 : Column(
+L733: D3 : modifier = Modifier
+L734: D3 : .fillMaxWidth()
+L735: D3 : .heightIn(max = 180.dp)
+L736: D3 : .verticalScroll(rememberScrollState()),
+L737: D3 : verticalArrangement = Arrangement.spaced
+L738: D4 : ) {
+L739: D5 : catsOptions.forEach { (valStr, choiceLab
+L740: D5 : val isSelected = categoryChoice == valSt
+L741: D5 : Box(
+L742: D5 : modifier = Modifier
+L743: D5 : .fillMaxWidth()
+L744: D5 : .background(
+L745: D5 : color = if (isSelected) MaterialTheme.co
+L746: D5 : shape = RoundedCornerShape(8.dp)
+L747: D5 : )
+L748: D5 : .clickable { categoryChoice = valStr }
+L749: D5 : .padding(vertical = 8.dp, horizontal = 1
+L750: D6 : ) {
+L751: D6 : Text(
+L752: D6 : text = choiceLabel,
+L753: D6 : fontWeight = FontWeight.Bold,
+L754: D6 : fontSize = 13.sp,
+L755: D6 : color = if (isSelected) MaterialTheme.co
+L756: D6 : )
+L757: D5 : }
+L758: D4 : }
+L759: D3 : }
+L760: D3 : 
+L761: D3 : OutlinedTextField(
+L762: D3 : value = limitInput,
+L763: D4 : onValueChange = { input ->
+L764: D4 : val clean = input.filter { it.isDigit() 
+L765: D5 : if (clean.length <= 15) {
+L766: D5 : limitInput = clean
+L767: D4 : }
+L768: D3 : },
+L769: D3 : label = { Text("Limit Anggaran Berbelanj
+L770: D3 : placeholder = { Text("misal: 1.500.000")
+L771: D3 : singleLine = true,
+L772: D3 : keyboardOptions = KeyboardOptions(keyboa
+L773: D3 : visualTransformation = RupiahVisualTrans
+L774: D3 : modifier = Modifier.fillMaxWidth()
+L775: D3 : )
+L776: D3 : 
+L777: D3 : OutlinedTextField(
+L778: D3 : value = alertPercentInput,
+L779: D3 : onValueChange = { alertPercentInput = it
+L780: D3 : label = { Text("Persentase Alarm Trigger
+L781: D3 : placeholder = { Text("default: 80") },
+L782: D3 : modifier = Modifier.fillMaxWidth()
+L783: D3 : )
+L784: D3 : 
+L785: D3 : Row(
+L786: D3 : modifier = Modifier.fillMaxWidth(),
+L787: D3 : horizontalArrangement = Arrangement.End
+L788: D4 : ) {
+L789: D5 : TextButton(onClick = { showAddBudgetDial
+L790: D5 : Text("Batal")
+L791: D4 : }
+L792: D4 : Spacer(modifier = Modifier.width(8.dp))
+L793: D4 : Button(
+L794: D5 : onClick = {
+L795: D5 : val cleanLim = limitInput.filter { it.is
+L796: D5 : val limAmount = cleanLim.toDoubleOrNull(
+L797: D5 : val percentTrigger = alertPercentInput.t
+L798: D6 : if (limAmount > 0) {
+L799: D6 : viewModel.setBudget(
+L800: D6 : category = categoryChoice,
+L801: D6 : amount = limAmount,
+L802: D6 : alertThreshold = percentTrigger
+L803: D6 : )
+L804: D6 : showAddBudgetDialog = false
+L805: D5 : }
+L806: D4 : },
+L807: D4 : enabled = limitInput.filter { it.isDigit
+L808: D5 : ) {
+L809: D5 : Text("Terapkan")
+L810: D4 : }
+L811: D3 : }
+L812: D2 : }
+L813: D1 : }
+L814: D0 : }
+L815: D-1 : }
+L816: D-1 : 
+L817: D0 : if (showAddSavingGoalDialog) {
+L818: D0 : var goalTitle by remember { mutableState
+L819: D0 : var targetAmtInput by remember { mutable
+L820: D0 : var targetDateInput by remember { mutabl
+L821: D0 : var categoryChoice by remember { mutable
+L822: D0 : 
+L823: D0 : val catsOptions = listOf("Gawai", "Libur
+L824: D0 : 
+L825: D1 : Dialog(onDismissRequest = { showAddSavin
+L826: D1 : Surface(
+L827: D1 : shape = RoundedCornerShape(32.dp),
+L828: D1 : color = MaterialTheme.colorScheme.surfac
+L829: D1 : tonalElevation = 6.dp,
+L830: D1 : modifier = Modifier.fillMaxWidth()
+L831: D2 : ) {
+L832: D2 : Column(
+L833: D2 : modifier = Modifier.padding(24.dp),
+L834: D2 : verticalArrangement = Arrangement.spaced
+L835: D3 : ) {
+L836: D3 : Text(
+L837: D3 : text = "Rencana Target Menabung Baru",
+L838: D3 : style = MaterialTheme.typography.titleLa
+L839: D3 : fontWeight = FontWeight.Bold
+L840: D3 : )
+L841: D3 : 
+L842: D3 : OutlinedTextField(
+L843: D3 : value = goalTitle,
+L844: D3 : onValueChange = { goalTitle = it },
+L845: D3 : label = { Text("Nama Rencana / Impian") 
+L846: D3 : placeholder = { Text("misal: Beli Laptop
+L847: D3 : modifier = Modifier.fillMaxWidth()
+L848: D3 : )
+L849: D3 : 
+L850: D3 : OutlinedTextField(
+L851: D3 : value = targetAmtInput,
+L852: D4 : onValueChange = { input ->
+L853: D4 : val clean = input.filter { it.isDigit() 
+L854: D5 : if (clean.length <= 15) {
+L855: D5 : targetAmtInput = clean
+L856: D4 : }
+L857: D3 : },
+L858: D3 : label = { Text("Target Minimal Nominal (
+L859: D3 : placeholder = { Text("misal: 10.000.000"
+L860: D3 : singleLine = true,
+L861: D3 : keyboardOptions = KeyboardOptions(keyboa
+L862: D3 : visualTransformation = RupiahVisualTrans
+L863: D3 : modifier = Modifier.fillMaxWidth()
+L864: D3 : )
+L865: D3 : 
+L866: D3 : OutlinedTextField(
+L867: D3 : value = targetDateInput,
+L868: D3 : onValueChange = { targetDateInput = it }
+L869: D3 : label = { Text("Target Tanggal Pencapaia
+L870: D3 : placeholder = { Text("misal: Desember 20
+L871: D3 : modifier = Modifier.fillMaxWidth()
+L872: D3 : )
+L873: D3 : 
+L874: D3 : Text("Pilih Kategori:", fontWeight = Fon
+L875: D3 : 
+L876: D3 : Row(
+L877: D3 : modifier = Modifier
+L878: D3 : .fillMaxWidth()
+L879: D3 : .horizontalScroll(rememberScrollState())
+L880: D3 : horizontalArrangement = Arrangement.spac
+L881: D4 : ) {
+L882: D5 : catsOptions.forEach { cat ->
+L883: D5 : val isSelected = categoryChoice == cat
+L884: D5 : Box(
+L885: D5 : modifier = Modifier
+L886: D5 : .background(
+L887: D5 : color = if (isSelected) Color(0xFFF06292
+L888: D5 : shape = RoundedCornerShape(12.dp)
+L889: D5 : )
+L890: D5 : .clickable { categoryChoice = cat }
+L891: D5 : .padding(horizontal = 16.dp, vertical = 
+L892: D5 : contentAlignment = Alignment.Center
+L893: D6 : ) {
+L894: D6 : Text(
+L895: D6 : text = cat,
+L896: D6 : fontWeight = FontWeight.Bold,
+L897: D6 : fontSize = 12.sp,
+L898: D6 : color = if (isSelected) Color.White else
+L899: D6 : )
+L900: D5 : }
+L901: D4 : }
+L902: D3 : }
+L903: D3 : 
+L904: D3 : Row(
+L905: D3 : modifier = Modifier.fillMaxWidth(),
+L906: D3 : horizontalArrangement = Arrangement.End
+L907: D4 : ) {
+L908: D5 : TextButton(onClick = { showAddSavingGoal
+L909: D5 : Text("Batal")
+L910: D4 : }
+L911: D4 : Spacer(modifier = Modifier.width(8.dp))
+L912: D4 : Button(
+L913: D5 : onClick = {
+L914: D5 : val cleanAmt = targetAmtInput.filter { i
+L915: D5 : val targetAmt = cleanAmt.toDoubleOrNull(
+L916: D6 : if (goalTitle.isNotEmpty() && targetAmt 
+L917: D6 : viewModel.addSavingGoal(
+L918: D6 : title = goalTitle,
+L919: D6 : targetAmount = targetAmt,
+L920: D6 : currentAmount = 0.0,
+L921: D6 : targetDate = targetDateInput.ifEmpty { "
+L922: D6 : category = categoryChoice
+L923: D6 : )
+L924: D6 : showAddSavingGoalDialog = false
+L925: D5 : }
+L926: D4 : },
+L927: D4 : enabled = goalTitle.isNotEmpty() && targ
+L928: D5 : ) {
+L929: D5 : Text("Buat Rencana")
+L930: D4 : }
+L931: D3 : }
+L932: D2 : }
+L933: D1 : }
+L934: D0 : }
+L935: D-1 : }
+L936: D-1 : 
+L937: D0 : if (editingSavingGoal != null) {
+L938: D0 : val currentGoal = editingSavingGoal!!
+L939: D0 : var goalTitle by remember { mutableState
+L940: D0 : var targetAmtInput by remember { mutable
+L941: D0 : var targetDateInput by remember { mutabl
+L942: D0 : var categoryChoice by remember { mutable
+L943: D0 : 
+L944: D0 : val catsOptions = listOf("Gawai", "Libur
+L945: D0 : 
+L946: D1 : Dialog(onDismissRequest = { editingSavin
+L947: D1 : Surface(
+L948: D1 : shape = RoundedCornerShape(32.dp),
+L949: D1 : color = MaterialTheme.colorScheme.surfac
+L950: D1 : tonalElevation = 6.dp,
+L951: D1 : modifier = Modifier.fillMaxWidth()
+L952: D2 : ) {
+L953: D2 : Column(
+L954: D2 : modifier = Modifier.padding(24.dp),
+L955: D2 : verticalArrangement = Arrangement.spaced
+L956: D3 : ) {
+L957: D3 : Text(
+L958: D3 : text = "Edit Rencana / Impian",
+L959: D3 : style = MaterialTheme.typography.titleLa
+L960: D3 : fontWeight = FontWeight.Bold
+L961: D3 : )
+L962: D3 : 
+L963: D3 : OutlinedTextField(
+L964: D3 : value = goalTitle,
+L965: D3 : onValueChange = { goalTitle = it },
+L966: D3 : label = { Text("Nama Rencana / Impian") 
+L967: D3 : placeholder = { Text("misal: Beli Laptop
+L968: D3 : modifier = Modifier.fillMaxWidth()
+L969: D3 : )
+L970: D3 : 
+L971: D3 : OutlinedTextField(
+L972: D3 : value = targetAmtInput,
+L973: D4 : onValueChange = { input ->
+L974: D4 : val clean = input.filter { it.isDigit() 
+L975: D5 : if (clean.length <= 15) {
+L976: D5 : targetAmtInput = clean
+L977: D4 : }
+L978: D3 : },
+L979: D3 : label = { Text("Target Minimal Nominal (
+L980: D3 : placeholder = { Text("misal: 10.000.000"
+L981: D3 : singleLine = true,
+L982: D3 : keyboardOptions = KeyboardOptions(keyboa
+L983: D3 : visualTransformation = RupiahVisualTrans
+L984: D3 : modifier = Modifier.fillMaxWidth()
+L985: D3 : )
+L986: D3 : 
+L987: D3 : OutlinedTextField(
+L988: D3 : value = targetDateInput,
+L989: D3 : onValueChange = { targetDateInput = it }
+L990: D3 : label = { Text("Target Tanggal Pencapaia
+L991: D3 : placeholder = { Text("misal: Desember 20
+L992: D3 : modifier = Modifier.fillMaxWidth()
+L993: D3 : )
+L994: D3 : 
+L995: D3 : Text("Pilih Kategori:", fontWeight = Fon
+L996: D3 : 
+L997: D3 : Row(
+L998: D3 : modifier = Modifier
+L999: D3 : .fillMaxWidth()
+L1000: D3 : .horizontalScroll(rememberScrollState())
+L1001: D3 : horizontalArrangement = Arrangement.spac
+L1002: D4 : ) {
+L1003: D5 : catsOptions.forEach { cat ->
+L1004: D5 : val isSelected = categoryChoice == cat
+L1005: D5 : Box(
+L1006: D5 : modifier = Modifier
+L1007: D5 : .background(
+L1008: D5 : color = if (isSelected) Color(0xFFF06292
+L1009: D5 : shape = RoundedCornerShape(12.dp)
+L1010: D5 : )
+L1011: D5 : .clickable { categoryChoice = cat }
+L1012: D5 : .padding(horizontal = 16.dp, vertical = 
+L1013: D5 : contentAlignment = Alignment.Center
+L1014: D6 : ) {
+L1015: D6 : Text(
+L1016: D6 : text = cat,
+L1017: D6 : fontWeight = FontWeight.Bold,
+L1018: D6 : fontSize = 12.sp,
+L1019: D6 : color = if (isSelected) Color.White else
+L1020: D6 : )
+L1021: D5 : }
+L1022: D4 : }
+L1023: D3 : }
+L1024: D3 : 
+L1025: D3 : Row(
+L1026: D3 : modifier = Modifier.fillMaxWidth(),
+L1027: D3 : horizontalArrangement = Arrangement.End
+L1028: D4 : ) {
+L1029: D5 : TextButton(onClick = { editingSavingGoal
+L1030: D5 : Text("Batal")
+L1031: D4 : }
+L1032: D4 : Spacer(modifier = Modifier.width(8.dp))
+L1033: D4 : Button(
+L1034: D5 : onClick = {
+L1035: D5 : val cleanAmt = targetAmtInput.filter { i
+L1036: D5 : val targetAmt = cleanAmt.toDoubleOrNull(
+L1037: D6 : if (goalTitle.isNotEmpty() && targetAmt 
+L1038: D6 : val updatedGoal = currentGoal.copy(
+L1039: D6 : title = goalTitle,
+L1040: D6 : targetAmount = targetAmt,
+L1041: D6 : targetDate = targetDateInput.ifEmpty { "
+L1042: D6 : category = categoryChoice
+L1043: D6 : )
+L1044: D6 : viewModel.updateSavingGoal(updatedGoal)
+L1045: D6 : editingSavingGoal = null
+L1046: D5 : }
+L1047: D4 : },
+L1048: D4 : enabled = goalTitle.isNotEmpty() && targ
+L1049: D5 : ) {
+L1050: D5 : Text("Simpan Perubahan")
+L1051: D4 : }
+L1052: D3 : }
+L1053: D2 : }
+L1054: D1 : }
+L1055: D0 : }
+L1056: D-1 : }
+L1057: D-1 : 
+L1058: D0 : if (showBadgeUnlockDialog != null) {
+L1059: D0 : val badge = showBadgeUnlockDialog!!
+L1060: D1 : androidx.compose.ui.window.Dialog(onDism
+L1061: D1 : Card(
+L1062: D1 : modifier = Modifier
+L1063: D1 : .fillMaxWidth()
+L1064: D1 : .padding(16.dp),
+L1065: D1 : shape = RoundedCornerShape(32.dp),
+L1066: D1 : colors = CardDefaults.cardColors(contain
+L1067: D1 : border = CardDefaults.outlinedCardBorder
+L1068: D2 : ) {
+L1069: D2 : Column(
+L1070: D2 : modifier = Modifier.padding(24.dp),
+L1071: D2 : horizontalAlignment = Alignment.CenterHo
+L1072: D2 : verticalArrangement = Arrangement.spaced
+L1073: D3 : ) {
+L1074: D3 : Text(
+L1075: D3 : text = "🎉 SELAMAT! 🎉",
+L1076: D3 : style = MaterialTheme.typography.titleLa
+L1077: D3 : fontWeight = FontWeight.ExtraBold,
+L1078: D3 : color = MaterialTheme.colorScheme.primar
+L1079: D3 : )
+L1080: D3 : 
+L1081: D3 : Box(
+L1082: D3 : modifier = Modifier
+L1083: D3 : .size(100.dp)
+L1084: D3 : .background(MaterialTheme.colorScheme.pr
+L1085: D3 : contentAlignment = Alignment.Center
+L1086: D4 : ) {
+L1087: D4 : Text(text = badge.icon, fontSize = 56.sp
+L1088: D3 : }
+L1089: D3 : 
+L1090: D3 : Text(
+L1091: D3 : text = "Lencana Terbuka: ${badge.name}",
+L1092: D3 : style = MaterialTheme.typography.titleMe
+L1093: D3 : fontWeight = FontWeight.Bold,
+L1094: D3 : textAlign = TextAlign.Center
+L1095: D3 : )
+L1096: D3 : 
+L1097: D3 : Text(
+L1098: D3 : text = badge.description,
+L1099: D3 : style = MaterialTheme.typography.bodyMed
+L1100: D3 : color = MaterialTheme.colorScheme.onSurf
+L1101: D3 : textAlign = TextAlign.Center
+L1102: D3 : )
+L1103: D3 : 
+L1104: D3 : Button(
+L1105: D3 : onClick = { viewModel.dismissBadgeUnlock
+L1106: D3 : modifier = Modifier.fillMaxWidth().paddi
+L1107: D4 : ) {
+L1108: D4 : Text("Klaim & Bagikan", fontWeight = Fon
+L1109: D3 : }
+L1110: D2 : }
+L1111: D1 : }
+L1112: D0 : }
+L1113: D-1 : }
+L1114: D-2 : }
+L1115: D-2 : 
+L1116: D-2 : @Composable
+L1117: D-2 : fun SavingGoalCard(
+L1118: D-2 : goal: com.example.data.model.SavingGoal,
+L1119: D-2 : rubelFormat: NumberFormat,
+L1120: D-2 : currentBalance: Double,
+L1121: D-2 : onEdit: () -> Unit,
+L1122: D-2 : onDelete: () -> Unit
+L1123: D-1 : ) {
+L1124: D0 : val progressFraction = if (goal.targetAm
+L1125: D0 : (currentBalance / goal.targetAmount).toF
+L1126: D0 : } else {
+L1127: D0 : 0f
+L1128: D-1 : }
+L1129: D-1 : val progressPercent = (progressFraction 
+L1130: D-1 : 
+L1131: D-1 : Card(
+L1132: D-1 : modifier = Modifier
+L1133: D-1 : .fillMaxWidth()
+L1134: D-1 : .testTag("saving_goal_card_${goal.id}"),
+L1135: D-1 : colors = CardDefaults.cardColors(
+L1136: D-1 : containerColor = MaterialTheme.colorSche
+L1137: D-1 : ),
+L1138: D-1 : shape = RoundedCornerShape(20.dp),
+L1139: D-1 : border = CardDefaults.outlinedCardBorder
+L1140: D0 : ) {
+L1141: D1 : Column(modifier = Modifier.padding(16.dp
+L1142: D1 : Row(
+L1143: D1 : modifier = Modifier.fillMaxWidth(),
+L1144: D1 : horizontalArrangement = Arrangement.Spac
+L1145: D1 : verticalAlignment = Alignment.CenterVert
+L1146: D2 : ) {
+L1147: D2 : Row(
+L1148: D2 : modifier = Modifier.weight(1f),
+L1149: D2 : verticalAlignment = Alignment.CenterVert
+L1150: D3 : ) {
+L1151: D3 : Box(
+L1152: D3 : modifier = Modifier
+L1153: D3 : .size(40.dp)
+L1154: D3 : .background(MaterialTheme.colorScheme.pr
+L1155: D3 : contentAlignment = Alignment.Center
+L1156: D4 : ) {
+L1157: D4 : Icon(
+L1158: D4 : imageVector = Icons.Default.Savings,
+L1159: D4 : contentDescription = null,
+L1160: D4 : tint = MaterialTheme.colorScheme.primary
+L1161: D4 : )
+L1162: D3 : }
+L1163: D3 : Spacer(modifier = Modifier.width(12.dp))
+L1164: D4 : Column {
+L1165: D4 : Text(
+L1166: D4 : text = goal.title,
+L1167: D4 : style = MaterialTheme.typography.titleMe
+L1168: D4 : fontWeight = FontWeight.Bold,
+L1169: D4 : color = MaterialTheme.colorScheme.onSurf
+L1170: D4 : )
+L1171: D4 : Text(
+L1172: D4 : text = "Kategori: ${goal.category} • Sas
+L1173: D4 : style = MaterialTheme.typography.bodySma
+L1174: D4 : color = MaterialTheme.colorScheme.onSurf
+L1175: D4 : )
+L1176: D3 : }
+L1177: D2 : }
+L1178: D2 : 
+L1179: D3 : Row(verticalAlignment = Alignment.Center
+L1180: D4 : IconButton(onClick = onEdit) {
+L1181: D4 : Icon(
+L1182: D4 : imageVector = Icons.Default.Edit,
+L1183: D4 : contentDescription = "Ubah Target",
+L1184: D4 : tint = MaterialTheme.colorScheme.primary
+L1185: D4 : )
+L1186: D3 : }
+L1187: D4 : IconButton(onClick = onDelete) {
+L1188: D4 : Icon(
+L1189: D4 : imageVector = Icons.Default.Delete,
+L1190: D4 : contentDescription = "Hapus Target",
+L1191: D4 : tint = MaterialTheme.colorScheme.error
+L1192: D4 : )
+L1193: D3 : }
+L1194: D2 : }
+L1195: D1 : }
+L1196: D1 : 
+L1197: D1 : Spacer(modifier = Modifier.height(16.dp)
+L1198: D1 : 
+L1199: D1 : Row(
+L1200: D1 : modifier = Modifier.fillMaxWidth(),
+L1201: D1 : horizontalArrangement = Arrangement.Spac
+L1202: D2 : ) {
+L1203: D2 : Text(
+L1204: D2 : text = "Terkumpul: ${rubelFormat.format(
+L1205: D2 : style = MaterialTheme.typography.bodyMed
+L1206: D2 : fontWeight = FontWeight.Bold,
+L1207: D2 : color = MaterialTheme.colorScheme.primar
+L1208: D2 : )
+L1209: D2 : Text(
+L1210: D2 : text = "Impian: ${rubelFormat.format(goa
+L1211: D2 : style = MaterialTheme.typography.bodyMed
+L1212: D2 : fontWeight = FontWeight.Bold,
+L1213: D2 : color = MaterialTheme.colorScheme.onSurf
+L1214: D2 : )
+L1215: D1 : }
+L1216: D1 : 
+L1217: D1 : Spacer(modifier = Modifier.height(10.dp)
+L1218: D1 : 
+L1219: D1 : Box(
+L1220: D1 : modifier = Modifier
+L1221: D1 : .fillMaxWidth()
+L1222: D1 : .height(8.dp)
+L1223: D1 : .clip(RoundedCornerShape(4.dp))
+L1224: D1 : .background(MaterialTheme.colorScheme.su
+L1225: D2 : ) {
+L1226: D2 : Box(
+L1227: D2 : modifier = Modifier
+L1228: D2 : .fillMaxWidth(progressFraction)
+L1229: D2 : .fillMaxSize()
+L1230: D2 : .background(MaterialTheme.colorScheme.pr
+L1231: D2 : )
+L1232: D1 : }
+L1233: D1 : 
+L1234: D1 : Spacer(modifier = Modifier.height(6.dp))
+L1235: D1 : 
+L1236: D1 : Row(
+L1237: D1 : modifier = Modifier.fillMaxWidth(),
+L1238: D1 : horizontalArrangement = Arrangement.Spac
+L1239: D1 : verticalAlignment = Alignment.CenterVert
+L1240: D2 : ) {
+L1241: D2 : Text(
+L1242: D2 : text = "Mendeteksi otomatis saldo aktif:
+L1243: D2 : style = MaterialTheme.typography.bodySma
+L1244: D2 : color = MaterialTheme.colorScheme.primar
+L1245: D2 : fontWeight = FontWeight.SemiBold
+L1246: D2 : )
+L1247: D2 : 
+L1248: D2 : val sisa = (goal.targetAmount - currentB
+L1249: D3 : if (sisa > 0) {
+L1250: D3 : Text(
+L1251: D3 : text = "Sisa: ${rubelFormat.format(sisa)
+L1252: D3 : style = MaterialTheme.typography.bodySma
+L1253: D3 : color = MaterialTheme.colorScheme.onSurf
+L1254: D3 : fontSize = 11.sp
+L1255: D3 : )
+L1256: D3 : } else {
+L1257: D3 : Text(
+L1258: D3 : text = "🎉 Impian Terlaksana!",
+L1259: D3 : style = MaterialTheme.typography.bodySma
+L1260: D3 : color = Color(0xFF4CAF50),
+L1261: D3 : fontWeight = FontWeight.Bold,
+L1262: D3 : fontSize = 11.sp
+L1263: D3 : )
+L1264: D2 : }
+L1265: D1 : }
+L1266: D0 : }
+L1267: D-1 : }
+L1268: D-2 : }

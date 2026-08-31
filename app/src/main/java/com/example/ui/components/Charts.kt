@@ -65,10 +65,41 @@ data class MonthlyData(
     val expense: Float
 )
 
+fun formatChartCurrency(amount: Double, formatAmount: ((Double) -> String)? = null, isUsd: Boolean = false): String {
+    if (formatAmount != null) return formatAmount(amount)
+    return if (isUsd) {
+        val f = NumberFormat.getCurrencyInstance(Locale.US)
+        f.format(amount)
+    } else {
+        val f = NumberFormat.getCurrencyInstance(Locale("id", "ID")).apply { maximumFractionDigits = 0 }
+        f.format(amount).replace(",00", "")
+    }
+}
+
+fun formatCompactChartCurrency(value: Float, isUsd: Boolean = false): String {
+    return if (isUsd) {
+        when {
+            value >= 1_000_000_000f -> "$${String.format(Locale.US, "%.1f", value / 1_000_000_000f)}B"
+            value >= 1_000_000f -> "$${String.format(Locale.US, "%.1f", value / 1_000_000f)}M"
+            value >= 1_000f -> "$${String.format(Locale.US, "%.1f", value / 1_000f)}k"
+            else -> "$${value.toInt()}"
+        }.replace(".0", "")
+    } else {
+        when {
+            value >= 1_000_000_000f -> "Rp${String.format(Locale.US, "%.1f", value / 1_000_000_000f)}M"
+            value >= 1_000_000f -> "Rp${String.format(Locale.US, "%.1f", value / 1_000_000f)}jt"
+            value >= 1_000f -> "Rp${(value / 1_000f).toInt()}rb"
+            else -> "Rp${value.toInt()}"
+        }.replace(".0", "")
+    }
+}
+
 @Composable
 fun MonthlyBarComparisonChart(
     transactions: List<Transaction>,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    formatAmount: ((Double) -> String)? = null,
+    isUsd: Boolean = false
 ) {
     val monthlyDataList = remember(transactions) {
         val sdf = SimpleDateFormat("MMM", Locale("id", "ID"))
@@ -150,9 +181,8 @@ fun MonthlyBarComparisonChart(
 
             val selectedData = if (selectedMonthIndex in monthlyDataList.indices) monthlyDataList[selectedMonthIndex] else null
             if (selectedData != null) {
-                val formatter = NumberFormat.getCurrencyInstance(Locale("id", "ID")).apply { maximumFractionDigits = 0 }
-                val incStr = formatter.format(selectedData.income).replace(",00", "")
-                val expStr = formatter.format(selectedData.expense).replace(",00", "")
+                val incStr = formatChartCurrency(selectedData.income.toDouble(), formatAmount, isUsd)
+                val expStr = formatChartCurrency(selectedData.expense.toDouble(), formatAmount, isUsd)
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier
@@ -208,21 +238,12 @@ fun MonthlyBarComparisonChart(
                 ) {
                     val rawMax = monthlyDataList.maxOfOrNull { maxOf(it.income, it.expense) } ?: 0f
                     val displayMax = if (rawMax == 0f) 1000000f else rawMax
-                    
-                    fun formatCompact(value: Float): String {
-                        return when {
-                            value >= 1_000_000_000f -> "Rp${String.format("%.1f", value / 1_000_000_000f)}M"
-                            value >= 1_000_000f -> "Rp${String.format("%.1f", value / 1_000_000f)}jt"
-                            value >= 1_000f -> "Rp${(value / 1_000f).toInt()}rb"
-                            else -> "Rp${value.toInt()}"
-                        }.replace(".0", "")
-                    }
 
-                    Text(text = formatCompact(displayMax), style = MaterialTheme.typography.labelSmall, fontSize = 8.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f))
-                    Text(text = formatCompact(displayMax * 0.75f), style = MaterialTheme.typography.labelSmall, fontSize = 8.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f))
-                    Text(text = formatCompact(displayMax * 0.5f), style = MaterialTheme.typography.labelSmall, fontSize = 8.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f))
-                    Text(text = formatCompact(displayMax * 0.25f), style = MaterialTheme.typography.labelSmall, fontSize = 8.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f))
-                    Text(text = "Rp0", style = MaterialTheme.typography.labelSmall, fontSize = 8.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f))
+                    Text(text = formatCompactChartCurrency(displayMax, isUsd), style = MaterialTheme.typography.labelSmall, fontSize = 8.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f))
+                    Text(text = formatCompactChartCurrency(displayMax * 0.75f, isUsd), style = MaterialTheme.typography.labelSmall, fontSize = 8.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f))
+                    Text(text = formatCompactChartCurrency(displayMax * 0.5f, isUsd), style = MaterialTheme.typography.labelSmall, fontSize = 8.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f))
+                    Text(text = formatCompactChartCurrency(displayMax * 0.25f, isUsd), style = MaterialTheme.typography.labelSmall, fontSize = 8.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f))
+                    Text(text = if (isUsd) "$0" else "Rp0", style = MaterialTheme.typography.labelSmall, fontSize = 8.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f))
                 }
 
                 // 2. Right Grid & Chart Area
@@ -403,7 +424,9 @@ fun MonthlyBarComparisonChart(
 @Composable
 fun TransactionCategoryDonutChart(
     transactions: List<Transaction>,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    formatAmount: ((Double) -> String)? = null,
+    isUsd: Boolean = false
 ) {
     val expenses = transactions.filter { it.type == "EXPENSE" }
     val totalExpense = expenses.sumOf { it.amount }
@@ -435,9 +458,7 @@ fun TransactionCategoryDonutChart(
     }.sortedByDescending { it.amount }
 
     // Currency Formatter
-    val rubelFormat = NumberFormat.getCurrencyInstance(Locale("id", "ID"))
-    rubelFormat.maximumFractionDigits = 0
-    val totalExpenseStr = rubelFormat.format(totalExpense)
+    val totalExpenseStr = formatChartCurrency(totalExpense, formatAmount, isUsd)
 
     // Animated sweep
     val transitionProgress = remember { Animatable(0f) }
@@ -533,10 +554,20 @@ fun TransactionCategoryDonutChart(
                                 fontSize = 10.sp
                             )
                             Text(
-                                text = if (totalExpense >= 1000000) {
-                                    "Rp" + String.format(Locale.US, "%.1fjt", totalExpense / 1000000.0)
+                                text = if (formatAmount != null) {
+                                    formatAmount(totalExpense)
+                                } else if (isUsd) {
+                                    if (totalExpense >= 1000) {
+                                        "$" + String.format(Locale.US, "%.1fk", totalExpense / 1000.0)
+                                    } else {
+                                        "$" + String.format(Locale.US, "%.2f", totalExpense)
+                                    }
                                 } else {
-                                    rubelFormat.format(totalExpense).replace(",00", "")
+                                    if (totalExpense >= 1000000) {
+                                        "Rp" + String.format(Locale.US, "%.1fjt", totalExpense / 1000000.0)
+                                    } else {
+                                        formatChartCurrency(totalExpense, null, false)
+                                    }
                                 },
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold,
@@ -618,7 +649,9 @@ fun TransactionCategoryDonutChart(
 @Composable
 fun TransactionWeeklyTrendLineChart(
     transactions: List<Transaction>,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    formatAmount: ((Double) -> String)? = null,
+    isUsd: Boolean = false
 ) {
     // Generate daily expense graph for last 7 entries
     val expenses = transactions.filter { it.type == "EXPENSE" }.sortedBy { it.timestamp }
@@ -742,8 +775,7 @@ fun TransactionWeeklyTrendLineChart(
                 }
 
                 if (selectedTx != null) {
-                    val rubelFormatter = NumberFormat.getCurrencyInstance(Locale("id", "ID")).apply { maximumFractionDigits = 0 }
-                    val amountStr = rubelFormatter.format(selectedTx.amount).replace(",00", "")
+                    val amountStr = formatChartCurrency(selectedTx.amount, formatAmount, isUsd)
                     Text(
                         text = "-$amountStr",
                         style = MaterialTheme.typography.titleMedium,
@@ -772,18 +804,9 @@ fun TransactionWeeklyTrendLineChart(
                     verticalArrangement = Arrangement.SpaceBetween,
                     horizontalAlignment = Alignment.End
                 ) {
-                    fun formatCompact(value: Float): String {
-                        return when {
-                            value >= 1_000_000_000f -> "Rp${String.format("%.1f", value / 1_000_000_000f)}M"
-                            value >= 1_000_000f -> "Rp${String.format("%.1f", value / 1_000_000f)}jt"
-                            value >= 1_000f -> "Rp${String.format("%.1f", value / 1_000f)}rb"
-                            else -> "Rp${value.toInt()}"
-                        }.replace(".0", "")
-                    }
-
-                    Text(text = formatCompact(displayMax), style = MaterialTheme.typography.labelSmall, fontSize = 8.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f))
-                    Text(text = formatCompact(displayMin + displayRange * 0.5f), style = MaterialTheme.typography.labelSmall, fontSize = 8.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f))
-                    Text(text = formatCompact(displayMin), style = MaterialTheme.typography.labelSmall, fontSize = 8.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f))
+                    Text(text = formatCompactChartCurrency(displayMax, isUsd), style = MaterialTheme.typography.labelSmall, fontSize = 8.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f))
+                    Text(text = formatCompactChartCurrency(displayMin + displayRange * 0.5f, isUsd), style = MaterialTheme.typography.labelSmall, fontSize = 8.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f))
+                    Text(text = formatCompactChartCurrency(displayMin, isUsd), style = MaterialTheme.typography.labelSmall, fontSize = 8.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f))
                 }
 
                 Spacer(modifier = Modifier.width(8.dp))

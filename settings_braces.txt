@@ -1,0 +1,679 @@
+L1: D0 : package com.example.ui.screens
+L2: D0 : 
+L3: D0 : import android.widget.Toast
+L4: D0 : import android.content.Intent
+L5: D0 : import androidx.compose.foundation.backg
+L6: D0 : import androidx.compose.foundation.click
+L7: D0 : import androidx.compose.foundation.layou
+L8: D0 : import androidx.compose.foundation.layou
+L9: D0 : import androidx.compose.foundation.layou
+L10: D0 : import androidx.compose.foundation.layou
+L11: D0 : import androidx.compose.foundation.layou
+L12: D0 : import androidx.compose.foundation.layou
+L13: D0 : import androidx.compose.foundation.layou
+L14: D0 : import androidx.compose.foundation.layou
+L15: D0 : import androidx.compose.foundation.layou
+L16: D0 : import androidx.compose.foundation.layou
+L17: D0 : import androidx.compose.foundation.layou
+L18: D0 : import androidx.compose.foundation.remem
+L19: D0 : import androidx.compose.foundation.shape
+L20: D0 : import androidx.compose.foundation.shape
+L21: D0 : import androidx.compose.foundation.verti
+L22: D0 : import androidx.compose.material.icons.I
+L23: D0 : import androidx.compose.material.icons.a
+L24: D0 : import androidx.compose.material.icons.f
+L25: D0 : import androidx.compose.material.icons.f
+L26: D0 : import androidx.compose.material.icons.f
+L27: D0 : import androidx.compose.material.icons.f
+L28: D0 : import androidx.compose.material.icons.a
+L29: D0 : import androidx.compose.material.icons.f
+L30: D0 : import androidx.compose.material.icons.f
+L31: D0 : import androidx.compose.material.icons.f
+L32: D0 : import androidx.compose.material.icons.f
+L33: D0 : import androidx.compose.material.icons.f
+L34: D0 : import androidx.compose.material.icons.f
+L35: D0 : import androidx.compose.material3.Button
+L36: D0 : import androidx.compose.material3.Button
+L37: D0 : import androidx.compose.material3.Card
+L38: D0 : import androidx.compose.material3.CardDe
+L39: D0 : import androidx.compose.material3.Icon
+L40: D0 : import androidx.compose.material3.IconBu
+L41: D0 : import androidx.compose.material3.Materi
+L42: D0 : import androidx.compose.material3.Outlin
+L43: D0 : import androidx.compose.material3.Outlin
+L44: D0 : import androidx.compose.material3.Scaffo
+L45: D0 : import androidx.compose.material3.Switch
+L46: D0 : import androidx.compose.material3.Text
+L47: D0 : import androidx.compose.material3.TextBu
+L48: D0 : import androidx.compose.runtime.Composab
+L49: D0 : import androidx.compose.runtime.collectA
+L50: D0 : import androidx.lifecycle.compose.collec
+L51: D0 : import androidx.compose.runtime.getValue
+L52: D0 : import androidx.compose.runtime.mutableS
+L53: D0 : import androidx.compose.runtime.remember
+L54: D0 : import androidx.compose.runtime.setValue
+L55: D0 : import androidx.compose.ui.Alignment
+L56: D0 : import androidx.compose.ui.Modifier
+L57: D0 : import androidx.compose.ui.draw.alpha
+L58: D0 : import androidx.compose.ui.draw.clip
+L59: D0 : import androidx.compose.ui.graphics.Colo
+L60: D0 : import androidx.compose.ui.graphics.Brus
+L61: D0 : import androidx.compose.foundation.borde
+L62: D0 : import androidx.compose.foundation.layou
+L63: D0 : import androidx.compose.ui.platform.Loca
+L64: D0 : import androidx.compose.ui.platform.test
+L65: D0 : import androidx.compose.ui.text.font.Fon
+L66: D0 : import androidx.compose.ui.text.font.Fon
+L67: D0 : import androidx.compose.ui.unit.dp
+L68: D0 : import androidx.compose.ui.unit.sp
+L69: D0 : import androidx.compose.ui.window.Dialog
+L70: D0 : import com.example.ui.FinanceViewModel
+L71: D0 : 
+L72: D0 : @Composable
+L73: D0 : fun SettingsScreen(
+L74: D0 : viewModel: FinanceViewModel,
+L75: D0 : modifier: Modifier = Modifier
+L76: D1 : ) {
+L77: D1 : val context = LocalContext.current
+L78: D1 : val isLocked by viewModel.isLocked.colle
+L79: D1 : val biometricsEnabled by viewModel.biome
+L80: D1 : val themeDark by viewModel.themeDark.col
+L81: D1 : val isSyncing by viewModel.isSyncing.col
+L82: D1 : val currentPin by viewModel.userPin.coll
+L83: D1 : val currentName by viewModel.userName.co
+L84: D1 : val isPinEnabled by viewModel.isPinEnabl
+L85: D1 : val bankNotificationEnabled by viewModel
+L86: D1 : 
+L87: D1 : var showPinDialog by remember { mutableS
+L88: D1 : var pinInputValue by remember { mutableS
+L89: D1 : 
+L90: D1 : var showNameDialog by remember { mutable
+L91: D1 : var nameInputValue by remember { mutable
+L92: D1 : 
+L93: D1 : var showPdfReportDialog by remember { mu
+L94: D1 : var pdfReportText by remember { mutableS
+L95: D1 : 
+L96: D1 : Scaffold(
+L97: D1 : modifier = modifier.fillMaxSize(),
+L98: D1 : containerColor = Color.Transparent
+L99: D2 : ) { innerPadding ->
+L100: D2 : Box(
+L101: D2 : modifier = Modifier
+L102: D2 : .fillMaxSize()
+L103: D2 : .background(
+L104: D2 : Brush.verticalGradient(
+L105: D2 : colors = if (themeDark) listOf(Color(0xF
+L106: D2 : else listOf(Color(0xFFF8FAFC), Color(0xF
+L107: D2 : )
+L108: D2 : )
+L109: D2 : .padding(innerPadding)
+L110: D3 : ) {
+L111: D3 : Column(
+L112: D3 : modifier = Modifier.fillMaxSize()
+L113: D4 : ) {
+L114: D4 : // SPATIAL HEADER
+L115: D4 : Box(
+L116: D4 : modifier = Modifier
+L117: D4 : .fillMaxWidth()
+L118: D4 : .clip(RoundedCornerShape(bottomStart = 3
+L119: D4 : .background(
+L120: D4 : if (themeDark) Color(0xFF1E293B).copy(al
+L121: D4 : else Color.White.copy(alpha = 0.9f)
+L122: D4 : )
+L123: D4 : .border(
+L124: D4 : 1.dp,
+L125: D4 : if (themeDark) Color.White.copy(alpha = 
+L126: D4 : RoundedCornerShape(bottomStart = 32.dp, 
+L127: D4 : )
+L128: D4 : .padding(top = 48.dp, bottom = 24.dp, st
+L129: D5 : ) {
+L130: D6 : Column(verticalArrangement = Arrangement
+L131: D6 : Text(
+L132: D6 : text = "Pengaturan",
+L133: D6 : style = MaterialTheme.typography.headlin
+L134: D6 : fontWeight = FontWeight.Black,
+L135: D6 : color = MaterialTheme.colorScheme.onSurf
+L136: D6 : letterSpacing = (-1).sp
+L137: D6 : )
+L138: D6 : Text(
+L139: D6 : text = "Atur preferensi keamanan, akses 
+L140: D6 : style = MaterialTheme.typography.bodySma
+L141: D6 : color = MaterialTheme.colorScheme.onSurf
+L142: D6 : )
+L143: D5 : }
+L144: D4 : }
+L145: D4 : 
+L146: D4 : // Content Below Header
+L147: D4 : Column(
+L148: D4 : modifier = Modifier
+L149: D4 : .fillMaxSize()
+L150: D4 : .padding(horizontal = 16.dp)
+L151: D4 : .verticalScroll(rememberScrollState()),
+L152: D4 : verticalArrangement = Arrangement.spaced
+L153: D5 : ) {
+L154: D5 : Spacer(modifier = Modifier.height(8.dp))
+L155: D5 : 
+L156: D5 : // --- PROFIL PENGGUNA SECTION ---
+L157: D5 : Text(
+L158: D5 : text = "Profil Pengguna",
+L159: D5 : style = MaterialTheme.typography.titleMe
+L160: D5 : fontWeight = FontWeight.Bold,
+L161: D5 : color = MaterialTheme.colorScheme.onSurf
+L162: D5 : modifier = Modifier.padding(top = 8.dp)
+L163: D5 : )
+L164: D5 : 
+L165: D5 : Card(
+L166: D5 : modifier = Modifier.fillMaxWidth().testT
+L167: D5 : colors = CardDefaults.cardColors(contain
+L168: D5 : shape = RoundedCornerShape(20.dp),
+L169: D5 : border = CardDefaults.outlinedCardBorder
+L170: D6 : ) {
+L171: D7 : Column(modifier = Modifier.padding(4.dp)
+L172: D7 : SecuritySettingRow(
+L173: D7 : title = "Nama Panggilan",
+L174: D7 : subtitle = "Nama Anda yang dicantumkan d
+L175: D8 : icon = {
+L176: D8 : Icon(
+L177: D8 : imageVector = Icons.Default.Person,
+L178: D8 : contentDescription = "Nama Pengguna",
+L179: D8 : tint = MaterialTheme.colorScheme.primary
+L180: D8 : )
+L181: D7 : },
+L182: D8 : onClick = {
+L183: D8 : nameInputValue = currentName
+L184: D8 : showNameDialog = true
+L185: D7 : },
+L186: D8 : trailing = {
+L187: D8 : Icon(imageVector = Icons.Default.Chevron
+L188: D7 : }
+L189: D7 : )
+L190: D6 : }
+L191: D5 : }
+L192: D5 : 
+L193: D5 : // --- DEPART SHEET SECTION: EXPORTS OF 
+L194: D5 : Text(
+L195: D5 : text = "Ekspor Laporan Keuangan",
+L196: D5 : style = MaterialTheme.typography.titleMe
+L197: D5 : fontWeight = FontWeight.Bold,
+L198: D5 : color = MaterialTheme.colorScheme.onSurf
+L199: D5 : modifier = Modifier.padding(top = 8.dp)
+L200: D5 : )
+L201: D5 : 
+L202: D5 : Card(
+L203: D5 : modifier = Modifier.fillMaxWidth(),
+L204: D5 : colors = CardDefaults.cardColors(contain
+L205: D5 : shape = RoundedCornerShape(20.dp),
+L206: D5 : border = CardDefaults.outlinedCardBorder
+L207: D6 : ) {
+L208: D7 : Column(modifier = Modifier.padding(20.dp
+L209: D7 : Text(
+L210: D7 : text = "Unduh laporan keuangan bulanan l
+L211: D7 : style = MaterialTheme.typography.bodySma
+L212: D7 : color = MaterialTheme.colorScheme.onSurf
+L213: D7 : )
+L214: D7 : 
+L215: D7 : Row(
+L216: D7 : modifier = Modifier.fillMaxWidth(),
+L217: D7 : horizontalArrangement = Arrangement.spac
+L218: D8 : ) {
+L219: D8 : // PDF generation click
+L220: D8 : Button(
+L221: D9 : onClick = {
+L222: D9 : pdfReportText = viewModel.generatePDFTex
+L223: D9 : showPdfReportDialog = true
+L224: D8 : },
+L225: D8 : modifier = Modifier
+L226: D8 : .weight(1f)
+L227: D8 : .testTag("export_pdf_button"),
+L228: D8 : colors = ButtonDefaults.buttonColors(con
+L229: D8 : shape = RoundedCornerShape(12.dp)
+L230: D9 : ) {
+L231: D9 : Icon(imageVector = Icons.Default.Picture
+L232: D9 : Spacer(modifier = Modifier.width(8.dp))
+L233: D9 : Text("Simpan PDF", fontSize = 11.sp, fon
+L234: D8 : }
+L235: D8 : 
+L236: D8 : // CSV Excel export click
+L237: D8 : OutlinedButton(
+L238: D9 : onClick = {
+L239: D9 : val path = viewModel.generateCSVExport(c
+L240: D10 : if (path.isNotEmpty()) {
+L241: D10 : Toast.makeText(context, "Laporan Excel/C
+L242: D10 : } else {
+L243: D10 : Toast.makeText(context, "Gagal mengeskpo
+L244: D9 : }
+L245: D8 : },
+L246: D8 : modifier = Modifier
+L247: D8 : .weight(1f)
+L248: D8 : .testTag("export_excel_button"),
+L249: D8 : shape = RoundedCornerShape(12.dp)
+L250: D9 : ) {
+L251: D9 : Icon(imageVector = Icons.AutoMirrored.Fi
+L252: D9 : Spacer(modifier = Modifier.width(8.dp))
+L253: D9 : Text("Ekspor Excel", fontSize = 11.sp, f
+L254: D8 : }
+L255: D7 : }
+L256: D6 : }
+L257: D5 : }
+L258: D5 : 
+L259: D5 : // --- ACCOUNT SECURITY & BIOMETRIC SECT
+L260: D5 : Text(
+L261: D5 : text = "Keamanan & Akses Biometrik",
+L262: D5 : style = MaterialTheme.typography.titleMe
+L263: D5 : fontWeight = FontWeight.Bold,
+L264: D5 : color = MaterialTheme.colorScheme.onSurf
+L265: D5 : modifier = Modifier.padding(top = 8.dp)
+L266: D5 : )
+L267: D5 : 
+L268: D5 : Card(
+L269: D5 : modifier = Modifier.fillMaxWidth(),
+L270: D5 : colors = CardDefaults.cardColors(contain
+L271: D5 : shape = RoundedCornerShape(20.dp),
+L272: D5 : border = CardDefaults.outlinedCardBorder
+L273: D6 : ) {
+L274: D7 : Column(modifier = Modifier.padding(4.dp)
+L275: D7 : // PIN Lock toggle
+L276: D7 : SecuritySettingRow(
+L277: D7 : title = "Aktifkan Kunci PIN Keamanan",
+L278: D7 : subtitle = "Wajibkan entry PIN 4-digit s
+L279: D8 : icon = {
+L280: D8 : Icon(
+L281: D8 : imageVector = Icons.Default.Lock,
+L282: D8 : contentDescription = "PIN Lock Toggle",
+L283: D8 : tint = MaterialTheme.colorScheme.primary
+L284: D8 : )
+L285: D7 : },
+L286: D8 : trailing = {
+L287: D8 : Switch(
+L288: D8 : checked = isPinEnabled,
+L289: D8 : onCheckedChange = { viewModel.togglePinE
+L290: D8 : modifier = Modifier.testTag("pin_lock_en
+L291: D8 : )
+L292: D7 : }
+L293: D7 : )
+L294: D7 : 
+L295: D7 : // Biometrics switch
+L296: D7 : SecuritySettingRow(
+L297: D7 : title = "Autentikasi Biometrik (Sidik Ja
+L298: D7 : subtitle = "Aktifkan autentikasi sidik j
+L299: D8 : icon = {
+L300: D8 : Icon(
+L301: D8 : imageVector = Icons.Default.Fingerprint,
+L302: D8 : contentDescription = "Biometrics",
+L303: D8 : tint = MaterialTheme.colorScheme.primary
+L304: D8 : )
+L305: D7 : },
+L306: D8 : trailing = {
+L307: D8 : Switch(
+L308: D8 : checked = biometricsEnabled && isPinEnab
+L309: D8 : onCheckedChange = { viewModel.toggleBiom
+L310: D8 : enabled = isPinEnabled,
+L311: D8 : modifier = Modifier.testTag("biometric_s
+L312: D8 : )
+L313: D7 : },
+L314: D7 : enabled = isPinEnabled
+L315: D7 : )
+L316: D7 : 
+L317: D7 : // Pin changes
+L318: D8 : if (isPinEnabled) {
+L319: D8 : SecuritySettingRow(
+L320: D8 : title = "Ubah Kode PIN Pengaman",
+L321: D8 : subtitle = "Ubah 4 digit kode PIN Anda. 
+L322: D9 : icon = {
+L323: D9 : Icon(
+L324: D9 : imageVector = Icons.Default.Lock,
+L325: D9 : contentDescription = "Security PIN",
+L326: D9 : tint = MaterialTheme.colorScheme.primary
+L327: D9 : )
+L328: D8 : },
+L329: D9 : onClick = {
+L330: D9 : pinInputValue = currentPin
+L331: D9 : showPinDialog = true
+L332: D8 : },
+L333: D9 : trailing = {
+L334: D9 : Icon(imageVector = Icons.Default.Chevron
+L335: D8 : }
+L336: D8 : )
+L337: D7 : }
+L338: D7 : 
+L339: D7 : // App locking
+L340: D8 : if (isPinEnabled) {
+L341: D8 : SecuritySettingRow(
+L342: D8 : title = "Kunci Aplikasi Sekarang",
+L343: D8 : subtitle = "Keluar secara aman untuk mem
+L344: D9 : icon = {
+L345: D9 : Icon(
+L346: D9 : imageVector = Icons.AutoMirrored.Filled.
+L347: D9 : contentDescription = "Lock App",
+L348: D9 : tint = MaterialTheme.colorScheme.error
+L349: D9 : )
+L350: D8 : },
+L351: D8 : onClick = { viewModel.lockApp() },
+L352: D9 : trailing = {
+L353: D9 : Text("Keluar", color = MaterialTheme.col
+L354: D8 : }
+L355: D8 : )
+L356: D7 : }
+L357: D6 : }
+L358: D5 : }
+L359: D5 : 
+L360: D5 : // --- DETEKTOR NOTIFIKASI BANK SECTION 
+L361: D5 : Text(
+L362: D5 : text = "Detektor Notifikasi Bank",
+L363: D5 : style = MaterialTheme.typography.titleMe
+L364: D5 : fontWeight = FontWeight.Bold,
+L365: D5 : color = MaterialTheme.colorScheme.onSurf
+L366: D5 : modifier = Modifier.padding(top = 8.dp)
+L367: D5 : )
+L368: D5 : 
+L369: D5 : Card(
+L370: D5 : modifier = Modifier.fillMaxWidth().testT
+L371: D5 : colors = CardDefaults.cardColors(contain
+L372: D5 : shape = RoundedCornerShape(20.dp),
+L373: D5 : border = CardDefaults.outlinedCardBorder
+L374: D6 : ) {
+L375: D7 : Column(modifier = Modifier.padding(4.dp)
+L376: D7 : SecuritySettingRow(
+L377: D7 : title = "Aktifkan Detektor Notifikasi",
+L378: D7 : subtitle = "Otomatis membaca dan mencata
+L379: D8 : icon = {
+L380: D8 : Icon(
+L381: D8 : imageVector = Icons.Default.Notification
+L382: D8 : contentDescription = "Bank Notification 
+L383: D8 : tint = MaterialTheme.colorScheme.primary
+L384: D8 : )
+L385: D7 : },
+L386: D8 : trailing = {
+L387: D8 : Switch(
+L388: D8 : checked = bankNotificationEnabled,
+L389: D9 : onCheckedChange = {
+L390: D9 : viewModel.setBankNotificationEnabled(it)
+L391: D10 : if (it) {
+L392: D10 : Toast.makeText(context, "Detektor Diakti
+L393: D10 : } else {
+L394: D10 : Toast.makeText(context, "Detektor Dinona
+L395: D9 : }
+L396: D8 : },
+L397: D8 : modifier = Modifier.testTag("bank_notif_
+L398: D8 : )
+L399: D7 : }
+L400: D7 : )
+L401: D7 : 
+L402: D7 : SecuritySettingRow(
+L403: D7 : title = "Pengaturan Akses Izin Sistem",
+L404: D7 : subtitle = "Buka pengaturan sistem Andro
+L405: D8 : icon = {
+L406: D8 : Icon(
+L407: D8 : imageVector = Icons.Default.Sync,
+L408: D8 : contentDescription = "System Notificatio
+L409: D8 : tint = MaterialTheme.colorScheme.seconda
+L410: D8 : )
+L411: D7 : },
+L412: D8 : onClick = {
+L413: D9 : try {
+L414: D9 : val intent = Intent("android.settings.AC
+L415: D9 : context.startActivity(intent)
+L416: D9 : } catch (e: Exception) {
+L417: D9 : Toast.makeText(context, "Gagal membuka m
+L418: D8 : }
+L419: D7 : },
+L420: D8 : trailing = {
+L421: D8 : Icon(
+L422: D8 : imageVector = Icons.Default.ChevronRight
+L423: D8 : contentDescription = "Akses Izin"
+L424: D8 : )
+L425: D7 : }
+L426: D7 : )
+L427: D6 : }
+L428: D5 : }
+L429: D5 : 
+L430: D5 : // --- THEME OVERRIDES ---
+L431: D5 : Text(
+L432: D5 : text = "Tampilan Aplikasi",
+L433: D5 : style = MaterialTheme.typography.titleMe
+L434: D5 : fontWeight = FontWeight.Bold,
+L435: D5 : color = MaterialTheme.colorScheme.onSurf
+L436: D5 : modifier = Modifier.padding(top = 8.dp)
+L437: D5 : )
+L438: D5 : 
+L439: D5 : Card(
+L440: D5 : modifier = Modifier.fillMaxWidth(),
+L441: D5 : colors = CardDefaults.cardColors(contain
+L442: D5 : shape = RoundedCornerShape(20.dp),
+L443: D5 : border = CardDefaults.outlinedCardBorder
+L444: D6 : ) {
+L445: D7 : Column(modifier = Modifier.padding(4.dp)
+L446: D7 : // Mode Gelap Toggle
+L447: D7 : SecuritySettingRow(
+L448: D7 : title = "Ubah Ke Mode Gelap",
+L449: D7 : subtitle = "Optimalkan konsumsi layar OL
+L450: D8 : icon = {
+L451: D8 : Icon(
+L452: D8 : imageVector = Icons.Default.DarkMode,
+L453: D8 : contentDescription = "Dark mode override
+L454: D8 : tint = MaterialTheme.colorScheme.primary
+L455: D8 : )
+L456: D7 : },
+L457: D8 : trailing = {
+L458: D8 : Switch(
+L459: D8 : checked = themeDark,
+L460: D8 : onCheckedChange = { viewModel.setTheme(i
+L461: D8 : modifier = Modifier.testTag("dark_mode_s
+L462: D8 : )
+L463: D7 : }
+L464: D7 : )
+L465: D6 : }
+L466: D5 : }
+L467: D5 : 
+L468: D5 : Spacer(modifier = Modifier.height(60.dp)
+L469: D4 : }
+L470: D3 : }
+L471: D3 : 
+L472: D3 : // Name Change configuration dialog
+L473: D4 : if (showNameDialog) {
+L474: D5 : Dialog(onDismissRequest = { showNameDial
+L475: D5 : Card(
+L476: D5 : colors = CardDefaults.cardColors(contain
+L477: D5 : shape = RoundedCornerShape(24.dp)
+L478: D6 : ) {
+L479: D6 : Column(
+L480: D6 : modifier = Modifier.padding(24.dp),
+L481: D6 : verticalArrangement = Arrangement.spaced
+L482: D7 : ) {
+L483: D7 : Text(text = "Ubah Nama Panggilan", style
+L484: D7 : 
+L485: D7 : OutlinedTextField(
+L486: D7 : value = nameInputValue,
+L487: D7 : onValueChange = { nameInputValue = it },
+L488: D7 : label = { Text("Nama Panggilan") },
+L489: D7 : singleLine = true,
+L490: D7 : modifier = Modifier
+L491: D7 : .fillMaxWidth()
+L492: D7 : .testTag("new_username_input")
+L493: D7 : )
+L494: D7 : 
+L495: D7 : Row(
+L496: D7 : modifier = Modifier.fillMaxWidth(),
+L497: D7 : horizontalArrangement = Arrangement.End
+L498: D8 : ) {
+L499: D9 : TextButton(onClick = { showNameDialog = 
+L500: D9 : Text("Batal")
+L501: D8 : }
+L502: D8 : Spacer(modifier = Modifier.width(8.dp))
+L503: D8 : Button(
+L504: D9 : onClick = {
+L505: D10 : if (nameInputValue.isNotBlank()) {
+L506: D10 : viewModel.setUserName(nameInputValue.tri
+L507: D10 : showNameDialog = false
+L508: D10 : Toast.makeText(context, "Nama berhasil d
+L509: D10 : } else {
+L510: D10 : Toast.makeText(context, "Nama tidak bole
+L511: D9 : }
+L512: D8 : }
+L513: D9 : ) {
+L514: D9 : Text("Simpan")
+L515: D8 : }
+L516: D7 : }
+L517: D6 : }
+L518: D5 : }
+L519: D4 : }
+L520: D3 : }
+L521: D3 : 
+L522: D3 : // PIN Change configuration dialog
+L523: D4 : if (showPinDialog) {
+L524: D5 : Dialog(onDismissRequest = { showPinDialo
+L525: D5 : Card(
+L526: D5 : colors = CardDefaults.cardColors(contain
+L527: D5 : shape = RoundedCornerShape(24.dp)
+L528: D6 : ) {
+L529: D6 : Column(
+L530: D6 : modifier = Modifier.padding(24.dp),
+L531: D6 : verticalArrangement = Arrangement.spaced
+L532: D7 : ) {
+L533: D7 : Text(text = "Ganti PIN Aplikasi", style 
+L534: D7 : 
+L535: D7 : OutlinedTextField(
+L536: D7 : value = pinInputValue,
+L537: D7 : onValueChange = { if (it.length <= 4 && 
+L538: D7 : label = { Text("PIN Baru (4 Digit Angka)
+L539: D7 : singleLine = true,
+L540: D7 : modifier = Modifier
+L541: D7 : .fillMaxWidth()
+L542: D7 : .testTag("new_security_pin_input")
+L543: D7 : )
+L544: D7 : 
+L545: D7 : Row(
+L546: D7 : modifier = Modifier.fillMaxWidth(),
+L547: D7 : horizontalArrangement = Arrangement.End
+L548: D8 : ) {
+L549: D9 : TextButton(onClick = { showPinDialog = f
+L550: D9 : Text("Batal")
+L551: D8 : }
+L552: D8 : Spacer(modifier = Modifier.width(8.dp))
+L553: D8 : Button(
+L554: D9 : onClick = {
+L555: D10 : if (pinInputValue.length == 4) {
+L556: D10 : viewModel.setPin(pinInputValue)
+L557: D10 : showPinDialog = false
+L558: D10 : Toast.makeText(context, "PIN Keamanan be
+L559: D9 : }
+L560: D8 : },
+L561: D8 : enabled = pinInputValue.length == 4
+L562: D9 : ) {
+L563: D9 : Text("Simpan PIN")
+L564: D8 : }
+L565: D7 : }
+L566: D6 : }
+L567: D5 : }
+L568: D4 : }
+L569: D3 : }
+L570: D3 : 
+L571: D3 : // PDF Preview and Text Presentation Dia
+L572: D4 : if (showPdfReportDialog) {
+L573: D5 : Dialog(onDismissRequest = { showPdfRepor
+L574: D5 : Card(
+L575: D5 : modifier = Modifier
+L576: D5 : .fillMaxWidth()
+L577: D5 : .padding(vertical = 32.dp),
+L578: D5 : shape = RoundedCornerShape(24.dp),
+L579: D5 : colors = CardDefaults.cardColors(contain
+L580: D6 : ) {
+L581: D6 : Column(
+L582: D6 : modifier = Modifier
+L583: D6 : .padding(24.dp)
+L584: D6 : .verticalScroll(rememberScrollState()),
+L585: D6 : verticalArrangement = Arrangement.spaced
+L586: D7 : ) {
+L587: D7 : Row(
+L588: D7 : modifier = Modifier.fillMaxWidth(),
+L589: D7 : horizontalArrangement = Arrangement.Spac
+L590: D7 : verticalAlignment = Alignment.CenterVert
+L591: D8 : ) {
+L592: D8 : Text(text = "Pratinjau PDF Laporan", sty
+L593: D9 : IconButton(onClick = { showPdfReportDial
+L594: D9 : Icon(Icons.Default.Share, contentDescrip
+L595: D8 : }
+L596: D7 : }
+L597: D7 : 
+L598: D7 : Box(
+L599: D7 : modifier = Modifier
+L600: D7 : .fillMaxWidth()
+L601: D7 : .background(MaterialTheme.colorScheme.su
+L602: D7 : .padding(12.dp)
+L603: D8 : ) {
+L604: D8 : Text(
+L605: D8 : text = pdfReportText,
+L606: D8 : fontFamily = FontFamily.Monospace,
+L607: D8 : fontSize = 11.sp,
+L608: D8 : color = MaterialTheme.colorScheme.onSurf
+L609: D8 : )
+L610: D7 : }
+L611: D7 : 
+L612: D7 : Row(
+L613: D7 : modifier = Modifier.fillMaxWidth(),
+L614: D7 : horizontalArrangement = Arrangement.End
+L615: D8 : ) {
+L616: D8 : Button(
+L617: D9 : onClick = {
+L618: D9 : showPdfReportDialog = false
+L619: D9 : Toast.makeText(context, "Dokumen PDF Ber
+L620: D8 : }
+L621: D9 : ) {
+L622: D9 : Text("Bagikan PDF")
+L623: D8 : }
+L624: D7 : }
+L625: D6 : }
+L626: D5 : }
+L627: D4 : }
+L628: D3 : }
+L629: D2 : }
+L630: D2 : 
+L631: D2 : @Composable
+L632: D2 : fun SecuritySettingRow(
+L633: D2 : title: String,
+L634: D2 : subtitle: String,
+L635: D2 : icon: @Composable () -> Unit,
+L636: D2 : trailing: @Composable () -> Unit,
+L637: D2 : onClick: (() -> Unit)? = null,
+L638: D2 : enabled: Boolean = true,
+L639: D2 : modifier: Modifier = Modifier
+L640: D3 : ) {
+L641: D3 : Row(
+L642: D3 : modifier = modifier
+L643: D3 : .fillMaxWidth()
+L644: D3 : .alpha(if (enabled) 1f else 0.5f)
+L645: D3 : .clickable(enabled = enabled && onClick 
+L646: D3 : .padding(16.dp),
+L647: D3 : verticalAlignment = Alignment.CenterVert
+L648: D4 : ) {
+L649: D4 : Box(
+L650: D4 : modifier = Modifier
+L651: D4 : .size(36.dp)
+L652: D4 : .background(MaterialTheme.colorScheme.pr
+L653: D4 : contentAlignment = Alignment.Center
+L654: D5 : ) {
+L655: D5 : icon()
+L656: D4 : }
+L657: D4 : 
+L658: D4 : Spacer(modifier = Modifier.width(16.dp))
+L659: D4 : 
+L660: D5 : Column(modifier = Modifier.weight(1f)) {
+L661: D5 : Text(
+L662: D5 : text = title,
+L663: D5 : style = MaterialTheme.typography.bodyLar
+L664: D5 : fontWeight = FontWeight.Bold,
+L665: D5 : color = MaterialTheme.colorScheme.onSurf
+L666: D5 : )
+L667: D5 : Text(
+L668: D5 : text = subtitle,
+L669: D5 : style = MaterialTheme.typography.bodySma
+L670: D5 : color = MaterialTheme.colorScheme.onSurf
+L671: D5 : fontSize = 11.sp
+L672: D5 : )
+L673: D4 : }
+L674: D4 : 
+L675: D4 : Spacer(modifier = Modifier.width(8.dp))
+L676: D4 : 
+L677: D4 : trailing()
+L678: D3 : }
+L679: D2 : }
