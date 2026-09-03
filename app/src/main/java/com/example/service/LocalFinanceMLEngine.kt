@@ -282,7 +282,7 @@ object LocalFinanceMLEngine {
             recs.add("📉 Pola Penghematan Bermutu Tinggi: Tren belanja diprediksi menyusut sebesar **${rp.format(abs(forecastedVariance))}** dalam 7 hari ke depan. Pertahankan ketelitian belanja.")
         }
 
-        // 8. GENERATING AN EXTREMELY PREMIUM MARKDOWN REPORT
+        // 8. GENERATING COMPREHENSIVE MARKDOWN REPORT
         val reportBuilder = StringBuilder()
         reportBuilder.append("### 🦾 Laporan Asisten Cerdas (ML Analyst v2)\n\n")
         reportBuilder.append("Analisis parameter keuangan internal diproses secara andal pada perangkat Anda:\n\n")

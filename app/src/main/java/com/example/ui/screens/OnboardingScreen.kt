@@ -127,7 +127,7 @@ fun OnboardingScreen(
                                 textAlign = TextAlign.Center
                             )
                             Text(
-                                text = "Your premium personal finance manager. Secure, smart, and fully localized on your device.",
+                                text = "Aplikasi manajemen keuangan pribadi yang cerdas, aman, dan sepenuhnya tersimpan di perangkat Anda.",
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 textAlign = TextAlign.Center,
@@ -141,7 +141,7 @@ fun OnboardingScreen(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Badge(icon = Icons.Default.Security, text = "Secure", themeDark = themeDark)
-                            Badge(icon = Icons.Default.Star, text = "Premium", themeDark = themeDark)
+                            Badge(icon = Icons.Default.Star, text = "Smart", themeDark = themeDark)
                             Badge(icon = Icons.Default.CheckCircle, text = "Offline", themeDark = themeDark)
                         }
 

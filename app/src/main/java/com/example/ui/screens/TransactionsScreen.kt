@@ -1,6 +1,7 @@
 package com.example.ui.screens
 
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -27,6 +28,8 @@ import androidx.compose.material.icons.Icons
 import android.Manifest
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
+import android.net.Uri
+import com.example.service.ReceiptOcrScanner
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -42,12 +45,14 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
@@ -69,6 +74,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -93,15 +100,20 @@ fun TransactionsScreen(
     val selectedCurrency by viewModel.selectedCurrency.collectAsStateWithLifecycle()
     var showAddDialog by remember { mutableStateOf(false) }
     var capturedReceiptBitmap by remember { mutableStateOf<Bitmap?>(null) }
+    var capturedReceiptUri by remember { mutableStateOf<Uri?>(null) }
+    var pendingCameraUri by remember { mutableStateOf<Uri?>(null) }
     var isSpeedDialExpanded by remember { mutableStateOf(false) }
     var defaultNewType by remember { mutableStateOf("EXPENSE") }
     var transactionToEdit by remember { mutableStateOf<Transaction?>(null) }
+    var transactionToDelete by remember { mutableStateOf<Transaction?>(null) }
 
     val takePictureLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.TakePicturePreview()
-    ) { bitmap: Bitmap? ->
-        if (bitmap != null) {
-            capturedReceiptBitmap = bitmap
+        contract = ActivityResultContracts.TakePicture()
+    ) { success: Boolean ->
+        if (success && pendingCameraUri != null) {
+            val uri = pendingCameraUri!!
+            capturedReceiptUri = uri
+            capturedReceiptBitmap = ReceiptOcrScanner.loadOptimizedBitmap(context, uri)
         }
     }
 
@@ -109,7 +121,9 @@ fun TransactionsScreen(
         contract = ActivityResultContracts.RequestPermission()
     ) { isGranted ->
         if (isGranted) {
-            takePictureLauncher.launch(null)
+            val uri = ReceiptOcrScanner.createTempImageUri(context)
+            pendingCameraUri = uri
+            takePictureLauncher.launch(uri)
         } else {
             Toast.makeText(context, "Izin kamera diperlukan untuk memindai nota", Toast.LENGTH_SHORT).show()
         }
@@ -122,7 +136,9 @@ fun TransactionsScreen(
         ) == PackageManager.PERMISSION_GRANTED
 
         if (hasPermission) {
-            takePictureLauncher.launch(null)
+            val uri = ReceiptOcrScanner.createTempImageUri(context)
+            pendingCameraUri = uri
+            takePictureLauncher.launch(uri)
         } else {
             cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
         }
@@ -263,7 +279,7 @@ fun TransactionsScreen(
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(horizontal = 16.dp),
-                    contentPadding = PaddingValues(top = 16.dp, bottom = 120.dp),
+                    contentPadding = PaddingValues(top = 16.dp, bottom = 150.dp),
                     verticalArrangement = Arrangement.spacedBy(24.dp)
                 ) {
                     if (groupedTxs.isEmpty()) {
@@ -323,7 +339,7 @@ fun TransactionsScreen(
                                         tx = tx,
                                         themeDark = themeDark,
                                         viewModel = viewModel,
-                                        onDelete = { viewModel.deleteTransaction(it) },
+                                        onDelete = { transactionToDelete = it },
                                         onUpdate = { 
                                             transactionToEdit = it
                                             showAddDialog = true 
@@ -347,17 +363,27 @@ fun TransactionsScreen(
             onDismiss = { 
                 showAddDialog = false
                 transactionToEdit = null
+            },
+            onDelete = { tx ->
+                showAddDialog = false
+                transactionToEdit = null
+                transactionToDelete = tx
             }
         )
     }
 
-    if (capturedReceiptBitmap != null) {
+    if (capturedReceiptBitmap != null || capturedReceiptUri != null) {
         ReceiptScannerDialog(
             viewModel = viewModel,
-            bitmap = capturedReceiptBitmap!!,
-            onDismiss = { capturedReceiptBitmap = null },
+            bitmap = capturedReceiptBitmap,
+            imageUri = capturedReceiptUri,
+            onDismiss = {
+                capturedReceiptBitmap = null
+                capturedReceiptUri = null
+            },
             onRelaunchCamera = {
                 capturedReceiptBitmap = null
+                capturedReceiptUri = null
                 launchDirectCamera()
             },
             onConfirmAdd = { title, amount, type, category ->
@@ -368,6 +394,149 @@ fun TransactionsScreen(
                     category = category
                 )
                 capturedReceiptBitmap = null
+                capturedReceiptUri = null
+            }
+        )
+    }
+
+    // Confirmation Alert Dialog before deleting transaction
+    if (transactionToDelete != null) {
+        val tx = transactionToDelete!!
+        AlertDialog(
+            onDismissRequest = { transactionToDelete = null },
+            modifier = Modifier.testTag("delete_confirmation_dialog"),
+            shape = RoundedCornerShape(32.dp),
+            containerColor = if (themeDark) Color(0xFF1E293B) else Color.White,
+            icon = {
+                Box(
+                    modifier = Modifier
+                        .size(56.dp)
+                        .background(Color(0xFFEF4444).copy(alpha = 0.15f), CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Delete,
+                        contentDescription = null,
+                        tint = Color(0xFFEF4444),
+                        modifier = Modifier.size(28.dp)
+                    )
+                }
+            },
+            title = {
+                Text(
+                    text = "Hapus Transaksi?",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            },
+            text = {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text(
+                        text = "Apakah Anda yakin ingin menghapus data transaksi ini? Data yang dihapus tidak dapat dikembalikan.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    // Bento summary card preview
+                    Surface(
+                        shape = RoundedCornerShape(20.dp),
+                        color = if (themeDark) Color(0xFF0F172A) else Color(0xFFF1F5F9),
+                        border = BorderStroke(
+                            1.dp,
+                            if (themeDark) Color.White.copy(alpha = 0.08f) else Color.Black.copy(alpha = 0.06f)
+                        ),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(14.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(40.dp)
+                                    .background(
+                                        if (tx.type == "INCOME") Color(0xFF10B981).copy(alpha = 0.15f)
+                                        else Color(0xFFEF4444).copy(alpha = 0.15f),
+                                        CircleShape
+                                    ),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = if (tx.type == "INCOME") Icons.Default.ArrowUpward else Icons.Default.ArrowDownward,
+                                    contentDescription = null,
+                                    tint = if (tx.type == "INCOME") Color(0xFF10B981) else Color(0xFFEF4444),
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.width(12.dp))
+
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = tx.title,
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                Text(
+                                    text = tx.category,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+
+                            Text(
+                                text = (if (tx.type == "INCOME") "+" else "-") + viewModel.formatCurrency(tx.amount),
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Black,
+                                color = if (tx.type == "INCOME") Color(0xFF10B981) else Color(0xFFEF4444)
+                            )
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val deletedTitle = tx.title
+                        viewModel.deleteTransaction(tx)
+                        transactionToDelete = null
+                        Toast.makeText(context, "Transaksi \"$deletedTitle\" berhasil dihapus", Toast.LENGTH_SHORT).show()
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFFEF4444),
+                        contentColor = Color.White
+                    ),
+                    shape = RoundedCornerShape(20.dp),
+                    modifier = Modifier.testTag("confirm_delete_button")
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Delete,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Hapus", fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                OutlinedButton(
+                    onClick = { transactionToDelete = null },
+                    shape = RoundedCornerShape(20.dp),
+                    modifier = Modifier.testTag("cancel_delete_button")
+                ) {
+                    Text("Batal", fontWeight = FontWeight.SemiBold)
+                }
             }
         )
     }
@@ -391,7 +560,7 @@ fun TransactionItemRowBento(
                 }
                 SwipeToDismissBoxValue.EndToStart -> {
                     onDelete(tx)
-                    true // Dismiss item
+                    false // Keep item in place until user confirms deletion in the alert dialog
                 }
                 else -> false
             }
@@ -444,6 +613,7 @@ fun TransactionItemRowBento(
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(24.dp))
                     .background(if (themeDark) Color(0xFF0F172A) else Color(0xFFF8FAFC))
+                    .clickable { onUpdate(tx) }
                     .padding(16.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -510,7 +680,8 @@ fun AddTransactionModalBento(
     themeDark: Boolean,
     initialTransaction: Transaction? = null,
     defaultType: String = "EXPENSE",
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    onDelete: ((Transaction) -> Unit)? = null
 ) {
     val selectedCurrency by viewModel.selectedCurrency.collectAsStateWithLifecycle()
     var title by remember { mutableStateOf(initialTransaction?.title ?: "") }
@@ -523,11 +694,12 @@ fun AddTransactionModalBento(
         Surface(
             shape = RoundedCornerShape(32.dp),
             color = if (themeDark) Color(0xFF1E293B) else Color.White,
+            contentColor = if (themeDark) Color.White else Color(0xFF0F172A),
             modifier = Modifier.fillMaxWidth().testTag("add_transaction_modal_surface")
         ) {
             Column(
                 modifier = Modifier.padding(24.dp),
-                verticalArrangement = Arrangement.spacedBy(20.dp)
+                verticalArrangement = Arrangement.spacedBy(18.dp)
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -540,9 +712,9 @@ fun AddTransactionModalBento(
                     ) {
                         Box(
                             modifier = Modifier
-                                .size(42.dp)
+                                .size(44.dp)
                                 .background(
-                                    color = if (type == "INCOME") Color(0xFF10B981).copy(alpha = 0.15f) else Color(0xFFEF4444).copy(alpha = 0.15f),
+                                    color = if (type == "INCOME") Color(0xFF10B981).copy(alpha = 0.18f) else Color(0xFFEF4444).copy(alpha = 0.18f),
                                     shape = CircleShape
                                 ),
                             contentAlignment = Alignment.Center
@@ -551,7 +723,7 @@ fun AddTransactionModalBento(
                                 imageVector = if (type == "INCOME") Icons.AutoMirrored.Filled.TrendingUp else Icons.AutoMirrored.Filled.TrendingDown,
                                 contentDescription = null,
                                 tint = if (type == "INCOME") Color(0xFF10B981) else Color(0xFFEF4444),
-                                modifier = Modifier.size(22.dp)
+                                modifier = Modifier.size(24.dp)
                             )
                         }
                         Column {
@@ -562,7 +734,8 @@ fun AddTransactionModalBento(
                                     if (type == "INCOME") "Edit Pemasukan" else "Edit Pengeluaran"
                                 },
                                 style = MaterialTheme.typography.titleLarge,
-                                fontWeight = FontWeight.Black
+                                fontWeight = FontWeight.Bold,
+                                color = if (themeDark) Color.White else Color(0xFF0F172A)
                             )
                             Text(
                                 text = if (type == "INCOME") "Pemasukan Dana Baru" else "Pengeluaran Biaya Baru",
@@ -572,20 +745,30 @@ fun AddTransactionModalBento(
                             )
                         }
                     }
-                    IconButton(onClick = onDismiss, modifier = Modifier.size(32.dp)) {
-                        Icon(Icons.Default.Close, contentDescription = "Close")
+                    IconButton(onClick = onDismiss, modifier = Modifier.size(36.dp)) {
+                        Icon(
+                            Icons.Default.Close,
+                            contentDescription = "Tutup",
+                            tint = if (themeDark) Color.White.copy(alpha = 0.8f) else Color(0xFF64748B)
+                        )
                     }
                 }
 
                 OutlinedTextField(
                     value = title,
                     onValueChange = { title = it },
-                    label = { Text("Keterangan") },
+                    label = { Text("Keterangan", fontWeight = FontWeight.Medium) },
                     placeholder = { Text(if (type == "INCOME") "cth. Gaji Bulanan, Bonus Proyek" else "cth. Belanja Bulanan, Bensin") },
-                    shape = RoundedCornerShape(24.dp),
+                    shape = RoundedCornerShape(20.dp),
                     modifier = Modifier.fillMaxWidth(),
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = if (type == "INCOME") Color(0xFF10B981) else Color(0xFFEF4444)
+                        focusedTextColor = if (themeDark) Color.White else Color(0xFF0F172A),
+                        unfocusedTextColor = if (themeDark) Color(0xFFF1F5F9) else Color(0xFF1E293B),
+                        focusedBorderColor = if (type == "INCOME") Color(0xFF10B981) else Color(0xFFEF4444),
+                        unfocusedBorderColor = if (themeDark) Color.White.copy(alpha = 0.22f) else Color.Black.copy(alpha = 0.15f),
+                        focusedLabelColor = if (type == "INCOME") Color(0xFF10B981) else Color(0xFFEF4444),
+                        unfocusedLabelColor = if (themeDark) Color(0xFF94A3B8) else Color(0xFF64748B),
+                        cursorColor = if (type == "INCOME") Color(0xFF10B981) else Color(0xFFEF4444)
                     )
                 )
 
@@ -595,86 +778,139 @@ fun AddTransactionModalBento(
                         val clean = input.filter { it.isDigit() }
                         if (clean.length <= 15) amount = clean
                     },
-                    label = { Text("Nominal (${if (selectedCurrency == "USD") "USD $" else "Rupiah Rp"})") },
+                    label = { Text("Nominal (${if (selectedCurrency == "USD") "USD $" else "Rupiah Rp"})", fontWeight = FontWeight.Medium) },
                     placeholder = { Text(if (selectedCurrency == "USD") "misal: 25" else "misal: 45.000") },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     visualTransformation = RupiahVisualTransformation(isUsd = selectedCurrency == "USD"),
-                    shape = RoundedCornerShape(24.dp),
+                    shape = RoundedCornerShape(20.dp),
                     modifier = Modifier.fillMaxWidth(),
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = if (type == "INCOME") Color(0xFF10B981) else Color(0xFFEF4444)
+                        focusedTextColor = if (themeDark) Color.White else Color(0xFF0F172A),
+                        unfocusedTextColor = if (themeDark) Color(0xFFF1F5F9) else Color(0xFF1E293B),
+                        focusedBorderColor = if (type == "INCOME") Color(0xFF10B981) else Color(0xFFEF4444),
+                        unfocusedBorderColor = if (themeDark) Color.White.copy(alpha = 0.22f) else Color.Black.copy(alpha = 0.15f),
+                        focusedLabelColor = if (type == "INCOME") Color(0xFF10B981) else Color(0xFFEF4444),
+                        unfocusedLabelColor = if (themeDark) Color(0xFF94A3B8) else Color(0xFF64748B),
+                        cursorColor = if (type == "INCOME") Color(0xFF10B981) else Color(0xFFEF4444)
                     )
                 )
 
-                Text("Kategori", fontWeight = FontWeight.Bold)
-                
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .horizontalScroll(rememberScrollState())
-                ) {
-                    categories.forEach { cat ->
-                        val isSelected = category == cat
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(16.dp))
-                                .background(
-                                    if (isSelected) (if (type == "INCOME") Color(0xFF10B981) else Color(0xFFEF4444))
-                                    else if (themeDark) Color.White.copy(alpha = 0.1f) else Color.Black.copy(alpha = 0.05f)
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        text = "Kategori",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = if (themeDark) Color.White else Color(0xFF0F172A)
+                    )
+                    
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState())
+                    ) {
+                        categories.forEach { cat ->
+                            val isSelected = category == cat
+                            Surface(
+                                shape = RoundedCornerShape(16.dp),
+                                color = if (isSelected) (if (type == "INCOME") Color(0xFF10B981) else Color(0xFFEF4444))
+                                        else if (themeDark) Color(0xFF334155) else Color(0xFFF1F5F9),
+                                border = BorderStroke(
+                                    1.dp,
+                                    if (isSelected) Color.Transparent
+                                    else if (themeDark) Color.White.copy(alpha = 0.12f) else Color.Black.copy(alpha = 0.08f)
+                                ),
+                                modifier = Modifier.clickable { category = cat }
+                            ) {
+                                Text(
+                                    text = cat,
+                                    fontSize = 13.sp,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                    color = if (isSelected) Color.White else if (themeDark) Color(0xFFE2E8F0) else Color(0xFF334155),
+                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
                                 )
-                                .clickable { category = cat }
-                                .padding(horizontal = 16.dp, vertical = 10.dp)
-                        ) {
-                            Text(
-                                text = cat,
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                            }
                         }
                     }
                 }
 
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(4.dp))
 
-                Button(
-                    onClick = {
-                        val cleanAmt = amount.filter { it.isDigit() }
-                        val dAmount = cleanAmt.toDoubleOrNull() ?: 0.0
-                        if (title.isNotBlank() && dAmount > 0) {
-                            if (initialTransaction != null) {
-                                viewModel.updateTransaction(
-                                    initialTransaction.copy(
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    if (initialTransaction != null && onDelete != null) {
+                        OutlinedButton(
+                            onClick = {
+                                onDelete(initialTransaction)
+                            },
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                contentColor = Color(0xFFEF4444)
+                            ),
+                            border = BorderStroke(1.dp, Color(0xFFEF4444).copy(alpha = 0.6f)),
+                            shape = RoundedCornerShape(20.dp),
+                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+                            modifier = Modifier
+                                .height(50.dp)
+                                .testTag("delete_transaction_button")
+                        ) {
+                            Icon(
+                                Icons.Default.Delete,
+                                contentDescription = "Hapus Transaksi",
+                                tint = Color(0xFFEF4444),
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Hapus", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                        }
+                    }
+
+                    Button(
+                        onClick = {
+                            val cleanAmt = amount.filter { it.isDigit() }
+                            val dAmount = cleanAmt.toDoubleOrNull() ?: 0.0
+                            if (title.isNotBlank() && dAmount > 0) {
+                                if (initialTransaction != null) {
+                                    viewModel.updateTransaction(
+                                        initialTransaction.copy(
+                                            title = title,
+                                            amount = dAmount,
+                                            type = type,
+                                            category = category
+                                        )
+                                    )
+                                } else {
+                                    viewModel.addTransaction(
                                         title = title,
                                         amount = dAmount,
                                         type = type,
                                         category = category
                                     )
-                                )
-                            } else {
-                                viewModel.addTransaction(
-                                    title = title,
-                                    amount = dAmount,
-                                    type = type,
-                                    category = category
-                                )
+                                }
+                                onDismiss()
                             }
-                            onDismiss()
-                        }
-                    },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(56.dp),
-                    shape = RoundedCornerShape(28.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = if (type == "INCOME") Color(0xFF10B981) else Color(0xFFEF4444),
-                        contentColor = Color.White
-                    ),
-                    enabled = title.isNotBlank() && amount.filter { it.isDigit() }.isNotEmpty()
-                ) {
-                    Text("Simpan Transaksi", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                        },
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(50.dp),
+                        shape = RoundedCornerShape(20.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (type == "INCOME") Color(0xFF10B981) else Color(0xFFEF4444),
+                            contentColor = Color.White
+                        ),
+                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 12.dp),
+                        enabled = title.isNotBlank() && amount.filter { it.isDigit() }.isNotEmpty()
+                    ) {
+                        Text(
+                            text = if (initialTransaction != null) "Perbarui" else "Simpan Transaksi",
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1
+                        )
+                    }
                 }
             }
         }

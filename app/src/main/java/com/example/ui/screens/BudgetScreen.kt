@@ -3,6 +3,7 @@ package com.example.ui.screens
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -93,7 +94,6 @@ fun BudgetScreen(
     val savingChallenges by viewModel.savingChallenges.collectAsStateWithLifecycle()
     val virtualBadges by viewModel.virtualBadges.collectAsStateWithLifecycle()
     val showBadgeUnlockDialog by viewModel.showBadgeUnlockDialog.collectAsStateWithLifecycle()
-    val budgetMonitoringEnabled by viewModel.budgetMonitoringEnabled.collectAsStateWithLifecycle()
     val context = LocalContext.current
 
     androidx.compose.runtime.LaunchedEffect(Unit) {
@@ -263,128 +263,6 @@ fun BudgetScreen(
                     contentPadding = PaddingValues(top = 16.dp, bottom = 100.dp)
                 ) {
             if (activeTab == 0) {
-                // Background Worker Monitoring Status Bento Card
-                item {
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .animateContentSize()
-                            .testTag("budget_background_worker_card"),
-                        colors = CardDefaults.cardColors(
-                            containerColor = if (themeDark) Color(0xFF1E293B).copy(alpha = 0.95f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
-                            contentColor = MaterialTheme.colorScheme.onSurface
-                        ),
-                        shape = RoundedCornerShape(32.dp),
-                        border = CardDefaults.outlinedCardBorder()
-                    ) {
-                        Column(
-                            modifier = Modifier.padding(20.dp),
-                            verticalArrangement = Arrangement.spacedBy(14.dp)
-                        ) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                                ) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(42.dp)
-                                            .clip(RoundedCornerShape(14.dp))
-                                            .background(
-                                                if (budgetMonitoringEnabled) MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
-                                                else MaterialTheme.colorScheme.surfaceVariant
-                                            ),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.Schedule,
-                                            contentDescription = "Background Worker",
-                                            tint = if (budgetMonitoringEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                                            modifier = Modifier.size(22.dp)
-                                        )
-                                    }
-
-                                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                                        Text(
-                                            text = "Pemantauan Latar Belakang",
-                                            style = MaterialTheme.typography.titleMedium,
-                                            fontWeight = FontWeight.Bold,
-                                            color = MaterialTheme.colorScheme.onSurface
-                                        )
-                                        Row(
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                                        ) {
-                                            Box(
-                                                modifier = Modifier
-                                                    .size(8.dp)
-                                                    .clip(RoundedCornerShape(4.dp))
-                                                    .background(
-                                                        if (budgetMonitoringEnabled) Color(0xFF10B981)
-                                                        else Color(0xFF94A3B8)
-                                                    )
-                                            )
-                                            Text(
-                                                text = if (budgetMonitoringEnabled) "WorkManager Aktif" else "Nonaktif",
-                                                style = MaterialTheme.typography.labelSmall,
-                                                fontWeight = FontWeight.Bold,
-                                                color = if (budgetMonitoringEnabled) Color(0xFF10B981) else MaterialTheme.colorScheme.onSurfaceVariant
-                                            )
-                                        }
-                                    }
-                                }
-
-                                Switch(
-                                    checked = budgetMonitoringEnabled,
-                                    onCheckedChange = { viewModel.setBudgetMonitoringEnabled(it) },
-                                    modifier = Modifier.testTag("budget_worker_toggle_switch")
-                                )
-                            }
-
-                            Text(
-                                text = "Layanan latar belakang mengevaluasi transaksi bulan berjalan dan mengirimkan notifikasi sistem secara otomatis saat pengeluaran kategori mendekati atau melebihi limit anggaran.",
-                                style = MaterialTheme.typography.bodySmall,
-                                lineHeight = 18.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-
-                            if (budgetMonitoringEnabled) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.End
-                                ) {
-                                    Button(
-                                        onClick = { viewModel.triggerManualBudgetCheck(context) },
-                                        shape = RoundedCornerShape(20.dp),
-                                        colors = ButtonDefaults.buttonColors(
-                                            containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
-                                            contentColor = MaterialTheme.colorScheme.primary
-                                        ),
-                                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
-                                        modifier = Modifier.testTag("budget_manual_check_btn")
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.Sync,
-                                            contentDescription = "Check Now",
-                                            modifier = Modifier.size(16.dp)
-                                        )
-                                        Spacer(modifier = Modifier.width(6.dp))
-                                        Text(
-                                            "Periksa Limit Sekarang",
-                                            style = MaterialTheme.typography.labelMedium,
-                                            fontWeight = FontWeight.Bold
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-
                 // Overall and Daily budgets if configured
                 val overallBudget = budgets.find { it.category == "ALL" }
                 val dailyBudget = budgets.find { it.category == "DAILY" }
@@ -872,7 +750,7 @@ fun BudgetScreen(
             }
 
             item {
-                Spacer(modifier = Modifier.height(60.dp))
+                Spacer(modifier = Modifier.navigationBarsPadding().height(140.dp))
             }
         }
         }

@@ -27,6 +27,7 @@ abstract class AppDatabase : RoomDatabase() {
 
         val MIGRATION_1_2 = object : Migration(1, 2) {
             override fun migrate(db: SupportSQLiteDatabase) {
+                // Ensure saving_goals table exists
                 db.execSQL(
                     """
                     CREATE TABLE IF NOT EXISTS `saving_goals` (
@@ -39,6 +40,7 @@ abstract class AppDatabase : RoomDatabase() {
                     )
                     """.trimIndent()
                 )
+                // Ensure recurring_bills table exists
                 db.execSQL(
                     """
                     CREATE TABLE IF NOT EXISTS `recurring_bills` (
@@ -52,6 +54,17 @@ abstract class AppDatabase : RoomDatabase() {
                     )
                     """.trimIndent()
                 )
+                // Ensure bankSource column and timestamp index are present
+                try {
+                    db.execSQL("ALTER TABLE `transactions` ADD COLUMN `bankSource` TEXT DEFAULT NULL")
+                } catch (_: Exception) {
+                    // Column already present in existing schema
+                }
+                try {
+                    db.execSQL("CREATE INDEX IF NOT EXISTS `index_transactions_timestamp` ON `transactions` (`timestamp`)")
+                } catch (_: Exception) {
+                    // Index already present
+                }
             }
         }
 
@@ -63,7 +76,7 @@ abstract class AppDatabase : RoomDatabase() {
                     "uangku_database"
                 )
                 .addMigrations(MIGRATION_1_2)
-                .fallbackToDestructiveMigration()
+                .fallbackToDestructiveMigrationOnDowngrade()
                 .build().also { INSTANCE = it }
             }
         }

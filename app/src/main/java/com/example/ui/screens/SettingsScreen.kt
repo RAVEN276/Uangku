@@ -5,6 +5,7 @@ import android.content.Intent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -84,7 +85,6 @@ fun SettingsScreen(
     val currentName by viewModel.userName.collectAsStateWithLifecycle()
     val isPinEnabled by viewModel.isPinEnabled.collectAsStateWithLifecycle()
     val bankNotificationEnabled by viewModel.bankNotificationEnabled.collectAsStateWithLifecycle()
-    val budgetMonitoringEnabled by viewModel.budgetMonitoringEnabled.collectAsStateWithLifecycle()
     val selectedCurrency by viewModel.selectedCurrency.collectAsStateWithLifecycle()
     val usdToIdrRate by viewModel.usdToIdrRate.collectAsStateWithLifecycle()
 
@@ -434,70 +434,6 @@ fun SettingsScreen(
                 }
             }
 
-            // --- PEMANTAUAN ANGGARAN LATAR BELAKANG SECTION ---
-            Text(
-                text = "Pemantauan Anggaran & Peringatan Sistem",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.padding(top = 8.dp)
-            )
-
-            Card(
-                modifier = Modifier.fillMaxWidth().testTag("budget_worker_settings_card"),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                shape = RoundedCornerShape(20.dp),
-                border = CardDefaults.outlinedCardBorder()
-            ) {
-                Column(modifier = Modifier.padding(4.dp)) {
-                    SecuritySettingRow(
-                        title = "Pemantauan Latar Belakang (WorkManager)",
-                        subtitle = "Evaluasi otomatis pengeluaran bulanan secara berkala dan kirim notifikasi jika melebihi batas limit anggaran.",
-                        icon = {
-                            Icon(
-                                imageVector = Icons.Default.NotificationsActive,
-                                contentDescription = "Budget Monitoring Worker",
-                                tint = MaterialTheme.colorScheme.primary
-                            )
-                        },
-                        trailing = {
-                            Switch(
-                                checked = budgetMonitoringEnabled,
-                                onCheckedChange = {
-                                    viewModel.setBudgetMonitoringEnabled(it)
-                                    if (it) {
-                                        Toast.makeText(context, "Pemantauan latar belakang diaktifkan.", Toast.LENGTH_SHORT).show()
-                                    } else {
-                                        Toast.makeText(context, "Pemantauan latar belakang dinonaktifkan.", Toast.LENGTH_SHORT).show()
-                                    }
-                                },
-                                modifier = Modifier.testTag("budget_monitoring_enabled_switch")
-                            )
-                        }
-                    )
-
-                    if (budgetMonitoringEnabled) {
-                        SecuritySettingRow(
-                            title = "Periksa Batas Anggaran Sekarang",
-                            subtitle = "Jalankan worker pemeriksaan pengeluaran bulanan dan limit kategori saat ini.",
-                            icon = {
-                                Icon(
-                                    imageVector = Icons.Default.Sync,
-                                    contentDescription = "Run Budget Worker Now",
-                                    tint = MaterialTheme.colorScheme.secondary
-                                )
-                            },
-                            onClick = {
-                                viewModel.triggerManualBudgetCheck(context)
-                            },
-                            trailing = {
-                                Text("Cek Sekarang", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                            }
-                        )
-                    }
-                }
-            }
-
             // --- MATA UANG & KURS GLOBAL SECTION ---
             Text(
                 text = "Mata Uang & Kurs Global",
@@ -661,7 +597,94 @@ fun SettingsScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(110.dp))
+            // --- INFORMASI & INTEGRITAS DATA ---
+            Text(
+                text = "Informasi & Versi Aplikasi",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.padding(top = 8.dp)
+            )
+
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                shape = RoundedCornerShape(20.dp),
+                border = CardDefaults.outlinedCardBorder()
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text(
+                                text = "Uangku",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = "Manajemen Keuangan Pribadi",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(MaterialTheme.colorScheme.primaryContainer)
+                                .padding(horizontal = 10.dp, vertical = 4.dp)
+                        ) {
+                            Text(
+                                text = "v2.2",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Black,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                        }
+                    }
+
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(1.dp)
+                            .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                    )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Lock,
+                            contentDescription = null,
+                            tint = Color(0xFF10B981),
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Column {
+                            Text(
+                                text = "Basis Data Aman & Terenkripsi Lokal",
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = "Pembaruan versi dijamin tidak menghapus data transaksi lama (Room Migration v2).",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.navigationBarsPadding().height(140.dp))
         }
     }
 

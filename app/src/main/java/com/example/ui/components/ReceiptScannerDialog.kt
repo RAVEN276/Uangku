@@ -1,7 +1,16 @@
 package com.example.ui.components
 
+import android.Manifest
+import android.content.pm.PackageManager
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.net.Uri
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -28,16 +37,24 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AddPhotoAlternate
+import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.DocumentScanner
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.EditNote
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.FlashOff
+import androidx.compose.material.icons.filled.FlashOn
+import androidx.compose.material.icons.filled.Note
 import androidx.compose.material.icons.filled.ReceiptLong
 import androidx.compose.material.icons.filled.RestartAlt
 import androidx.compose.material.icons.filled.Store
@@ -77,6 +94,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.core.content.ContextCompat
 import com.example.service.ParsedReceiptItem
 import com.example.service.ParsedReceiptResult
 import com.example.service.ReceiptOcrScanner
@@ -84,17 +102,22 @@ import com.example.ui.FinanceViewModel
 import kotlinx.coroutines.launch
 
 /**
- * Direct Camera OCR Scanner Result Modal (Google Drive Scanner style).
- * Rendered when a picture of a receipt is captured by the direct camera viewfinder.
- * Automatically runs Google ML Kit Text Recognition to extract total, merchant, and items.
+ * Google Drive OCR Scanner Dialog with Manual or Foto (Camera) feature.
+ * Provides:
+ * 1. "Foto" Mode: In-app Google Drive style viewfinder with document frame,
+ *    shutter button, gallery picker, and automated ML Kit OCR text recognition.
+ * 2. "Manual" Mode: Direct manual input form for transaction details.
  */
 @Composable
 fun ReceiptScannerDialog(
     viewModel: FinanceViewModel,
-    bitmap: Bitmap,
+    initialBitmap: Bitmap? = null,
+    bitmap: Bitmap? = initialBitmap,
+    initialImageUri: Uri? = null,
+    imageUri: Uri? = initialImageUri,
     onDismiss: () -> Unit,
-    onRelaunchCamera: () -> Unit,
-    onConfirmAdd: (title: String, amount: Double, type: String, category: String) -> Unit
+    onConfirmAdd: (title: String, amount: Double, type: String, category: String) -> Unit,
+    onRelaunchCamera: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
@@ -102,16 +125,87 @@ fun ReceiptScannerDialog(
     val currencyPref by viewModel.selectedCurrency.collectAsState()
     val isUsd = currencyPref == "USD"
 
-    // Scan State
-    var isProcessingOcr by remember { mutableStateOf(true) }
+    // Mode Selector: "FOTO" (Google Drive Document Scanner) vs "MANUAL" (Manual Form Input)
+    var activeMode by remember { mutableStateOf(if (initialBitmap != null || bitmap != null || initialImageUri != null || imageUri != null) "FOTO" else "FOTO") }
+
+    // Google Drive Capture Mode: "MANUAL" (user taps shutter) vs "AUTO" (auto capture mode indicator)
+    var driveCaptureMode by remember { mutableStateOf("MANUAL") }
+    var flashEnabled by remember { mutableStateOf(false) }
+
+    // Scanned image state
+    var currentImageUri by remember(initialImageUri, imageUri) { mutableStateOf<Uri?>(initialImageUri ?: imageUri) }
+    var currentBitmap by remember(initialBitmap, bitmap) { mutableStateOf<Bitmap?>(initialBitmap ?: bitmap) }
+    var pendingCameraUri by remember { mutableStateOf<Uri?>(null) }
+
+    // Full-resolution Camera & Gallery Launchers
+    val takePictureLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.TakePicture()
+    ) { success: Boolean ->
+        if (success && pendingCameraUri != null) {
+            val uri = pendingCameraUri!!
+            currentImageUri = uri
+            currentBitmap = ReceiptOcrScanner.loadOptimizedBitmap(context, uri)
+            activeMode = "FOTO"
+        }
+    }
+
+    val galleryLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickVisualMedia()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            try {
+                currentImageUri = uri
+                val decoded = ReceiptOcrScanner.loadOptimizedBitmap(context, uri)
+                if (decoded != null) {
+                    currentBitmap = decoded
+                    activeMode = "FOTO"
+                } else {
+                    Toast.makeText(context, "Gagal memproses gambar", Toast.LENGTH_SHORT).show()
+                }
+            } catch (e: Exception) {
+                Toast.makeText(context, "Error membaca galeri: ${e.message}", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    val cameraPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            val uri = ReceiptOcrScanner.createTempImageUri(context)
+            pendingCameraUri = uri
+            takePictureLauncher.launch(uri)
+        } else {
+            Toast.makeText(context, "Izin kamera diperlukan untuk memotret nota", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    fun launchCameraShutter() {
+        val hasPermission = ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.CAMERA
+        ) == PackageManager.PERMISSION_GRANTED
+
+        if (hasPermission) {
+            val uri = ReceiptOcrScanner.createTempImageUri(context)
+            pendingCameraUri = uri
+            takePictureLauncher.launch(uri)
+        } else {
+            cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+        }
+    }
+
+    // OCR Engine Scan State
+    var isProcessingOcr by remember { mutableStateOf(false) }
     var scanCompleted by remember { mutableStateOf(false) }
     var ocrStatusMessage by remember { mutableStateOf("Mengekstrak data struk...") }
 
-    // Extracted Fields for User Verification / Editing
+    // Form Fields (Shared between Foto & Manual modes)
     var merchantName by remember { mutableStateOf("") }
     var totalAmountInput by remember { mutableStateOf("") }
     var selectedCategory by remember { mutableStateOf("Makanan") }
     var selectedType by remember { mutableStateOf("EXPENSE") }
+    var noteInput by remember { mutableStateOf("") }
     var extractedItems by remember { mutableStateOf<List<ParsedReceiptItem>>(emptyList()) }
     var rawOcrText by remember { mutableStateOf("") }
     var showRawText by remember { mutableStateOf(false) }
@@ -120,7 +214,7 @@ fun ReceiptScannerDialog(
         listOf("Makanan", "Belanja", "Transportasi", "Tagihan", "Hiburan", "Kesehatan", "Pendidikan", "Investasi", "Lainnya")
     }
 
-    // Function to populate extracted data into state
+    // Populate OCR parsed data into state
     fun applyParsedOcrResult(result: ParsedReceiptResult) {
         merchantName = result.merchant
         totalAmountInput = if (result.totalAmount > 0) {
@@ -132,21 +226,52 @@ fun ReceiptScannerDialog(
         rawOcrText = result.rawText
         isProcessingOcr = false
         scanCompleted = true
-        ocrStatusMessage = "Struk berhasil diekstrak!"
+        ocrStatusMessage = if (result.totalAmount > 0) {
+            "Struk berhasil diekstrak otomatis!"
+        } else {
+            "Teks struk terbaca. Mohon periksa atau sesuaikan nominal."
+        }
     }
 
-    // Trigger ML Kit Text Recognition on the passed bitmap immediately
-    LaunchedEffect(bitmap) {
-        isProcessingOcr = true
-        scanCompleted = false
-        ocrStatusMessage = "Menjalankan OCR ML Kit pada struk..."
-        coroutineScope.launch {
-            val ocrResult = ReceiptOcrScanner.recognizeTextFromBitmap(bitmap, transactions)
-            ocrResult.onSuccess { parsed ->
-                applyParsedOcrResult(parsed)
-            }.onFailure { err ->
-                isProcessingOcr = false
-                Toast.makeText(context, "OCR Gagal: ${err.message}", Toast.LENGTH_SHORT).show()
+    // Trigger ML Kit OCR with full resolution Uri or Bitmap
+    LaunchedEffect(currentImageUri, currentBitmap) {
+        val uri = currentImageUri
+        val bmp = currentBitmap
+
+        if (uri != null) {
+            isProcessingOcr = true
+            scanCompleted = false
+            ocrStatusMessage = "Menjalankan Google OCR resolusi tinggi..."
+            coroutineScope.launch {
+                val ocrResult = ReceiptOcrScanner.recognizeTextFromUri(context, uri, transactions)
+                ocrResult.onSuccess { parsed ->
+                    applyParsedOcrResult(parsed)
+                }.onFailure { err ->
+                    if (bmp != null) {
+                        val fallbackResult = ReceiptOcrScanner.recognizeTextFromBitmap(bmp, transactions)
+                        fallbackResult.onSuccess { applyParsedOcrResult(it) }
+                            .onFailure {
+                                isProcessingOcr = false
+                                Toast.makeText(context, "OCR: ${it.message}", Toast.LENGTH_SHORT).show()
+                            }
+                    } else {
+                        isProcessingOcr = false
+                        Toast.makeText(context, "OCR Gagal: ${err.message}", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
+        } else if (bmp != null) {
+            isProcessingOcr = true
+            scanCompleted = false
+            ocrStatusMessage = "Menjalankan Google OCR pada struk..."
+            coroutineScope.launch {
+                val ocrResult = ReceiptOcrScanner.recognizeTextFromBitmap(bmp, transactions)
+                ocrResult.onSuccess { parsed ->
+                    applyParsedOcrResult(parsed)
+                }.onFailure { err ->
+                    isProcessingOcr = false
+                    Toast.makeText(context, "OCR Gagal: ${err.message}", Toast.LENGTH_SHORT).show()
+                }
             }
         }
     }
@@ -170,7 +295,7 @@ fun ReceiptScannerDialog(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color.Black.copy(alpha = 0.8f))
+                .background(Color.Black.copy(alpha = 0.85f))
                 .padding(16.dp),
             contentAlignment = Alignment.Center
         ) {
@@ -178,9 +303,9 @@ fun ReceiptScannerDialog(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(32.dp))
-                    .testTag("receipt_scanner_dialog_card"),
+                    .testTag("google_drive_scanner_dialog_card"),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                elevation = CardDefaults.cardElevation(defaultElevation = 16.dp)
+                elevation = CardDefaults.cardElevation(defaultElevation = 20.dp)
             ) {
                 Column(
                     modifier = Modifier
@@ -189,7 +314,7 @@ fun ReceiptScannerDialog(
                         .verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    // 1. Dialog Header
+                    // 1. Google Drive Document Scanner Header
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -205,34 +330,37 @@ fun ReceiptScannerDialog(
                                     .clip(RoundedCornerShape(14.dp))
                                     .background(
                                         Brush.linearGradient(
-                                            listOf(Color(0xFF6366F1), Color(0xFF8B5CF6))
+                                            listOf(Color(0xFF3B82F6), Color(0xFF10B981))
                                         )
                                     ),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(
-                                    imageVector = Icons.Default.ReceiptLong,
-                                    contentDescription = "Scan Struk",
+                                    imageVector = Icons.Default.DocumentScanner,
+                                    contentDescription = "Google Drive OCR",
                                     tint = Color.White,
                                     modifier = Modifier.size(24.dp)
                                 )
                             }
 
                             Column {
-                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
                                     Text(
-                                        text = "Hasil Scan Struk OCR",
+                                        text = "Google Drive OCR",
                                         style = MaterialTheme.typography.titleMedium,
                                         fontWeight = FontWeight.Black,
                                         color = MaterialTheme.colorScheme.onSurface
                                     )
                                     Surface(
-                                        color = Color(0xFF10B981).copy(alpha = 0.15f),
+                                        color = Color(0xFF3B82F6).copy(alpha = 0.15f),
                                         shape = RoundedCornerShape(8.dp)
                                     ) {
                                         Text(
-                                            text = "ML Kit Engine",
-                                            color = Color(0xFF10B981),
+                                            text = "Drive DocScan",
+                                            color = Color(0xFF3B82F6),
                                             fontSize = 9.sp,
                                             fontWeight = FontWeight.ExtraBold,
                                             modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
@@ -240,7 +368,7 @@ fun ReceiptScannerDialog(
                                     }
                                 }
                                 Text(
-                                    text = if (isProcessingOcr) "Mengekstrak total & rincian belanja..." else "Tinjau data sebelum disimpan",
+                                    text = if (activeMode == "FOTO") "Pindai nota otomatis dengan kamera atau galeri" else "Input rincian nota belanja secara manual",
                                     style = MaterialTheme.typography.labelSmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -252,133 +380,789 @@ fun ReceiptScannerDialog(
                         }
                     }
 
-                    // 2. Viewfinder & Scanned Image Preview HUD
-                    Box(
+                    // 2. Google Drive Style Mode Switcher: [ 📸 Foto | ✍️ Manual ]
+                    Surface(
+                        shape = RoundedCornerShape(24.dp),
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(170.dp)
-                            .clip(RoundedCornerShape(24.dp))
-                            .background(Color(0xFF0F172A))
-                            .border(1.dp, Color(0xFF334155), RoundedCornerShape(24.dp)),
-                        contentAlignment = Alignment.Center
+                            .padding(horizontal = 4.dp)
                     ) {
-                        Image(
-                            bitmap = bitmap.asImageBitmap(),
-                            contentDescription = "Preview Struk",
-                            modifier = Modifier.fillMaxSize(),
-                            contentScale = ContentScale.Crop
-                        )
-                        // Dark gradient overlay
-                        Box(
+                        Row(
                             modifier = Modifier
-                                .fillMaxSize()
-                                .background(Color.Black.copy(alpha = 0.4f))
-                        )
-
-                        // HUD Target Corner Reticles
-                        Canvas(modifier = Modifier.fillMaxSize()) {
-                            val strokeW = 4.dp.toPx()
-                            val cornerLen = 28.dp.toPx()
-                            val pad = 12.dp.toPx()
-                            val rectColor = Color(0xFF38BDF8)
-
-                            // Top-Left
-                            drawLine(rectColor, androidx.compose.ui.geometry.Offset(pad, pad), androidx.compose.ui.geometry.Offset(pad + cornerLen, pad), strokeW)
-                            drawLine(rectColor, androidx.compose.ui.geometry.Offset(pad, pad), androidx.compose.ui.geometry.Offset(pad, pad + cornerLen), strokeW)
-                            // Top-Right
-                            drawLine(rectColor, androidx.compose.ui.geometry.Offset(size.width - pad, pad), androidx.compose.ui.geometry.Offset(size.width - pad - cornerLen, pad), strokeW)
-                            drawLine(rectColor, androidx.compose.ui.geometry.Offset(size.width - pad, pad), androidx.compose.ui.geometry.Offset(size.width - pad, pad + cornerLen), strokeW)
-                            // Bottom-Left
-                            drawLine(rectColor, androidx.compose.ui.geometry.Offset(pad, size.height - pad), androidx.compose.ui.geometry.Offset(pad + cornerLen, size.height - pad), strokeW)
-                            drawLine(rectColor, androidx.compose.ui.geometry.Offset(pad, size.height - pad), androidx.compose.ui.geometry.Offset(pad, size.height - pad - cornerLen), strokeW)
-                            // Bottom-Right
-                            drawLine(rectColor, androidx.compose.ui.geometry.Offset(size.width - pad, size.height - pad), androidx.compose.ui.geometry.Offset(size.width - pad - cornerLen, size.height - pad), strokeW)
-                            drawLine(rectColor, androidx.compose.ui.geometry.Offset(size.width - pad, size.height - pad), androidx.compose.ui.geometry.Offset(size.width - pad, size.height - pad - cornerLen), strokeW)
-                        }
-
-                        // Animated Laser Line during OCR scanning
-                        if (isProcessingOcr) {
+                                .fillMaxWidth()
+                                .padding(4.dp),
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            // "Foto" Tab
                             Box(
                                 modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(2.dp)
-                                    .align(Alignment.TopCenter)
-                                    .offset(y = (170.dp * laserPosition))
+                                    .weight(1f)
+                                    .clip(RoundedCornerShape(20.dp))
                                     .background(
-                                        Brush.horizontalGradient(
-                                            listOf(
-                                                Color.Transparent,
-                                                Color(0xFF38BDF8),
-                                                Color(0xFF67E8F9),
-                                                Color(0xFF38BDF8),
-                                                Color.Transparent
-                                            )
-                                        )
+                                        if (activeMode == "FOTO") MaterialTheme.colorScheme.primary
+                                        else Color.Transparent
                                     )
-                            )
-                        }
-
-                        // Status message overlay inside viewfinder
-                        if (isProcessingOcr) {
-                            Column(
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                                    .clickable { activeMode = "FOTO" }
+                                    .padding(vertical = 10.dp)
+                                    .testTag("tab_mode_foto"),
+                                contentAlignment = Alignment.Center
                             ) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(28.dp),
-                                    color = Color(0xFF38BDF8),
-                                    strokeWidth = 2.5.dp
-                                )
-                                Text(
-                                    text = ocrStatusMessage,
-                                    color = Color.White,
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.CameraAlt,
+                                        contentDescription = "Foto",
+                                        tint = if (activeMode == "FOTO") MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Text(
+                                        text = "Foto (Scan OCR)",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 13.sp,
+                                        color = if (activeMode == "FOTO") MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
                             }
-                        } else if (scanCompleted) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+
+                            // "Manual" Tab
+                            Box(
                                 modifier = Modifier
-                                    .clip(RoundedCornerShape(16.dp))
-                                    .background(Color.Black.copy(alpha = 0.65f))
-                                    .padding(horizontal = 12.dp, vertical = 6.dp)
+                                    .weight(1f)
+                                    .clip(RoundedCornerShape(20.dp))
+                                    .background(
+                                        if (activeMode == "MANUAL") MaterialTheme.colorScheme.primary
+                                        else Color.Transparent
+                                    )
+                                    .clickable { activeMode = "MANUAL" }
+                                    .padding(vertical = 10.dp)
+                                    .testTag("tab_mode_manual"),
+                                contentAlignment = Alignment.Center
                             ) {
-                                Icon(
-                                    imageVector = Icons.Default.CheckCircle,
-                                    contentDescription = null,
-                                    tint = Color(0xFF34D399),
-                                    modifier = Modifier.size(20.dp)
-                                )
-                                Text(
-                                    text = "OCR Sukses: Data Siap Ditinjau",
-                                    color = Color(0xFF34D399),
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.EditNote,
+                                        contentDescription = "Manual",
+                                        tint = if (activeMode == "MANUAL") MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Text(
+                                        text = "Manual",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 13.sp,
+                                        color = if (activeMode == "MANUAL") MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
                             }
                         }
                     }
 
-                    // 3. Extracted Data Form & Verification Card
-                    if (scanCompleted) {
+                    // 3. FOTO MODE CONTENT
+                    if (activeMode == "FOTO") {
+                        if (currentBitmap == null) {
+                            // Google Drive Camera Viewfinder HUD (No photo taken yet)
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(230.dp)
+                                    .clip(RoundedCornerShape(24.dp))
+                                    .background(Color(0xFF0F172A))
+                                    .border(1.5.dp, Color(0xFF334155), RoundedCornerShape(24.dp)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                // Background grid effect
+                                Canvas(modifier = Modifier.fillMaxSize()) {
+                                    val strokeW = 3.dp.toPx()
+                                    val cornerLen = 32.dp.toPx()
+                                    val pad = 16.dp.toPx()
+                                    val rectColor = Color(0xFF38BDF8)
+
+                                    // Top-Left Corner
+                                    drawLine(rectColor, androidx.compose.ui.geometry.Offset(pad, pad), androidx.compose.ui.geometry.Offset(pad + cornerLen, pad), strokeW)
+                                    drawLine(rectColor, androidx.compose.ui.geometry.Offset(pad, pad), androidx.compose.ui.geometry.Offset(pad, pad + cornerLen), strokeW)
+                                    // Top-Right Corner
+                                    drawLine(rectColor, androidx.compose.ui.geometry.Offset(size.width - pad, pad), androidx.compose.ui.geometry.Offset(size.width - pad - cornerLen, pad), strokeW)
+                                    drawLine(rectColor, androidx.compose.ui.geometry.Offset(size.width - pad, pad), androidx.compose.ui.geometry.Offset(size.width - pad, pad + cornerLen), strokeW)
+                                    // Bottom-Left Corner
+                                    drawLine(rectColor, androidx.compose.ui.geometry.Offset(pad, size.height - pad), androidx.compose.ui.geometry.Offset(pad + cornerLen, size.height - pad), strokeW)
+                                    drawLine(rectColor, androidx.compose.ui.geometry.Offset(pad, size.height - pad), androidx.compose.ui.geometry.Offset(pad, size.height - pad - cornerLen), strokeW)
+                                    // Bottom-Right Corner
+                                    drawLine(rectColor, androidx.compose.ui.geometry.Offset(size.width - pad, size.height - pad), androidx.compose.ui.geometry.Offset(size.width - pad - cornerLen, size.height - pad), strokeW)
+                                    drawLine(rectColor, androidx.compose.ui.geometry.Offset(size.width - pad, size.height - pad), androidx.compose.ui.geometry.Offset(size.width - pad, size.height - pad - cornerLen), strokeW)
+                                }
+
+                                // Animated reticle scanning line
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(2.dp)
+                                        .align(Alignment.TopCenter)
+                                        .offset(y = (230.dp * laserPosition))
+                                        .background(
+                                            Brush.horizontalGradient(
+                                                listOf(
+                                                    Color.Transparent,
+                                                    Color(0xFF38BDF8),
+                                                    Color(0xFF67E8F9),
+                                                    Color(0xFF38BDF8),
+                                                    Color.Transparent
+                                                )
+                                            )
+                                        )
+                                )
+
+                                Column(
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                                    modifier = Modifier.padding(16.dp)
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(54.dp)
+                                            .clip(CircleShape)
+                                            .background(Color(0xFF1E293B)),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.DocumentScanner,
+                                            contentDescription = "Arahkan Kamera",
+                                            tint = Color(0xFF38BDF8),
+                                            modifier = Modifier.size(30.dp)
+                                        )
+                                    }
+
+                                    Text(
+                                        text = "Arahkan kamera ke struk belanja",
+                                        color = Color.White,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 14.sp
+                                    )
+
+                                    Text(
+                                        text = "Pastikan teks jelas & penerangan cukup untuk ekstraksi OCR otomatis",
+                                        color = Color(0xFF94A3B8),
+                                        fontSize = 11.sp,
+                                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                                        modifier = Modifier.padding(horizontal = 16.dp)
+                                    )
+                                }
+                            }
+
+                            // Google Drive Capture Mode Pill: [ Otomatis | Manual ]
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.Center
+                            ) {
+                                Surface(
+                                    shape = RoundedCornerShape(16.dp),
+                                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+                                    modifier = Modifier.clip(RoundedCornerShape(16.dp))
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(3.dp),
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .clip(RoundedCornerShape(12.dp))
+                                                .background(
+                                                    if (driveCaptureMode == "AUTO") MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
+                                                    else Color.Transparent
+                                                )
+                                                .clickable { driveCaptureMode = "AUTO" }
+                                                .padding(horizontal = 12.dp, vertical = 6.dp)
+                                        ) {
+                                            Text(
+                                                text = "Otomatis",
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = if (driveCaptureMode == "AUTO") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+
+                                        Box(
+                                            modifier = Modifier
+                                                .clip(RoundedCornerShape(12.dp))
+                                                .background(
+                                                    if (driveCaptureMode == "MANUAL") MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
+                                                    else Color.Transparent
+                                                )
+                                                .clickable { driveCaptureMode = "MANUAL" }
+                                                .padding(horizontal = 12.dp, vertical = 6.dp)
+                                        ) {
+                                            Text(
+                                                text = "Manual",
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = if (driveCaptureMode == "MANUAL") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Google Drive Scanner Bottom Control Bar (Gallery | Shutter | Flash)
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 4.dp),
+                                horizontalArrangement = Arrangement.SpaceEvenly,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                // Gallery Picker Button
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(52.dp)
+                                            .clip(CircleShape)
+                                            .background(MaterialTheme.colorScheme.surfaceVariant)
+                                            .clickable {
+                                                galleryLauncher.launch(
+                                                    PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                                                )
+                                            }
+                                            .testTag("scan_gallery_btn"),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.AddPhotoAlternate,
+                                            contentDescription = "Pilih dari Galeri",
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            modifier = Modifier.size(24.dp)
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text("Galeri", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+
+                                // Big Google Drive Circular Camera Shutter Button
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(76.dp)
+                                            .clip(CircleShape)
+                                            .border(4.dp, MaterialTheme.colorScheme.primary, CircleShape)
+                                            .padding(6.dp)
+                                            .clip(CircleShape)
+                                            .background(
+                                                Brush.linearGradient(
+                                                    listOf(Color(0xFF3B82F6), Color(0xFF2563EB))
+                                                )
+                                            )
+                                            .clickable { launchCameraShutter() }
+                                            .testTag("scan_camera_shutter_btn"),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.CameraAlt,
+                                            contentDescription = "Jepret Foto",
+                                            tint = Color.White,
+                                            modifier = Modifier.size(32.dp)
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text("Ambil Foto", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                                }
+
+                                // Flashlight Toggle Button
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(52.dp)
+                                            .clip(CircleShape)
+                                            .background(MaterialTheme.colorScheme.surfaceVariant)
+                                            .clickable {
+                                                flashEnabled = !flashEnabled
+                                                Toast.makeText(context, if (flashEnabled) "Lampu kilat aktif" else "Lampu kilat mati", Toast.LENGTH_SHORT).show()
+                                            }
+                                            .testTag("scan_flash_toggle_btn"),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = if (flashEnabled) Icons.Default.FlashOn else Icons.Default.FlashOff,
+                                            contentDescription = "Flashlight",
+                                            tint = if (flashEnabled) Color(0xFFF59E0B) else MaterialTheme.colorScheme.onSurfaceVariant,
+                                            modifier = Modifier.size(24.dp)
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text(if (flashEnabled) "Flash Nyala" else "Flash Mati", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                            }
+                        } else {
+                            // Scanned Image Preview HUD (Photo has been captured)
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(180.dp)
+                                    .clip(RoundedCornerShape(24.dp))
+                                    .background(Color(0xFF0F172A))
+                                    .border(1.5.dp, Color(0xFF334155), RoundedCornerShape(24.dp)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Image(
+                                    bitmap = currentBitmap!!.asImageBitmap(),
+                                    contentDescription = "Preview Struk",
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentScale = ContentScale.Crop
+                                )
+
+                                // Dark gradient overlay
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .background(Color.Black.copy(alpha = 0.35f))
+                                )
+
+                                // Corner reticles
+                                Canvas(modifier = Modifier.fillMaxSize()) {
+                                    val strokeW = 4.dp.toPx()
+                                    val cornerLen = 28.dp.toPx()
+                                    val pad = 12.dp.toPx()
+                                    val rectColor = Color(0xFF38BDF8)
+
+                                    drawLine(rectColor, androidx.compose.ui.geometry.Offset(pad, pad), androidx.compose.ui.geometry.Offset(pad + cornerLen, pad), strokeW)
+                                    drawLine(rectColor, androidx.compose.ui.geometry.Offset(pad, pad), androidx.compose.ui.geometry.Offset(pad, pad + cornerLen), strokeW)
+                                    drawLine(rectColor, androidx.compose.ui.geometry.Offset(size.width - pad, pad), androidx.compose.ui.geometry.Offset(size.width - pad - cornerLen, pad), strokeW)
+                                    drawLine(rectColor, androidx.compose.ui.geometry.Offset(size.width - pad, pad), androidx.compose.ui.geometry.Offset(size.width - pad, pad + cornerLen), strokeW)
+                                    drawLine(rectColor, androidx.compose.ui.geometry.Offset(pad, size.height - pad), androidx.compose.ui.geometry.Offset(pad + cornerLen, size.height - pad), strokeW)
+                                    drawLine(rectColor, androidx.compose.ui.geometry.Offset(pad, size.height - pad), androidx.compose.ui.geometry.Offset(pad, size.height - pad - cornerLen), strokeW)
+                                    drawLine(rectColor, androidx.compose.ui.geometry.Offset(size.width - pad, size.height - pad), androidx.compose.ui.geometry.Offset(size.width - pad - cornerLen, size.height - pad), strokeW)
+                                    drawLine(rectColor, androidx.compose.ui.geometry.Offset(size.width - pad, size.height - pad), androidx.compose.ui.geometry.Offset(size.width - pad, size.height - pad - cornerLen), strokeW)
+                                }
+
+                                // Laser line during active OCR
+                                if (isProcessingOcr) {
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(2.dp)
+                                            .align(Alignment.TopCenter)
+                                            .offset(y = (180.dp * laserPosition))
+                                            .background(
+                                                Brush.horizontalGradient(
+                                                    listOf(
+                                                        Color.Transparent,
+                                                        Color(0xFF38BDF8),
+                                                        Color(0xFF67E8F9),
+                                                        Color(0xFF38BDF8),
+                                                        Color.Transparent
+                                                    )
+                                                )
+                                            )
+                                    )
+                                }
+
+                                // Status overlay badge inside preview
+                                if (isProcessingOcr) {
+                                    Column(
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        CircularProgressIndicator(
+                                            modifier = Modifier.size(28.dp),
+                                            color = Color(0xFF38BDF8),
+                                            strokeWidth = 2.5.dp
+                                        )
+                                        Text(
+                                            text = ocrStatusMessage,
+                                            color = Color.White,
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                } else if (scanCompleted) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(16.dp))
+                                            .background(Color.Black.copy(alpha = 0.7f))
+                                            .padding(horizontal = 12.dp, vertical = 6.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.CheckCircle,
+                                            contentDescription = null,
+                                            tint = Color(0xFF34D399),
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                        Text(
+                                            text = "OCR Sukses: Silakan Verifikasi Data",
+                                            color = Color(0xFF34D399),
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                }
+                            }
+
+                            // OCR Verification & Editable Data Card
+                            Card(
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+                                ),
+                                shape = RoundedCornerShape(20.dp)
+                            ) {
+                                Column(
+                                    modifier = Modifier.padding(16.dp),
+                                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                                ) {
+                                    // Merchant Name
+                                    OutlinedTextField(
+                                        value = merchantName,
+                                        onValueChange = { merchantName = it },
+                                        label = { Text("Nama Toko / Merchant") },
+                                        leadingIcon = {
+                                            Icon(Icons.Default.Store, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                                        },
+                                        singleLine = true,
+                                        shape = RoundedCornerShape(16.dp),
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .testTag("ocr_merchant_input")
+                                    )
+
+                                    // Total Amount
+                                    OutlinedTextField(
+                                        value = totalAmountInput,
+                                        onValueChange = { input ->
+                                            val digits = input.filter { it.isDigit() }
+                                            if (digits.length <= 15) {
+                                                totalAmountInput = digits
+                                            }
+                                        },
+                                        label = { Text("Total Nominal (${if (isUsd) "USD" else "Rp"})") },
+                                        leadingIcon = {
+                                            Icon(Icons.Default.Edit, contentDescription = null, tint = MaterialTheme.colorScheme.secondary)
+                                        },
+                                        singleLine = true,
+                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                        visualTransformation = RupiahVisualTransformation(isUsd = isUsd),
+                                        shape = RoundedCornerShape(16.dp),
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .testTag("ocr_amount_input")
+                                    )
+
+                                    // Category Picker
+                                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                            Icon(Icons.Default.Category, contentDescription = null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.primary)
+                                            Text(
+                                                text = "Kategori Pengeluaran:",
+                                                style = MaterialTheme.typography.labelMedium,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        }
+
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .horizontalScroll(rememberScrollState()),
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            categoryList.forEach { cat ->
+                                                val isSelected = selectedCategory.equals(cat, ignoreCase = true)
+                                                Box(
+                                                    modifier = Modifier
+                                                        .clip(RoundedCornerShape(12.dp))
+                                                        .background(
+                                                            if (isSelected) MaterialTheme.colorScheme.primary
+                                                            else MaterialTheme.colorScheme.surfaceVariant
+                                                        )
+                                                        .clickable { selectedCategory = cat }
+                                                        .padding(horizontal = 12.dp, vertical = 6.dp)
+                                                ) {
+                                                    Text(
+                                                        text = cat,
+                                                        color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                                        fontSize = 11.sp,
+                                                        fontWeight = FontWeight.Bold
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    // Line items breakdown if parsed
+                                    if (extractedItems.isNotEmpty()) {
+                                        Column(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .clip(RoundedCornerShape(16.dp))
+                                                .background(MaterialTheme.colorScheme.surface)
+                                                .padding(12.dp),
+                                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            Text(
+                                                text = "Rincian Item (${extractedItems.size}):",
+                                                style = MaterialTheme.typography.labelMedium,
+                                                fontWeight = FontWeight.Bold,
+                                                color = MaterialTheme.colorScheme.primary
+                                            )
+
+                                            extractedItems.take(5).forEach { item ->
+                                                Row(
+                                                    modifier = Modifier.fillMaxWidth(),
+                                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                                    verticalAlignment = Alignment.CenterVertically
+                                                ) {
+                                                    Text(
+                                                        text = item.name,
+                                                        style = MaterialTheme.typography.bodySmall,
+                                                        modifier = Modifier.weight(1f),
+                                                        maxLines = 1
+                                                    )
+                                                    Text(
+                                                        text = if (isUsd) "$${item.price}" else "Rp ${String.format("%,d", item.price.toLong())}",
+                                                        style = MaterialTheme.typography.bodySmall,
+                                                        fontWeight = FontWeight.Bold
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    // Raw OCR Text viewer toggle
+                                    if (rawOcrText.isNotBlank()) {
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .clickable { showRawText = !showRawText }
+                                                .padding(vertical = 4.dp),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(
+                                                text = "Lihat Teks Asli Struk (OCR)",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = MaterialTheme.colorScheme.primary,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                            Icon(
+                                                imageVector = if (showRawText) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.primary,
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                        }
+
+                                        if (showRawText) {
+                                            Surface(
+                                                shape = RoundedCornerShape(12.dp),
+                                                color = Color(0xFF0F172A),
+                                                modifier = Modifier.fillMaxWidth()
+                                            ) {
+                                                Column(
+                                                    modifier = Modifier
+                                                        .padding(10.dp)
+                                                        .heightIn(max = 160.dp)
+                                                        .verticalScroll(rememberScrollState()),
+                                                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                                                ) {
+                                                    Text(
+                                                        text = "Sentuh baris teks di bawah untuk menyalin ke input:",
+                                                        fontSize = 10.sp,
+                                                        color = Color(0xFF38BDF8),
+                                                        fontWeight = FontWeight.SemiBold
+                                                    )
+                                                    rawOcrText.lines().filter { it.isNotBlank() }.forEach { line ->
+                                                        Row(
+                                                            modifier = Modifier
+                                                                .fillMaxWidth()
+                                                                .clip(RoundedCornerShape(6.dp))
+                                                                .background(Color(0xFF1E293B))
+                                                                .clickable {
+                                                                    val digits = line.filter { it.isDigit() }
+                                                                    if (digits.length in 3..12 && (line.contains("Rp", ignoreCase = true) || line.contains("total", ignoreCase = true) || line.contains("."))) {
+                                                                        totalAmountInput = digits
+                                                                        Toast.makeText(context, "Nominal diset ke: $digits", Toast.LENGTH_SHORT).show()
+                                                                    } else {
+                                                                        merchantName = line.take(30).trim()
+                                                                        Toast.makeText(context, "Toko diset ke: $line", Toast.LENGTH_SHORT).show()
+                                                                    }
+                                                                }
+                                                                .padding(horizontal = 8.dp, vertical = 4.dp),
+                                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                                            verticalAlignment = Alignment.CenterVertically
+                                                        ) {
+                                                            Text(
+                                                                text = line,
+                                                                fontFamily = FontFamily.Monospace,
+                                                                fontSize = 10.sp,
+                                                                color = Color(0xFFE2E8F0),
+                                                                modifier = Modifier.weight(1f)
+                                                            )
+                                                            Icon(
+                                                                Icons.Default.Edit,
+                                                                contentDescription = "Pilih",
+                                                                tint = Color(0xFF38BDF8),
+                                                                modifier = Modifier.size(14.dp)
+                                                            )
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Action buttons: Foto Ulang & Simpan Transaksi
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                OutlinedButton(
+                                    onClick = {
+                                        currentBitmap = null
+                                        currentImageUri = null
+                                        scanCompleted = false
+                                        isProcessingOcr = false
+                                        if (onRelaunchCamera != null) {
+                                            onRelaunchCamera()
+                                        } else {
+                                            launchCameraShutter()
+                                        }
+                                    },
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .testTag("rescan_receipt_btn")
+                                ) {
+                                    Icon(Icons.Default.RestartAlt, contentDescription = null, modifier = Modifier.size(18.dp))
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("Foto Ulang", fontSize = 12.sp)
+                                }
+
+                                Button(
+                                    onClick = {
+                                        val amountDouble = totalAmountInput.filter { it.isDigit() }.toDoubleOrNull() ?: 0.0
+                                        val finalTitle = merchantName.ifBlank { "Belanja Nota" }
+                                        if (amountDouble > 0) {
+                                            onConfirmAdd(
+                                                finalTitle,
+                                                amountDouble,
+                                                selectedType,
+                                                selectedCategory
+                                            )
+                                            Toast.makeText(context, "Transaksi nota berhasil disimpan!", Toast.LENGTH_SHORT).show()
+                                        } else {
+                                            Toast.makeText(context, "Nominal tidak valid", Toast.LENGTH_SHORT).show()
+                                        }
+                                    },
+                                    enabled = totalAmountInput.isNotBlank() && (totalAmountInput.filter { it.isDigit() }.toLongOrNull() ?: 0L) > 0L,
+                                    modifier = Modifier
+                                        .weight(1.3f)
+                                        .testTag("save_receipt_transaction_btn"),
+                                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                                ) {
+                                    Icon(Icons.Default.CheckCircle, contentDescription = null, modifier = Modifier.size(18.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text("Simpan Transaksi", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        }
+                    }
+
+                    // 4. MANUAL MODE CONTENT
+                    if (activeMode == "MANUAL") {
                         Card(
                             modifier = Modifier.fillMaxWidth(),
                             colors = CardDefaults.cardColors(
                                 containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
                             ),
-                            shape = RoundedCornerShape(20.dp)
+                            shape = RoundedCornerShape(24.dp)
                         ) {
                             Column(
                                 modifier = Modifier.padding(16.dp),
                                 verticalArrangement = Arrangement.spacedBy(14.dp)
                             ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.EditNote,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                    Text(
+                                        text = "Input Manual Transaksi Nota",
+                                        style = MaterialTheme.typography.titleSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                }
+
+                                // Type Selection: Pengeluaran vs Pemasukan
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .clip(RoundedCornerShape(14.dp))
+                                            .background(
+                                                if (selectedType == "EXPENSE") Color(0xFFEF4444).copy(alpha = 0.2f)
+                                                else MaterialTheme.colorScheme.surfaceVariant
+                                            )
+                                            .border(
+                                                width = 1.dp,
+                                                color = if (selectedType == "EXPENSE") Color(0xFFEF4444) else Color.Transparent,
+                                                shape = RoundedCornerShape(14.dp)
+                                            )
+                                            .clickable { selectedType = "EXPENSE" }
+                                            .padding(vertical = 8.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                            text = "Pengeluaran",
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 12.sp,
+                                            color = if (selectedType == "EXPENSE") Color(0xFFEF4444) else MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+
+                                    Box(
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .clip(RoundedCornerShape(14.dp))
+                                            .background(
+                                                if (selectedType == "INCOME") Color(0xFF10B981).copy(alpha = 0.2f)
+                                                else MaterialTheme.colorScheme.surfaceVariant
+                                            )
+                                            .border(
+                                                width = 1.dp,
+                                                color = if (selectedType == "INCOME") Color(0xFF10B981) else Color.Transparent,
+                                                shape = RoundedCornerShape(14.dp)
+                                            )
+                                            .clickable { selectedType = "INCOME" }
+                                            .padding(vertical = 8.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                            text = "Pemasukan",
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 12.sp,
+                                            color = if (selectedType == "INCOME") Color(0xFF10B981) else MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
+
                                 // Merchant Name Field
                                 OutlinedTextField(
                                     value = merchantName,
                                     onValueChange = { merchantName = it },
-                                    label = { Text("Nama Toko / Merchant") },
+                                    label = { Text("Nama Toko / Keperluan") },
+                                    placeholder = { Text("cth: Indomaret, Superindo, Warung") },
                                     leadingIcon = {
                                         Icon(Icons.Default.Store, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                                     },
@@ -386,7 +1170,7 @@ fun ReceiptScannerDialog(
                                     shape = RoundedCornerShape(16.dp),
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .testTag("ocr_merchant_input")
+                                        .testTag("manual_merchant_input")
                                 )
 
                                 // Total Amount Field
@@ -398,7 +1182,8 @@ fun ReceiptScannerDialog(
                                             totalAmountInput = digits
                                         }
                                     },
-                                    label = { Text("Total Nominal (${if (isUsd) "USD" else "Rp"})") },
+                                    label = { Text("Nominal (${if (isUsd) "USD" else "Rp"})") },
+                                    placeholder = { Text("0") },
                                     leadingIcon = {
                                         Icon(Icons.Default.Edit, contentDescription = null, tint = MaterialTheme.colorScheme.secondary)
                                     },
@@ -408,15 +1193,15 @@ fun ReceiptScannerDialog(
                                     shape = RoundedCornerShape(16.dp),
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .testTag("ocr_amount_input")
+                                        .testTag("manual_amount_input")
                                 )
 
-                                // Category Picker
+                                // Category Chips Selector
                                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                                         Icon(Icons.Default.Category, contentDescription = null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.primary)
                                         Text(
-                                            text = "Kategori Pengeluaran:",
+                                            text = "Pilih Kategori:",
                                             style = MaterialTheme.typography.labelMedium,
                                             fontWeight = FontWeight.Bold
                                         )
@@ -451,135 +1236,52 @@ fun ReceiptScannerDialog(
                                     }
                                 }
 
-                                // Extracted Items Breakdown (if parsed)
-                                if (extractedItems.isNotEmpty()) {
-                                    Column(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .clip(RoundedCornerShape(16.dp))
-                                            .background(MaterialTheme.colorScheme.surface)
-                                            .padding(12.dp),
-                                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                                    ) {
-                                        Text(
-                                            text = "Rincian Item (${extractedItems.size}):",
-                                            style = MaterialTheme.typography.labelMedium,
-                                            fontWeight = FontWeight.Bold,
-                                            color = MaterialTheme.colorScheme.primary
-                                        )
-
-                                        extractedItems.take(5).forEach { item ->
-                                            Row(
-                                                modifier = Modifier.fillMaxWidth(),
-                                                horizontalArrangement = Arrangement.SpaceBetween,
-                                                verticalAlignment = Alignment.CenterVertically
-                                            ) {
-                                                Text(
-                                                    text = item.name,
-                                                    style = MaterialTheme.typography.bodySmall,
-                                                    modifier = Modifier.weight(1f),
-                                                    maxLines = 1
-                                                )
-                                                Text(
-                                                    text = if (isUsd) "$${item.price}" else "Rp ${String.format("%,d", item.price.toLong())}",
-                                                    style = MaterialTheme.typography.bodySmall,
-                                                    fontWeight = FontWeight.Bold
-                                                )
-                                            }
-                                        }
-                                    }
-                                }
-
-                                // Raw OCR Debugging toggle
-                                if (rawOcrText.isNotBlank()) {
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .clickable { showRawText = !showRawText }
-                                            .padding(vertical = 4.dp),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Text(
-                                            text = "Lihat Teks Asli Struk",
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = MaterialTheme.colorScheme.primary,
-                                            fontWeight = FontWeight.Bold
-                                        )
-                                        Icon(
-                                            imageVector = if (showRawText) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-                                            contentDescription = null,
-                                            tint = MaterialTheme.colorScheme.primary,
-                                            modifier = Modifier.size(16.dp)
-                                        )
-                                    }
-
-                                    if (showRawText) {
-                                        Surface(
-                                            shape = RoundedCornerShape(12.dp),
-                                            color = Color(0xFF0F172A),
-                                            modifier = Modifier.fillMaxWidth()
-                                        ) {
-                                            Text(
-                                                text = rawOcrText,
-                                                fontFamily = FontFamily.Monospace,
-                                                fontSize = 10.sp,
-                                                color = Color(0xFF94A3B8),
-                                                modifier = Modifier
-                                                    .padding(10.dp)
-                                                    .heightIn(max = 120.dp)
-                                                    .verticalScroll(rememberScrollState())
-                                            )
-                                        }
-                                    }
-                                }
+                                // Additional Note Field
+                                OutlinedTextField(
+                                    value = noteInput,
+                                    onValueChange = { noteInput = it },
+                                    label = { Text("Catatan / Keterangan (Opsional)") },
+                                    placeholder = { Text("cth: Belanja mingguan keluarga") },
+                                    leadingIcon = {
+                                        Icon(Icons.Default.Note, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    },
+                                    singleLine = true,
+                                    shape = RoundedCornerShape(16.dp),
+                                    modifier = Modifier.fillMaxWidth()
+                                )
                             }
                         }
-                    }
 
-                    // 4. Action Buttons (Foto Ulang or Simpan Transaksi)
-                    if (scanCompleted) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        // Save Manual Button
+                        Button(
+                            onClick = {
+                                val amountDouble = totalAmountInput.filter { it.isDigit() }.toDoubleOrNull() ?: 0.0
+                                val finalTitle = merchantName.ifBlank {
+                                    if (selectedType == "INCOME") "Pemasukan Manual" else "Pengeluaran Manual"
+                                }
+                                if (amountDouble > 0) {
+                                    onConfirmAdd(
+                                        finalTitle,
+                                        amountDouble,
+                                        selectedType,
+                                        selectedCategory
+                                    )
+                                    Toast.makeText(context, "Transaksi berhasil dicatat!", Toast.LENGTH_SHORT).show()
+                                } else {
+                                    Toast.makeText(context, "Silakan masukkan nominal yang valid", Toast.LENGTH_SHORT).show()
+                                }
+                            },
+                            enabled = totalAmountInput.isNotBlank() && (totalAmountInput.filter { it.isDigit() }.toLongOrNull() ?: 0L) > 0L,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(50.dp)
+                                .testTag("save_manual_transaction_btn"),
+                            shape = RoundedCornerShape(20.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
                         ) {
-                            OutlinedButton(
-                                onClick = onRelaunchCamera,
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .testTag("rescan_receipt_btn")
-                            ) {
-                                Icon(Icons.Default.RestartAlt, contentDescription = null, modifier = Modifier.size(18.dp))
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text("Foto Ulang", fontSize = 12.sp)
-                            }
-
-                            Button(
-                                onClick = {
-                                    val amountDouble = totalAmountInput.filter { it.isDigit() }.toDoubleOrNull() ?: 0.0
-                                    val finalTitle = merchantName.ifBlank { "Belanja Nota" }
-                                    if (amountDouble > 0) {
-                                        onConfirmAdd(
-                                            finalTitle,
-                                            amountDouble,
-                                            selectedType,
-                                            selectedCategory
-                                        )
-                                        Toast.makeText(context, "Transaksi struk berhasil disimpan!", Toast.LENGTH_SHORT).show()
-                                    } else {
-                                        Toast.makeText(context, "Nominal tidak valid", Toast.LENGTH_SHORT).show()
-                                    }
-                                },
-                                enabled = totalAmountInput.isNotBlank() && (totalAmountInput.filter { it.isDigit() }.toLongOrNull() ?: 0L) > 0L,
-                                modifier = Modifier
-                                    .weight(1.3f)
-                                    .testTag("save_receipt_transaction_btn"),
-                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
-                            ) {
-                                Icon(Icons.Default.CheckCircle, contentDescription = null, modifier = Modifier.size(18.dp))
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text("Simpan Transaksi", fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                            }
+                            Icon(Icons.Default.CheckCircle, contentDescription = null, modifier = Modifier.size(20.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Simpan Transaksi Manual", fontSize = 14.sp, fontWeight = FontWeight.Bold)
                         }
                     }
                 }

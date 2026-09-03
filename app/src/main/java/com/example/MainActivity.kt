@@ -68,9 +68,6 @@ class MainActivity : FragmentActivity() {
                 }
                 viewModel.checkAndTriggerBillReminders(this@MainActivity)
                 viewModel.loadSavingChallengesAndBadges()
-                
-                // Initialize background worker scheduling for monthly spending and budget alerts
-                com.example.service.BudgetMonitoringScheduler.schedulePeriodicMonitoring(this@MainActivity)
             }
             
             val themeDarkOverride by viewModel.themeDark.collectAsStateWithLifecycle()

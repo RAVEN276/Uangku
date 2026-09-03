@@ -7,6 +7,7 @@ import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -48,6 +49,7 @@ import androidx.compose.material.icons.filled.Analytics
 import androidx.compose.material.icons.filled.TrendingUp
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -98,6 +100,8 @@ import androidx.compose.foundation.BorderStroke
 import android.Manifest
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
+import android.net.Uri
+import com.example.service.ReceiptOcrScanner
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
@@ -106,6 +110,7 @@ import android.widget.Toast
 import com.example.data.model.Transaction
 import com.example.data.model.getCleanTitle
 import com.example.ui.FinanceViewModel
+import com.example.ui.FourMonthsSummaryItem
 import com.example.ui.components.MonthlyBarComparisonChart
 import com.example.ui.components.TransactionCategoryDonutChart
 import com.example.ui.components.TransactionWeeklyTrendLineChart
@@ -351,6 +356,8 @@ fun DashboardScreen(
     val totalBalance by viewModel.totalBalance.collectAsStateWithLifecycle()
     val totalIncome by viewModel.totalIncome.collectAsStateWithLifecycle()
     val totalExpense by viewModel.totalExpense.collectAsStateWithLifecycle()
+    val currentMonthIncome by viewModel.currentMonthIncome.collectAsStateWithLifecycle()
+    val currentMonthExpense by viewModel.currentMonthExpense.collectAsStateWithLifecycle()
     val transactions by viewModel.allTransactions.collectAsStateWithLifecycle()
     val isSyncing by viewModel.isSyncing.collectAsStateWithLifecycle()
     val budgetAlert by viewModel.budgetAlert.collectAsStateWithLifecycle()
@@ -368,6 +375,7 @@ fun DashboardScreen(
     var showBillCalendar by remember { mutableStateOf(false) }
     var selectedCalendarDay by remember { mutableStateOf<Int?>(null) }
     var isBalanceHidden by remember { mutableStateOf(false) }
+    var showSummaryType by remember { mutableStateOf<String?>(null) }
 
     val selectedCurrency by viewModel.selectedCurrency.collectAsStateWithLifecycle()
     val rubelFormat = remember(selectedCurrency) {
@@ -381,12 +389,16 @@ fun DashboardScreen(
     var isSpeedDialExpanded by remember { mutableStateOf(false) }
     var initialDialogType by remember { mutableStateOf("EXPENSE") }
     var capturedReceiptBitmap by remember { mutableStateOf<Bitmap?>(null) }
+    var capturedReceiptUri by remember { mutableStateOf<Uri?>(null) }
+    var pendingCameraUri by remember { mutableStateOf<Uri?>(null) }
 
     val takePictureLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.TakePicturePreview()
-    ) { bitmap: Bitmap? ->
-        if (bitmap != null) {
-            capturedReceiptBitmap = bitmap
+        contract = ActivityResultContracts.TakePicture()
+    ) { success: Boolean ->
+        if (success && pendingCameraUri != null) {
+            val uri = pendingCameraUri!!
+            capturedReceiptUri = uri
+            capturedReceiptBitmap = ReceiptOcrScanner.loadOptimizedBitmap(context, uri)
         }
     }
 
@@ -394,7 +406,9 @@ fun DashboardScreen(
         contract = ActivityResultContracts.RequestPermission()
     ) { isGranted ->
         if (isGranted) {
-            takePictureLauncher.launch(null)
+            val uri = ReceiptOcrScanner.createTempImageUri(context)
+            pendingCameraUri = uri
+            takePictureLauncher.launch(uri)
         } else {
             Toast.makeText(context, "Izin kamera diperlukan untuk memindai nota", Toast.LENGTH_SHORT).show()
         }
@@ -407,7 +421,9 @@ fun DashboardScreen(
         ) == PackageManager.PERMISSION_GRANTED
 
         if (hasPermission) {
-            takePictureLauncher.launch(null)
+            val uri = ReceiptOcrScanner.createTempImageUri(context)
+            pendingCameraUri = uri
+            takePictureLauncher.launch(uri)
         } else {
             cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
         }
@@ -600,39 +616,60 @@ fun DashboardScreen(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                // Income Bento Box
+                // Income Bento Box (Bulanan & Ringkasan 4 Bulan)
                 Box(
                     modifier = Modifier
                         .weight(1f)
-                        .height(130.dp)
+                        .height(136.dp)
                         .clip(RoundedCornerShape(32.dp))
                         .background(
                             Brush.linearGradient(
                                 colors = listOf(Color(0xFFD1FAE5), Color(0xFFA7F3D0))
                             )
                         )
-                        .padding(20.dp)
+                        .clickable { showSummaryType = "INCOME" }
+                        .padding(18.dp)
+                        .testTag("dashboard_income_bento_box")
                 ) {
                     Column(
                         modifier = Modifier.fillMaxSize(),
                         verticalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Box(
-                            modifier = Modifier
-                                .size(48.dp)
-                                .background(Color(0xFF059669).copy(alpha = 0.15f), CircleShape),
-                            contentAlignment = Alignment.Center
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(Icons.Default.ArrowUpward, contentDescription = null, tint = Color(0xFF059669))
+                            Box(
+                                modifier = Modifier
+                                    .size(42.dp)
+                                    .background(Color(0xFF059669).copy(alpha = 0.15f), CircleShape),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(Icons.Default.ArrowUpward, contentDescription = null, tint = Color(0xFF059669), modifier = Modifier.size(22.dp))
+                            }
+                            Surface(
+                                shape = RoundedCornerShape(12.dp),
+                                color = Color(0xFF059669).copy(alpha = 0.15f)
+                            ) {
+                                Text(
+                                    text = "Bulan Ini",
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF065F46),
+                                    modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
+                                )
+                            }
                         }
                         Column {
                             Text(
                                 text = "Income",
-                                style = MaterialTheme.typography.labelLarge,
-                                color = Color(0xFF065F46).copy(alpha = 0.8f)
+                                style = MaterialTheme.typography.labelMedium,
+                                color = Color(0xFF065F46).copy(alpha = 0.85f),
+                                fontWeight = FontWeight.SemiBold
                             )
                             Text(
-                                text = if (isBalanceHidden) "•••" else rubelFormat.format(totalIncome),
+                                text = if (isBalanceHidden) "•••" else rubelFormat.format(currentMonthIncome),
                                 style = MaterialTheme.typography.titleLarge,
                                 fontWeight = FontWeight.Black,
                                 color = Color(0xFF064E3B),
@@ -643,39 +680,60 @@ fun DashboardScreen(
                     }
                 }
 
-                // Expense Bento Box
+                // Expense Bento Box (Bulanan & Ringkasan 4 Bulan)
                 Box(
                     modifier = Modifier
                         .weight(1f)
-                        .height(130.dp)
+                        .height(136.dp)
                         .clip(RoundedCornerShape(32.dp))
                         .background(
                             Brush.linearGradient(
                                 colors = listOf(Color(0xFFFFE4E6), Color(0xFFFECDD3))
                             )
                         )
-                        .padding(20.dp)
+                        .clickable { showSummaryType = "EXPENSE" }
+                        .padding(18.dp)
+                        .testTag("dashboard_expense_bento_box")
                 ) {
                     Column(
                         modifier = Modifier.fillMaxSize(),
                         verticalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Box(
-                            modifier = Modifier
-                                .size(48.dp)
-                                .background(Color(0xFFE11D48).copy(alpha = 0.15f), CircleShape),
-                            contentAlignment = Alignment.Center
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(Icons.Default.ArrowDownward, contentDescription = null, tint = Color(0xFFE11D48))
+                            Box(
+                                modifier = Modifier
+                                    .size(42.dp)
+                                    .background(Color(0xFFE11D48).copy(alpha = 0.15f), CircleShape),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(Icons.Default.ArrowDownward, contentDescription = null, tint = Color(0xFFE11D48), modifier = Modifier.size(22.dp))
+                            }
+                            Surface(
+                                shape = RoundedCornerShape(12.dp),
+                                color = Color(0xFFE11D48).copy(alpha = 0.15f)
+                            ) {
+                                Text(
+                                    text = "Bulan Ini",
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF9F1239),
+                                    modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
+                                )
+                            }
                         }
                         Column {
                             Text(
                                 text = "Expense",
-                                style = MaterialTheme.typography.labelLarge,
-                                color = Color(0xFF9F1239).copy(alpha = 0.8f)
+                                style = MaterialTheme.typography.labelMedium,
+                                color = Color(0xFF9F1239).copy(alpha = 0.85f),
+                                fontWeight = FontWeight.SemiBold
                             )
                             Text(
-                                text = if (isBalanceHidden) "•••" else rubelFormat.format(totalExpense),
+                                text = if (isBalanceHidden) "•••" else rubelFormat.format(currentMonthExpense),
                                 style = MaterialTheme.typography.titleLarge,
                                 fontWeight = FontWeight.Black,
                                 color = Color(0xFF881337),
@@ -747,13 +805,33 @@ fun DashboardScreen(
             }
             
             // BENTO: Recent Transactions
-            Text(
-                text = "Recent Activity",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Black,
-                color = MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.padding(top = 8.dp)
-            )
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 8.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Recent Activity",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Black,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                if (recentTxs.isNotEmpty()) {
+                    TextButton(
+                        onClick = onNavigateToTransactions,
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
+                    ) {
+                        Text(
+                            text = "Lihat Semua",
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
+            }
 
             if (recentTxs.isEmpty()) {
                 Box(
@@ -784,6 +862,7 @@ fun DashboardScreen(
                                 .fillMaxWidth()
                                 .clip(RoundedCornerShape(24.dp))
                                 .background(MaterialTheme.colorScheme.surface)
+                                .clickable { onNavigateToTransactions() }
                                 .padding(16.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
@@ -830,9 +909,20 @@ fun DashboardScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(40.dp))
+            Spacer(modifier = Modifier.navigationBarsPadding().height(150.dp))
         }
     }
+
+    // 4 Months Summary Dialog triggered by tapping Income or Expense Bento Cards
+    if (showSummaryType != null) {
+        FourMonthsSummaryDialog(
+            type = showSummaryType!!,
+            viewModel = viewModel,
+            themeDark = themeDark,
+            onDismiss = { showSummaryType = null }
+        )
+    }
+
     // Interactive Quick Add Expense/Income dialog screen
     if (showQuickAddDialog) {
         var txTitle by remember { mutableStateOf("") }
@@ -1000,13 +1090,18 @@ fun DashboardScreen(
         }
     }
 
-    if (capturedReceiptBitmap != null) {
+    if (capturedReceiptBitmap != null || capturedReceiptUri != null) {
         ReceiptScannerDialog(
             viewModel = viewModel,
-            bitmap = capturedReceiptBitmap!!,
-            onDismiss = { capturedReceiptBitmap = null },
+            bitmap = capturedReceiptBitmap,
+            imageUri = capturedReceiptUri,
+            onDismiss = {
+                capturedReceiptBitmap = null
+                capturedReceiptUri = null
+            },
             onRelaunchCamera = {
                 capturedReceiptBitmap = null
+                capturedReceiptUri = null
                 launchDirectCamera()
             },
             onConfirmAdd = { scannedTitle, scannedAmount, scannedType, scannedCategory ->
@@ -1017,6 +1112,7 @@ fun DashboardScreen(
                     category = scannedCategory
                 )
                 capturedReceiptBitmap = null
+                capturedReceiptUri = null
             }
         )
     }
@@ -2708,6 +2804,70 @@ fun TransactionItemRow(
     val cleanDate = dateFormat.format(Date(tx.timestamp))
 
     var showEditDialog by remember { mutableStateOf(false) }
+    var showDeleteConfirmDialog by remember { mutableStateOf(false) }
+
+    if (showDeleteConfirmDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirmDialog = false },
+            modifier = Modifier.testTag("dashboard_delete_confirmation_dialog"),
+            shape = RoundedCornerShape(32.dp),
+            icon = {
+                Box(
+                    modifier = Modifier
+                        .size(52.dp)
+                        .background(Color(0xFFEF4444).copy(alpha = 0.15f), CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Delete,
+                        contentDescription = null,
+                        tint = Color(0xFFEF4444),
+                        modifier = Modifier.size(26.dp)
+                    )
+                }
+            },
+            title = {
+                Text(
+                    text = "Hapus Transaksi?",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Text(
+                    text = "Apakah Anda yakin ingin menghapus transaksi \"${tx.getCleanTitle()}\"? Data yang dihapus tidak dapat dikembalikan.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        onDelete(tx)
+                        showDeleteConfirmDialog = false
+                        showEditDialog = false
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFFEF4444),
+                        contentColor = Color.White
+                    ),
+                    shape = RoundedCornerShape(20.dp),
+                    modifier = Modifier.testTag("confirm_delete_button")
+                ) {
+                    Text("Hapus", fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                OutlinedButton(
+                    onClick = { showDeleteConfirmDialog = false },
+                    shape = RoundedCornerShape(20.dp),
+                    modifier = Modifier.testTag("cancel_delete_button")
+                ) {
+                    Text("Batal", fontWeight = FontWeight.SemiBold)
+                }
+            }
+        )
+    }
 
     if (showEditDialog) {
         var title by remember { mutableStateOf(tx.getCleanTitle()) }
@@ -2860,8 +3020,7 @@ fun TransactionItemRow(
                         // Danger Delete Button
                         TextButton(
                             onClick = {
-                                onDelete(tx)
-                                showEditDialog = false
+                                showDeleteConfirmDialog = true
                             },
                             colors = androidx.compose.material3.ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
                         ) {
@@ -3245,4 +3404,559 @@ fun isNotificationServiceEnabled(context: android.content.Context): Boolean {
         }
     }
     return false
+}
+
+@Composable
+fun FourMonthsSummaryDialog(
+    type: String,
+    viewModel: FinanceViewModel,
+    themeDark: Boolean,
+    onDismiss: () -> Unit
+) {
+    val isIncome = type == "INCOME"
+    val accentColor = if (isIncome) Color(0xFF10B981) else Color(0xFFEF4444)
+    val accentBg = if (isIncome) Color(0xFF10B981).copy(alpha = 0.15f) else Color(0xFFEF4444).copy(alpha = 0.15f)
+    val transactions by viewModel.allTransactions.collectAsStateWithLifecycle()
+
+    val summaries = remember(transactions, type) {
+        viewModel.getFourMonthsSummary(type)
+    }
+
+    val chronologicalSummaries = remember(summaries) { summaries.reversed() }
+
+    var selectedMonthIndex by remember { mutableStateOf(0) }
+    val currentSelectedMonth = summaries.getOrNull(selectedMonthIndex) ?: summaries.firstOrNull()
+
+    val total4Months = remember(summaries) { summaries.sumOf { it.totalAmount } }
+    val avg4Months = remember(total4Months) { total4Months / 4.0 }
+    val maxMonth = remember(summaries) { summaries.maxByOrNull { it.totalAmount } }
+    val maxAmountIn4Months = remember(summaries) { summaries.maxOfOrNull { it.totalAmount }?.takeIf { it > 0 } ?: 1.0 }
+
+    val topCatOverall = remember(summaries) {
+        summaries.flatMap { it.transactions }
+            .groupBy { it.category }
+            .mapValues { it.value.sumOf { tx -> tx.amount } }
+            .maxByOrNull { it.value }
+    }
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Surface(
+            shape = RoundedCornerShape(32.dp),
+            color = if (themeDark) Color(0xFF1E293B) else Color.White,
+            contentColor = if (themeDark) Color.White else Color(0xFF0F172A),
+            tonalElevation = 8.dp,
+            modifier = Modifier
+                .fillMaxWidth(0.95f)
+                .fillMaxHeight(0.88f)
+                .testTag("four_months_summary_dialog")
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(20.dp)
+            ) {
+                // Header
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(46.dp)
+                                .background(accentBg, CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = if (isIncome) Icons.Default.ArrowUpward else Icons.Default.ArrowDownward,
+                                contentDescription = null,
+                                tint = accentColor,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+                        Column {
+                            Text(
+                                text = if (isIncome) "Ringkasan Pemasukan" else "Ringkasan Pengeluaran",
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.Bold,
+                                color = if (themeDark) Color.White else Color(0xFF0F172A)
+                            )
+                            Text(
+                                text = "4 Bulan Terakhir • Reset Tiap Awal Bulan",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = if (themeDark) Color(0xFF94A3B8) else Color(0xFF64748B),
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                    }
+                    IconButton(
+                        onClick = onDismiss,
+                        modifier = Modifier
+                            .size(36.dp)
+                            .testTag("close_summary_dialog_button")
+                    ) {
+                        Icon(
+                            Icons.Default.Close,
+                            contentDescription = "Tutup",
+                            tint = if (themeDark) Color.White.copy(alpha = 0.8f) else Color(0xFF64748B)
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Scrollable Content
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    // 2x2 Bento Metric Cards
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        // Total 4 Bulan Bento Card
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(24.dp))
+                                .background(
+                                    if (themeDark) Color(0xFF0F172A) else Color(0xFFF8FAFC)
+                                )
+                                .border(
+                                    1.dp,
+                                    if (themeDark) Color.White.copy(alpha = 0.08f) else Color.Black.copy(alpha = 0.06f),
+                                    RoundedCornerShape(24.dp)
+                                )
+                                .padding(14.dp)
+                        ) {
+                            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Text(
+                                    text = "Total 4 Bulan",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = if (themeDark) Color(0xFF94A3B8) else Color(0xFF64748B)
+                                )
+                                Text(
+                                    text = viewModel.formatCurrency(total4Months),
+                                    fontSize = 16.sp,
+                                    fontWeight = FontWeight.Black,
+                                    color = accentColor,
+                                    maxLines = 1
+                                )
+                            }
+                        }
+
+                        // Rata-rata Bulanan Bento Card
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(24.dp))
+                                .background(
+                                    if (themeDark) Color(0xFF0F172A) else Color(0xFFF8FAFC)
+                                )
+                                .border(
+                                    1.dp,
+                                    if (themeDark) Color.White.copy(alpha = 0.08f) else Color.Black.copy(alpha = 0.06f),
+                                    RoundedCornerShape(24.dp)
+                                )
+                                .padding(14.dp)
+                        ) {
+                            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Text(
+                                    text = "Rata-rata / Bulan",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = if (themeDark) Color(0xFF94A3B8) else Color(0xFF64748B)
+                                )
+                                Text(
+                                    text = viewModel.formatCurrency(avg4Months),
+                                    fontSize = 16.sp,
+                                    fontWeight = FontWeight.Black,
+                                    color = if (themeDark) Color.White else Color(0xFF0F172A),
+                                    maxLines = 1
+                                )
+                            }
+                        }
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        // Bulan Tertinggi Bento Card
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(24.dp))
+                                .background(
+                                    if (themeDark) Color(0xFF0F172A) else Color(0xFFF8FAFC)
+                                )
+                                .border(
+                                    1.dp,
+                                    if (themeDark) Color.White.copy(alpha = 0.08f) else Color.Black.copy(alpha = 0.06f),
+                                    RoundedCornerShape(24.dp)
+                                )
+                                .padding(14.dp)
+                        ) {
+                            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Text(
+                                    text = "Puncak Tertinggi",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = if (themeDark) Color(0xFF94A3B8) else Color(0xFF64748B)
+                                )
+                                Text(
+                                    text = maxMonth?.shortMonthName ?: "-",
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (themeDark) Color.White else Color(0xFF0F172A)
+                                )
+                                Text(
+                                    text = viewModel.formatCurrency(maxMonth?.totalAmount ?: 0.0),
+                                    fontSize = 11.sp,
+                                    color = if (themeDark) Color(0xFF94A3B8) else Color(0xFF64748B),
+                                    maxLines = 1
+                                )
+                            }
+                        }
+
+                        // Kategori Utama Bento Card
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(24.dp))
+                                .background(
+                                    if (themeDark) Color(0xFF0F172A) else Color(0xFFF8FAFC)
+                                )
+                                .border(
+                                    1.dp,
+                                    if (themeDark) Color.White.copy(alpha = 0.08f) else Color.Black.copy(alpha = 0.06f),
+                                    RoundedCornerShape(24.dp)
+                                )
+                                .padding(14.dp)
+                        ) {
+                            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Text(
+                                    text = if (isIncome) "Sumber Terbesar" else "Kategori Terbesar",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = if (themeDark) Color(0xFF94A3B8) else Color(0xFF64748B)
+                                )
+                                Text(
+                                    text = topCatOverall?.key ?: "Belum ada",
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (themeDark) Color.White else Color(0xFF0F172A),
+                                    maxLines = 1
+                                )
+                                Text(
+                                    text = if (topCatOverall != null) viewModel.formatCurrency(topCatOverall.value) else "-",
+                                    fontSize = 11.sp,
+                                    color = if (themeDark) Color(0xFF94A3B8) else Color(0xFF64748B),
+                                    maxLines = 1
+                                )
+                            }
+                        }
+                    }
+
+                    // Interactive 4 Months Bar Comparison Card
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(28.dp))
+                            .background(
+                                if (themeDark) Color(0xFF0F172A) else Color(0xFFF8FAFC)
+                            )
+                            .border(
+                                1.dp,
+                                if (themeDark) Color.White.copy(alpha = 0.08f) else Color.Black.copy(alpha = 0.06f),
+                                RoundedCornerShape(28.dp)
+                            )
+                            .padding(16.dp)
+                    ) {
+                        Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "Grafik Perbandingan 4 Bulan",
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (themeDark) Color.White else Color(0xFF0F172A)
+                                )
+                                Text(
+                                    text = "Ketuk untuk pilih bulan",
+                                    fontSize = 11.sp,
+                                    color = if (themeDark) Color(0xFF94A3B8) else Color(0xFF64748B)
+                                )
+                            }
+
+                            // 4 Bars Container
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(160.dp)
+                                    .padding(vertical = 6.dp),
+                                horizontalArrangement = Arrangement.SpaceEvenly,
+                                verticalAlignment = Alignment.Bottom
+                            ) {
+                                chronologicalSummaries.forEach { monthItem ->
+                                    val originalIndex = summaries.indexOf(monthItem)
+                                    val isSelected = selectedMonthIndex == originalIndex
+                                    val heightFraction = if (maxAmountIn4Months > 0) {
+                                        (monthItem.totalAmount / maxAmountIn4Months).toFloat().coerceIn(0.08f, 1.0f)
+                                    } else 0.08f
+
+                                    Column(
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .clickable { selectedMonthIndex = originalIndex }
+                                            .padding(horizontal = 4.dp)
+                                    ) {
+                                        Text(
+                                            text = if (monthItem.totalAmount > 0) {
+                                                if (monthItem.totalAmount >= 1_000_000) {
+                                                    String.format(Locale.US, "%.1f jt", monthItem.totalAmount / 1_000_000)
+                                                } else if (monthItem.totalAmount >= 1_000) {
+                                                    String.format(Locale.US, "%.0f rb", monthItem.totalAmount / 1_000)
+                                                } else {
+                                                    monthItem.totalAmount.toLong().toString()
+                                                }
+                                            } else "0",
+                                            fontSize = 10.sp,
+                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                            color = if (isSelected) accentColor else if (themeDark) Color(0xFF94A3B8) else Color(0xFF64748B),
+                                            maxLines = 1
+                                        )
+
+                                        Spacer(modifier = Modifier.height(6.dp))
+
+                                        Box(
+                                            modifier = Modifier
+                                                .fillMaxWidth(0.55f)
+                                                .height((100 * heightFraction).dp)
+                                                .clip(RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp, bottomStart = 6.dp, bottomEnd = 6.dp))
+                                                .background(
+                                                    if (isSelected) {
+                                                        Brush.verticalGradient(
+                                                            colors = listOf(
+                                                                accentColor,
+                                                                accentColor.copy(alpha = 0.65f)
+                                                            )
+                                                        )
+                                                    } else {
+                                                        Brush.verticalGradient(
+                                                            colors = if (themeDark) listOf(Color(0xFF334155), Color(0xFF1E293B))
+                                                            else listOf(Color(0xFFCBD5E1), Color(0xFFE2E8F0))
+                                                        )
+                                                    }
+                                                )
+                                        )
+
+                                        Spacer(modifier = Modifier.height(8.dp))
+
+                                        Surface(
+                                            shape = RoundedCornerShape(10.dp),
+                                            color = if (isSelected) accentBg else Color.Transparent
+                                        ) {
+                                            Text(
+                                                text = monthItem.shortMonthName,
+                                                fontSize = 12.sp,
+                                                fontWeight = if (isSelected) FontWeight.Black else FontWeight.Medium,
+                                                color = if (isSelected) accentColor else if (themeDark) Color(0xFFE2E8F0) else Color(0xFF475569),
+                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // Selected Month Details & Transactions List
+                    if (currentSelectedMonth != null) {
+                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column {
+                                    Text(
+                                        text = currentSelectedMonth.monthName,
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (themeDark) Color.White else Color(0xFF0F172A)
+                                    )
+                                    Text(
+                                        text = "${currentSelectedMonth.transactionCount} transaksi • Total: ${viewModel.formatCurrency(currentSelectedMonth.totalAmount)}",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = if (themeDark) Color(0xFF94A3B8) else Color(0xFF64748B)
+                                    )
+                                }
+
+                                if (selectedMonthIndex == 0) {
+                                    Surface(
+                                        shape = RoundedCornerShape(12.dp),
+                                        color = accentBg
+                                    ) {
+                                        Text(
+                                            text = "Bulan Ini",
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = accentColor,
+                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                        )
+                                    }
+                                }
+                            }
+
+                            if (currentSelectedMonth.transactions.isEmpty()) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(24.dp))
+                                        .background(
+                                            if (themeDark) Color(0xFF0F172A) else Color(0xFFF8FAFC)
+                                        )
+                                        .padding(32.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Column(
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        Icon(
+                                            Icons.Default.CalendarToday,
+                                            contentDescription = null,
+                                            tint = if (themeDark) Color(0xFF64748B) else Color(0xFF94A3B8),
+                                            modifier = Modifier.size(36.dp)
+                                        )
+                                        Text(
+                                            text = "Belum ada transaksi ${if (isIncome) "pemasukan" else "pengeluaran"} di bulan ini",
+                                            fontSize = 13.sp,
+                                            fontWeight = FontWeight.Medium,
+                                            color = if (themeDark) Color(0xFF94A3B8) else Color(0xFF64748B),
+                                            textAlign = TextAlign.Center
+                                        )
+                                    }
+                                }
+                            } else {
+                                val txDateFormat = remember { SimpleDateFormat("dd MMM, HH:mm", Locale("id", "ID")) }
+                                currentSelectedMonth.transactions.forEach { tx ->
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clip(RoundedCornerShape(20.dp))
+                                            .background(
+                                                if (themeDark) Color(0xFF0F172A) else Color(0xFFF8FAFC)
+                                            )
+                                            .border(
+                                                1.dp,
+                                                if (themeDark) Color.White.copy(alpha = 0.08f) else Color.Black.copy(alpha = 0.06f),
+                                                RoundedCornerShape(20.dp)
+                                            )
+                                            .padding(14.dp)
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                                modifier = Modifier.weight(1f)
+                                            ) {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .size(38.dp)
+                                                        .background(accentBg, CircleShape),
+                                                    contentAlignment = Alignment.Center
+                                                ) {
+                                                    Icon(
+                                                        imageVector = if (isIncome) Icons.Default.ArrowUpward else Icons.Default.ArrowDownward,
+                                                        contentDescription = null,
+                                                        tint = accentColor,
+                                                        modifier = Modifier.size(18.dp)
+                                                    )
+                                                }
+                                                Column(modifier = Modifier.weight(1f)) {
+                                                    Text(
+                                                        text = tx.getCleanTitle(),
+                                                        fontSize = 14.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = if (themeDark) Color.White else Color(0xFF0F172A),
+                                                        maxLines = 1
+                                                    )
+                                                    Row(
+                                                        verticalAlignment = Alignment.CenterVertically,
+                                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                                    ) {
+                                                        Text(
+                                                            text = tx.category,
+                                                            fontSize = 11.sp,
+                                                            color = accentColor,
+                                                            fontWeight = FontWeight.SemiBold
+                                                        )
+                                                        Text(
+                                                            text = "•",
+                                                            fontSize = 11.sp,
+                                                            color = if (themeDark) Color(0xFF64748B) else Color(0xFF94A3B8)
+                                                        )
+                                                        Text(
+                                                            text = txDateFormat.format(Date(tx.timestamp)),
+                                                            fontSize = 11.sp,
+                                                            color = if (themeDark) Color(0xFF94A3B8) else Color(0xFF64748B)
+                                                        )
+                                                    }
+                                                }
+                                            }
+
+                                            Text(
+                                                text = "${if (isIncome) "+" else "-"}${viewModel.formatCurrency(tx.amount)}",
+                                                fontSize = 14.sp,
+                                                fontWeight = FontWeight.Black,
+                                                color = accentColor
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                // Close Button at bottom
+                Button(
+                    onClick = onDismiss,
+                    shape = RoundedCornerShape(20.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = accentColor,
+                        contentColor = Color.White
+                    ),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(48.dp)
+                ) {
+                    Text("Tutup", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                }
+            }
+        }
+    }
 }

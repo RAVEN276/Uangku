@@ -43,7 +43,6 @@ import java.io.FileOutputStream
 import java.io.ByteArrayOutputStream
 import java.util.Calendar
 import com.example.service.LocalFinanceMLEngine
-import com.example.service.BudgetMonitoringScheduler
 
 class FinanceViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -88,9 +87,6 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     private val _bankNotificationEnabled = MutableStateFlow(prefs.getBoolean("bank_notification_enabled", false))
     val bankNotificationEnabled = _bankNotificationEnabled.asStateFlow()
 
-    private val _budgetMonitoringEnabled = MutableStateFlow(BudgetMonitoringScheduler.isMonitoringEnabled(application))
-    val budgetMonitoringEnabled = _budgetMonitoringEnabled.asStateFlow()
-
     // Currency Selection (IDR vs USD) with live exchange rate
     private val _selectedCurrency = MutableStateFlow(prefs.getString("selected_currency", "IDR") ?: "IDR")
     val selectedCurrency = _selectedCurrency.asStateFlow()
@@ -114,6 +110,8 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     val totalBalance: StateFlow<Double>
     val totalIncome: StateFlow<Double>
     val totalExpense: StateFlow<Double>
+    val currentMonthIncome: StateFlow<Double>
+    val currentMonthExpense: StateFlow<Double>
     val mlInsights: StateFlow<LocalFinanceMLEngine.MLInsight?>
 
     init {
@@ -159,6 +157,28 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
 
         totalExpense = allTransactions.map { txs ->
             txs.filter { it.type == "EXPENSE" }.sumOf { it.amount }
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
+
+        currentMonthIncome = allTransactions.map { txs ->
+            val cal = Calendar.getInstance()
+            val currYear = cal.get(Calendar.YEAR)
+            val currMonth = cal.get(Calendar.MONTH)
+            txs.filter { tx ->
+                if (tx.type != "INCOME") return@filter false
+                val txCal = Calendar.getInstance().apply { timeInMillis = tx.timestamp }
+                txCal.get(Calendar.YEAR) == currYear && txCal.get(Calendar.MONTH) == currMonth
+            }.sumOf { it.amount }
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
+
+        currentMonthExpense = allTransactions.map { txs ->
+            val cal = Calendar.getInstance()
+            val currYear = cal.get(Calendar.YEAR)
+            val currMonth = cal.get(Calendar.MONTH)
+            txs.filter { tx ->
+                if (tx.type != "EXPENSE") return@filter false
+                val txCal = Calendar.getInstance().apply { timeInMillis = tx.timestamp }
+                txCal.get(Calendar.YEAR) == currYear && txCal.get(Calendar.MONTH) == currMonth
+            }.sumOf { it.amount }
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
 
         totalBalance = combine(totalIncome, totalExpense, allBankConnections) { inc, exp, banks ->
@@ -379,16 +399,6 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
         _bankNotificationEnabled.value = enabled
     }
 
-    fun setBudgetMonitoringEnabled(enabled: Boolean) {
-        BudgetMonitoringScheduler.setMonitoringEnabled(getApplication(), enabled)
-        _budgetMonitoringEnabled.value = enabled
-    }
-
-    fun triggerManualBudgetCheck(context: Context) {
-        BudgetMonitoringScheduler.triggerImmediateCheck(context)
-        Toast.makeText(context, "Memeriksa status limit pengeluaran bulanan di latar belakang...", Toast.LENGTH_SHORT).show()
-    }
-
     fun updateSystemThemeDefault(systemDark: Boolean) {
         if (!prefs.contains("theme_dark")) {
             _themeDark.value = systemDark
@@ -407,7 +417,6 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
             )
             repository.insertTransaction(transaction)
             triggerAutoSync()
-            BudgetMonitoringScheduler.triggerImmediateCheck(getApplication())
         }
     }
 
@@ -417,7 +426,6 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
             viewModelScope.launch {
                 repository.insertTransaction(parsed)
                 triggerAutoSync()
-                BudgetMonitoringScheduler.triggerImmediateCheck(getApplication())
             }
             return true
         }
@@ -428,7 +436,6 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
         viewModelScope.launch {
             repository.deleteTransaction(transaction)
             triggerAutoSync()
-            BudgetMonitoringScheduler.triggerImmediateCheck(getApplication())
         }
     }
 
@@ -436,7 +443,6 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
         viewModelScope.launch {
             repository.insertTransaction(transaction)
             triggerAutoSync()
-            BudgetMonitoringScheduler.triggerImmediateCheck(getApplication())
         }
     }
 
@@ -446,7 +452,6 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
             val budget = Budget(category = category, limitAmount = amount, alertThresholdPercent = alertThreshold)
             repository.insertBudget(budget)
             triggerAutoSync()
-            BudgetMonitoringScheduler.triggerImmediateCheck(getApplication())
         }
     }
 
@@ -454,7 +459,6 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
         viewModelScope.launch {
             repository.deleteBudget(budget)
             triggerAutoSync()
-            BudgetMonitoringScheduler.triggerImmediateCheck(getApplication())
         }
     }
 
@@ -701,7 +705,7 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
         val sandboxTransactions = when (bankId) {
             "bca" -> listOf(
                 Transaction(title = "Gaji Bulanan PT Telkom", amount = 8500000.0, type = "INCOME", category = "Gaji", bankSource = bankName),
-                Transaction(title = "Langganan Netflix Premium", amount = 186000.0, type = "EXPENSE", category = "Hiburan", bankSource = bankName),
+                Transaction(title = "Langganan Netflix", amount = 186000.0, type = "EXPENSE", category = "Hiburan", bankSource = bankName),
                 Transaction(title = "Bunga Deposito BCA", amount = 450000.0, type = "INCOME", category = "Investasi", bankSource = bankName)
             )
             "mandiri" -> listOf(
@@ -936,7 +940,7 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
         var page = pdfDocument.startPage(pageInfo)
         var canvas = page.canvas
         
-        // --- PREMIUM COLOR PALETTE ---
+        // --- COLOR PALETTE ---
         val colorPrimary = android.graphics.Color.rgb(79, 70, 229)    // Indigo #4F46E5
         val colorOnPrimary = android.graphics.Color.WHITE
         val colorDark = android.graphics.Color.rgb(15, 23, 42)        // Slate 900 #0F172A
@@ -1899,5 +1903,60 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
             e.printStackTrace()
         }
     }
+
+    fun getFourMonthsSummary(type: String): List<FourMonthsSummaryItem> {
+        val txs = allTransactions.value
+        val result = mutableListOf<FourMonthsSummaryItem>()
+        val monthFormat = SimpleDateFormat("MMMM yyyy", Locale("id", "ID"))
+        val shortFormat = SimpleDateFormat("MMM", Locale("id", "ID"))
+        val now = System.currentTimeMillis()
+
+        for (i in 0 until 4) {
+            val cal = Calendar.getInstance().apply {
+                timeInMillis = now
+                add(Calendar.MONTH, -i)
+            }
+            val targetYear = cal.get(Calendar.YEAR)
+            val targetMonth = cal.get(Calendar.MONTH)
+
+            val matching = txs.filter { tx ->
+                if (tx.type != type) return@filter false
+                val txCal = Calendar.getInstance().apply { timeInMillis = tx.timestamp }
+                txCal.get(Calendar.YEAR) == targetYear && txCal.get(Calendar.MONTH) == targetMonth
+            }
+
+            val total = matching.sumOf { it.amount }
+            val catMap = matching.groupBy { it.category }
+                .mapValues { it.value.sumOf { tx -> tx.amount } }
+            val topCat = catMap.maxByOrNull { it.value }
+
+            result.add(
+                FourMonthsSummaryItem(
+                    monthName = monthFormat.format(cal.time),
+                    shortMonthName = shortFormat.format(cal.time),
+                    year = targetYear,
+                    monthIndex = targetMonth,
+                    totalAmount = total,
+                    transactionCount = matching.size,
+                    transactions = matching.sortedByDescending { it.timestamp },
+                    topCategory = topCat?.key,
+                    topCategoryAmount = topCat?.value ?: 0.0
+                )
+            )
+        }
+        return result
+    }
 }
+
+data class FourMonthsSummaryItem(
+    val monthName: String,
+    val shortMonthName: String,
+    val year: Int,
+    val monthIndex: Int,
+    val totalAmount: Double,
+    val transactionCount: Int,
+    val transactions: List<Transaction>,
+    val topCategory: String?,
+    val topCategoryAmount: Double
+)
 
