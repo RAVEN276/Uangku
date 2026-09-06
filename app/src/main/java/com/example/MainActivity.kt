@@ -8,6 +8,7 @@ import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricPrompt
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -43,6 +44,7 @@ import com.example.ui.screens.OnboardingScreen
 import com.example.ui.screens.SettingsScreen
 import com.example.ui.screens.TransactionsScreen
 import com.example.ui.theme.MyApplicationTheme
+import com.example.ui.util.AppStrings
 
 class MainActivity : FragmentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -71,9 +73,10 @@ class MainActivity : FragmentActivity() {
             }
             
             val themeDarkOverride by viewModel.themeDark.collectAsStateWithLifecycle()
+            val dynamicColorEnabled by viewModel.dynamicColor.collectAsStateWithLifecycle()
             val useDarkTheme = themeDarkOverride
             
-            MyApplicationTheme(darkTheme = useDarkTheme) {
+            MyApplicationTheme(darkTheme = useDarkTheme, dynamicColor = dynamicColorEnabled) {
                 val isOnboarded by viewModel.isOnboarded.collectAsStateWithLifecycle()
                 val isLocked by viewModel.isLocked.collectAsStateWithLifecycle()
                 val initialRoute = intent?.getStringExtra("EXTRA_NAVIGATE_TO") ?: intent?.getStringExtra("NAVIGATE_TO")
@@ -136,11 +139,18 @@ class MainActivity : FragmentActivity() {
     }
 }
 
-sealed class SubScreen(val route: String, val title: String, val icon: ImageVector) {
-    object Dashboard : SubScreen("dashboard", "Dasbor", Icons.Default.Home)
-    object Transactions : SubScreen("transactions", "Transaksi", Icons.AutoMirrored.Filled.ListAlt)
-    object Budgets : SubScreen("budgets", "Anggaran", Icons.Default.NotificationsActive)
-    object Settings : SubScreen("settings", "Pengaturan", Icons.Default.Settings)
+sealed class SubScreen(val route: String, val icon: ImageVector) {
+    fun getTitle(lang: String): String = when (this) {
+        is Dashboard -> AppStrings.navDashboard(lang)
+        is Transactions -> AppStrings.navTransactions(lang)
+        is Budgets -> AppStrings.navBudgets(lang)
+        is Settings -> AppStrings.navSettings(lang)
+    }
+
+    object Dashboard : SubScreen("dashboard", Icons.Default.Home)
+    object Transactions : SubScreen("transactions", Icons.AutoMirrored.Filled.ListAlt)
+    object Budgets : SubScreen("budgets", Icons.Default.NotificationsActive)
+    object Settings : SubScreen("settings", Icons.Default.Settings)
 }
 
 @Composable
@@ -156,6 +166,7 @@ fun MainScreenContent(
     }
     var activeScreen by remember { mutableStateOf<SubScreen>(initialSubScreen) }
     val themeDark by viewModel.themeDark.collectAsStateWithLifecycle()
+    val appLanguage by viewModel.appLanguage.collectAsStateWithLifecycle()
 
     Box(
         modifier = Modifier
@@ -190,106 +201,103 @@ fun MainScreenContent(
             }
         }
 
-        // Floating Navigation Bar
+        // Solid Elevated Navigation Bar (No Glassmorphism)
         Box(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
                 .navigationBarsPadding()
-                .padding(horizontal = 18.dp, vertical = 12.dp)
+                .padding(horizontal = 16.dp, vertical = 10.dp)
                 .testTag("floating_navigation_bar")
         ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(36.dp))
-                    .background(
-                        if (themeDark) Color(0xFF0F172A).copy(alpha = 0.92f)
-                        else Color(0xFFFFFFFF).copy(alpha = 0.92f)
-                    )
-                    .border(
-                        1.5.dp,
-                        if (themeDark) Color(0xFF10B981).copy(alpha = 0.35f)
-                        else Color(0xFF10B981).copy(alpha = 0.25f),
-                        RoundedCornerShape(36.dp)
-                    )
-                    .padding(horizontal = 8.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.SpaceAround,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                val screenList = listOf(
-                    SubScreen.Dashboard,
-                    SubScreen.Transactions,
-                    SubScreen.Budgets,
-                    SubScreen.Settings
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(32.dp),
+                color = if (themeDark) Color(0xFF1E293B) else Color(0xFFFFFFFF),
+                tonalElevation = 6.dp,
+                shadowElevation = 8.dp,
+                border = BorderStroke(
+                    1.dp,
+                    if (themeDark) Color(0xFF334155) else Color(0xFFE2E8F0)
                 )
-
-                screenList.forEach { screen ->
-                    val isSelected = activeScreen == screen
-
-                    val pillBackground by animateColorAsState(
-                        targetValue = if (isSelected) {
-                            if (themeDark) Color(0xFF10B981).copy(alpha = 0.2f)
-                            else Color(0xFF10B981).copy(alpha = 0.15f)
-                        } else Color.Transparent,
-                        animationSpec = tween(300),
-                        label = "pill_bg"
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.SpaceAround,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    val screenList = listOf(
+                        SubScreen.Dashboard,
+                        SubScreen.Transactions,
+                        SubScreen.Budgets,
+                        SubScreen.Settings
                     )
 
-                    val contentColor by animateColorAsState(
-                        targetValue = if (isSelected) {
-                            if (themeDark) Color(0xFF34D399) else Color(0xFF059669)
-                        } else {
-                            if (themeDark) Color(0xFF94A3B8) else Color(0xFF64748B)
-                        },
-                        animationSpec = tween(300),
-                        label = "content_color"
-                    )
+                    screenList.forEach { screen ->
+                        val isSelected = activeScreen == screen
 
-                    val iconScale by animateFloatAsState(
-                        targetValue = if (isSelected) 1.15f else 1.0f,
-                        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
-                        label = "icon_scale"
-                    )
-
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.Center,
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(24.dp))
-                            .background(pillBackground)
-                            .clickable(
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = androidx.compose.material3.ripple(),
-                                onClick = { activeScreen = screen }
-                            )
-                            .padding(
-                                horizontal = if (isSelected) 16.dp else 12.dp,
-                                vertical = 10.dp
-                            )
-                    ) {
-                        Icon(
-                            imageVector = screen.icon,
-                            contentDescription = screen.title,
-                            tint = contentColor,
-                            modifier = Modifier
-                                .size(24.dp)
-                                .animateContentSize()
+                        val pillBackground by animateColorAsState(
+                            targetValue = if (isSelected) {
+                                if (themeDark) Color(0xFF064E3B)
+                                else Color(0xFFD1FAE5)
+                            } else Color.Transparent,
+                            animationSpec = tween(250),
+                            label = "pill_bg"
                         )
 
-                        AnimatedVisibility(
-                            visible = isSelected,
-                            enter = expandHorizontally(spring(stiffness = Spring.StiffnessMedium)) + fadeIn(),
-                            exit = shrinkHorizontally(spring(stiffness = Spring.StiffnessMedium)) + fadeOut()
+                        val contentColor by animateColorAsState(
+                            targetValue = if (isSelected) {
+                                if (themeDark) Color(0xFF34D399) else Color(0xFF047857)
+                            } else {
+                                if (themeDark) Color(0xFF94A3B8) else Color(0xFF64748B)
+                            },
+                            animationSpec = tween(250),
+                            label = "content_color"
+                        )
+
+                        val screenTitle = screen.getTitle(appLanguage)
+
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(24.dp))
+                                .background(pillBackground)
+                                .clickable(
+                                    interactionSource = remember { MutableInteractionSource() },
+                                    indication = androidx.compose.material3.ripple(),
+                                    onClick = { activeScreen = screen }
+                                )
+                                .padding(
+                                    horizontal = if (isSelected) 16.dp else 12.dp,
+                                    vertical = 10.dp
+                                )
                         ) {
-                            Text(
-                                text = screen.title,
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Black,
-                                color = contentColor,
-                                modifier = Modifier.padding(start = 6.dp),
-                                maxLines = 1
+                            Icon(
+                                imageVector = screen.icon,
+                                contentDescription = screenTitle,
+                                tint = contentColor,
+                                modifier = Modifier
+                                    .size(24.dp)
+                                    .animateContentSize()
                             )
+
+                            AnimatedVisibility(
+                                visible = isSelected,
+                                enter = expandHorizontally(spring(stiffness = Spring.StiffnessMedium)) + fadeIn(),
+                                exit = shrinkHorizontally(spring(stiffness = Spring.StiffnessMedium)) + fadeOut()
+                            ) {
+                                Text(
+                                    text = screenTitle,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = contentColor,
+                                    modifier = Modifier.padding(start = 6.dp),
+                                    maxLines = 1
+                                )
+                            }
                         }
                     }
                 }

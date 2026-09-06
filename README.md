@@ -50,16 +50,23 @@ Built from the ground up as an **offline-first ecosystem**, Uangku empowers you 
 - **Instant Speed-Dial Dock**: An expandable floating action button provides rapid shortcuts for manual transaction logging, category budgeting, and receipt capture.
 - **Camera & Gallery OCR**: Powered by Google ML Kit, the scanner reads physical shopping receipts and automatically extracts total amounts and store categories without manual typing.
 
-### 🌐 5. Dual-Currency Engine: IDR (Rupiah) & USD (Dollar)
-- **Seamless Currency Switching**: Toggle between Indonesian Rupiah (Rp) and US Dollar ($) anytime from Settings.
+### 🌐 5. Bilingual Support (EN & ID) & Dual-Currency Engine
+- **Instant Language Switching**: Toggle between English and Bahasa Indonesia seamlessly from Settings.
+- **Seamless Currency Switching**: Toggle between Indonesian Rupiah (Rp) and US Dollar ($) anytime.
 - **Configurable Benchmark Exchange Rate**: Set custom exchange rates for precise localized currency conversions.
-- **Universal Adaptability**: All dashboard cards, historical transaction lists, budget limits, analytics, and exported files instantly reflect the active currency formatting.
+- **Universal Adaptability**: All dashboard cards, historical transaction lists, budget limits, analytics, and exported files instantly reflect the active language and currency formatting.
 
-### 🛸 6. Floating Glassmorphic Dock Navigation
-- An elevated, pill-shaped navigation dock with rounded geometry floats effortlessly above the content canvas.
-- Fully integrated with Android Edge-to-Edge display and system `WindowInsets` to maximize viewable screen area.
+### 🎨 6. Material 3 Dynamic Theming & Time-Aware Greetings
+- **Dynamic Color & Theme Toggling**: Full Material 3 support with light/dark modes and wallpaper-derived Dynamic Colors on Android 12+.
+- **Device-Time Contextual Greetings**: Greets you dynamically (Morning/Afternoon/Evening or Pagi/Siang/Sore/Malam) based on your device clock—respecting battery and privacy with zero GPS/location requirements.
+- **Solid Elevated Dock Navigation**: An elevated, fully opaque pill-shaped Material 3 navigation dock floats smoothly above the content canvas with clean shadow depth and full Edge-to-Edge display support, preventing any background text bleed-through.
 
-### 🧠 7. On-Device ML Financial Intelligence
+### 📄 7. Refined Multi-Page PDF Financial Statements
+- **Executive Summary & Cashflow Health**: Automatically generates a formatted multi-page statement with portfolio balances, savings rates, and budget health.
+- **Integrated Visual Charts**: Embedded vector cashflow trend bar charts and category spending donut graphs.
+- **Detailed Transaction Ledger & Privacy Seal**: Chronological transaction table with pagination and verified on-device encryption guarantee.
+
+### 🧠 8. On-Device ML Financial Intelligence
 - **Holt’s Double Exponential Smoothing**: Projects expense trajectories and estimated variance over the next 7 days based on weighted historical velocity.
 - **Financial Health Score (0–100)**: Evaluates cash reserve ratios, savings rates, and budget discipline into a tangible health score.
 - **Anomaly Detection & Warnings**: Provides proactive local notifications when anomalous daily spikes or lifestyle spending leaks are detected.

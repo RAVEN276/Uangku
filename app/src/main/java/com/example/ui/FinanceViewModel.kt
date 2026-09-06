@@ -84,6 +84,12 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     private val _themeDark = MutableStateFlow(prefs.getBoolean("theme_dark", false))
     val themeDark = _themeDark.asStateFlow()
 
+    private val _dynamicColor = MutableStateFlow(prefs.getBoolean("dynamic_color_enabled", false))
+    val dynamicColor = _dynamicColor.asStateFlow()
+
+    private val _appLanguage = MutableStateFlow(prefs.getString("app_language", "id") ?: "id")
+    val appLanguage = _appLanguage.asStateFlow()
+
     private val _bankNotificationEnabled = MutableStateFlow(prefs.getBoolean("bank_notification_enabled", false))
     val bankNotificationEnabled = _bankNotificationEnabled.asStateFlow()
 
@@ -393,6 +399,18 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
         prefs.edit().putBoolean("theme_dark", dark).apply()
         _themeDark.value = dark
     }
+
+    fun setDynamicColor(enabled: Boolean) {
+        prefs.edit().putBoolean("dynamic_color_enabled", enabled).apply()
+        _dynamicColor.value = enabled
+    }
+
+    fun setLanguage(lang: String) {
+        prefs.edit().putString("app_language", lang).apply()
+        _appLanguage.value = lang
+    }
+
+    fun isEnglish(): Boolean = _appLanguage.value.equals("en", ignoreCase = true)
 
     fun setBankNotificationEnabled(enabled: Boolean) {
         prefs.edit().putBoolean("bank_notification_enabled", enabled).apply()
@@ -928,12 +946,73 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
         return reportStr
     }
 
+    private fun drawDocumentHeader(
+        canvas: Canvas,
+        title: String,
+        subtitle: String,
+        badgeText: String? = null,
+        colorPrimary: Int,
+        colorDark: Int,
+        colorMuted: Int,
+        colorOnPrimary: Int
+    ) {
+        val brandBarPaint = Paint().apply {
+            color = colorPrimary
+            style = Paint.Style.FILL
+            isAntiAlias = true
+        }
+        // Top accent line at 40f..43.5f
+        canvas.drawRoundRect(40f, 40f, 555f, 43.5f, 2f, 2f, brandBarPaint)
+
+        val titlePaint = Paint().apply {
+            color = colorDark
+            textSize = 17f
+            isFakeBoldText = true
+            isAntiAlias = true
+        }
+        // Baseline at 68f -> text height ~15f, top at ~53f, safely 9.5f below 43.5f! No overlap!
+        canvas.drawText(title, 40f, 68f, titlePaint)
+
+        if (badgeText != null) {
+            val titleWidth = titlePaint.measureText(title)
+            val badgeX = 40f + titleWidth + 12f
+            val badgePaint = Paint().apply {
+                color = colorPrimary
+                style = Paint.Style.FILL
+                isAntiAlias = true
+            }
+            val badgeTextPaint = Paint().apply {
+                color = colorOnPrimary
+                textSize = 7.5f
+                isFakeBoldText = true
+                isAntiAlias = true
+            }
+            val badgeTextWidth = badgeTextPaint.measureText(badgeText)
+            canvas.drawRoundRect(badgeX, 55f, badgeX + badgeTextWidth + 14f, 70f, 4f, 4f, badgePaint)
+            canvas.drawText(badgeText, badgeX + 7f, 65.5f, badgeTextPaint)
+        }
+
+        val subTitlePaint = Paint().apply {
+            color = colorMuted
+            textSize = 8.5f
+            isAntiAlias = true
+        }
+        canvas.drawText(subtitle, 40f, 83f, subTitlePaint)
+
+        val dividerPaint = Paint().apply {
+            color = android.graphics.Color.rgb(226, 232, 240)
+            strokeWidth = 0.8f
+        }
+        canvas.drawLine(40f, 95f, 555f, 95f, dividerPaint)
+    }
+
     private fun createPdfDocumentBytes(
         dateStr: String,
         txs: List<Transaction>,
         budgets: List<Budget>
     ): ByteArray {
         val pdfDocument = PdfDocument()
+        val isEn = _appLanguage.value == "en"
         
         var pageNumber = 1
         var pageInfo = PdfDocument.PageInfo.Builder(595, 842, pageNumber).create()
@@ -945,7 +1024,6 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
         val colorOnPrimary = android.graphics.Color.WHITE
         val colorDark = android.graphics.Color.rgb(15, 23, 42)        // Slate 900 #0F172A
         val colorMuted = android.graphics.Color.rgb(100, 116, 139)    // Slate 500 #64748B
-        val colorLightMuted = android.graphics.Color.rgb(148, 163, 184) // Slate 400
         val colorBg = android.graphics.Color.rgb(248, 250, 252)       // Slate 50 #F8FAFC
         val colorBorder = android.graphics.Color.rgb(226, 232, 240)   // Slate 200 #E2E8F0
         
@@ -964,84 +1042,70 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
             isAntiAlias = true
         }
 
-        val titlePaint = Paint().apply {
-            color = colorDark
-            textSize = 22f
-            isFakeBoldText = true
-            isAntiAlias = true
-        }
-        
         val subTitlePaint = Paint().apply {
             color = colorMuted
-            textSize = 9f
+            textSize = 8.5f
             isAntiAlias = true
         }
         
         val headerPaint = Paint().apply {
             color = colorDark
-            textSize = 13f
+            textSize = 11.5f
             isFakeBoldText = true
             isAntiAlias = true
         }
 
         val sectionLabelPaint = Paint().apply {
             color = colorPrimary
-            textSize = 8.5f
+            textSize = 8f
             isFakeBoldText = true
             isAntiAlias = true
         }
 
         val textPaint = Paint().apply {
             color = colorDark
-            textSize = 9.5f
+            textSize = 9f
             isAntiAlias = true
         }
 
         val boldTextPaint = Paint().apply {
             color = colorDark
-            textSize = 9.5f
-            isFakeBoldText = true
-            isAntiAlias = true
-        }
-
-        val valueLargePaint = Paint().apply {
-            color = colorDark
-            textSize = 14f
+            textSize = 9f
             isFakeBoldText = true
             isAntiAlias = true
         }
 
         val greenTextPaint = Paint().apply {
             color = colorSuccess
-            textSize = 9.5f
+            textSize = 9f
             isFakeBoldText = true
             isAntiAlias = true
         }
 
         val greenValueLargePaint = Paint().apply {
             color = colorSuccess
-            textSize = 14f
+            textSize = 13.5f
             isFakeBoldText = true
             isAntiAlias = true
         }
 
         val redTextPaint = Paint().apply {
             color = colorDanger
-            textSize = 9.5f
+            textSize = 9f
             isFakeBoldText = true
             isAntiAlias = true
         }
 
         val redValueLargePaint = Paint().apply {
             color = colorDanger
-            textSize = 14f
+            textSize = 13.5f
             isFakeBoldText = true
             isAntiAlias = true
         }
 
         val gridPaint = Paint().apply {
             color = colorBorder
-            strokeWidth = 1f
+            strokeWidth = 0.8f
             style = Paint.Style.STROKE
         }
 
@@ -1054,36 +1118,23 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
             fun format(amt: Double): String = formatCurrency(amt)
         }
 
-        var y = 55f
+        // ==========================================
+        // PAGE 1: OVERVIEW & FINANCIAL PROFILE
+        // ==========================================
+        drawDocumentHeader(
+            canvas = canvas,
+            title = "UANGKU",
+            subtitle = if (isEn) "Personal Finance Assistant • Secure, Offline & Local" else "Asisten Cerdas Keuangan Pribadi • Aman, Mandiri & Lokal",
+            badgeText = if (isEn) "OFFICIAL REPORT" else "LAPORAN RESMI",
+            colorPrimary = colorPrimary,
+            colorDark = colorDark,
+            colorMuted = colorMuted,
+            colorOnPrimary = colorOnPrimary
+        )
 
-        // --- PAGE 1: COVER & OVERVIEW ---
-        canvas.drawRect(40f, y, 555f, y + 4f, brandBarPaint)
-        y += 20f
-        
-        canvas.drawText("UANGKU", 40f, y, titlePaint)
-        
-        val officialBadgePaint = Paint().apply {
-            color = colorPrimary
-            style = Paint.Style.FILL
-            isAntiAlias = true
-        }
-        val officialBadgeTextPaint = Paint().apply {
-            color = colorOnPrimary
-            textSize = 8f
-            isFakeBoldText = true
-            isAntiAlias = true
-        }
-        canvas.drawRoundRect(140f, y - 18f, 230f, y + 2f, 4f, 4f, officialBadgePaint)
-        canvas.drawText("LAPORAN RESMI", 148f, y - 6f, officialBadgeTextPaint)
-        
-        y += 14f
-        canvas.drawText("Asisten Cerdas Keuangan Pribadi • Aman, Mandiri & Lokal", 40f, y, subTitlePaint)
-        y += 20f
-        
-        canvas.drawLine(40f, y, 555f, y, gridPaint)
-        y += 22f
+        var y = 110f
 
-        // Metadata Box
+        // 1. Metadata Box
         val metaBoxPaint = Paint().apply {
             color = colorBg
             style = Paint.Style.FILL
@@ -1091,29 +1142,29 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
         canvas.drawRoundRect(40f, y, 555f, y + 42f, 8f, 8f, metaBoxPaint)
         canvas.drawRoundRect(40f, y, 555f, y + 42f, 8f, 8f, gridPaint)
         
-        canvas.drawText("PENGGUNA", 55f, y + 16f, sectionLabelPaint)
+        canvas.drawText(if (isEn) "USER" else "PENGGUNA", 55f, y + 16f, sectionLabelPaint)
         canvas.drawText(_userName.value, 55f, y + 31f, boldTextPaint)
         
-        canvas.drawText("TANGGAL GENERASI", 230f, y + 16f, sectionLabelPaint)
+        canvas.drawText(if (isEn) "GENERATION DATE" else "TANGGAL GENERASI", 230f, y + 16f, sectionLabelPaint)
         canvas.drawText(dateStr, 230f, y + 31f, boldTextPaint)
         
-        canvas.drawText("INTEGRASI SISTEM", 410f, y + 16f, sectionLabelPaint)
-        canvas.drawText("Asisten Cerdas v2.0", 410f, y + 31f, boldTextPaint)
+        canvas.drawText(if (isEn) "SYSTEM INTEGRATION" else "INTEGRASI SISTEM", 410f, y + 16f, sectionLabelPaint)
+        canvas.drawText("Uangku v2.2 (Lokal & Mandiri)", 410f, y + 31f, boldTextPaint)
         
-        y += 65f
+        y += 56f
 
-        // Ringkasan Portfolio section
-        canvas.drawText("RINGKASAN PORTFOLIO", 40f, y, headerPaint)
-        y += 12f
+        // 2. Ringkasan Portfolio (3 Bento Cards)
+        canvas.drawText(if (isEn) "PORTFOLIO SUMMARY" else "RINGKASAN PORTFOLIO", 40f, y, headerPaint)
+        y += 8f
         canvas.drawLine(40f, y, 555f, y, gridPaint)
-        y += 15f
+        y += 12f
 
         val cardY = y
-        val cardHeight = 65f
+        val cardHeight = 62f
         val cardW = 160f
         val cardGap = 17.5f
         
-        // Card 1: Balance (Neutral / Indigo themed)
+        // Card 1: Balance
         val balanceCardPaint = Paint().apply {
             color = android.graphics.Color.WHITE
             style = Paint.Style.FILL
@@ -1121,25 +1172,31 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
         val cardBorderPaint = Paint().apply {
             color = colorBorder
             style = Paint.Style.STROKE
-            strokeWidth = 1.2f
+            strokeWidth = 1f
             isAntiAlias = true
         }
         val c1X = 40f
-        canvas.drawRoundRect(c1X, cardY, c1X + cardW, cardY + cardHeight, 10f, 10f, balanceCardPaint)
-        canvas.drawRoundRect(c1X, cardY, c1X + cardW, cardY + cardHeight, 10f, 10f, cardBorderPaint)
+        canvas.drawRoundRect(c1X, cardY, c1X + cardW, cardY + cardHeight, 8f, 8f, balanceCardPaint)
+        canvas.drawRoundRect(c1X, cardY, c1X + cardW, cardY + cardHeight, 8f, 8f, cardBorderPaint)
         
         val indicatorPaint = Paint().apply {
             color = colorPrimary
             style = Paint.Style.FILL
             isAntiAlias = true
         }
-        canvas.drawRoundRect(c1X, cardY, c1X + cardW, cardY + 5f, 10f, 10f, indicatorPaint)
-        canvas.drawRect(c1X, cardY + 3f, c1X + cardW, cardY + 5f, indicatorPaint)
+        canvas.drawRoundRect(c1X, cardY, c1X + cardW, cardY + 4f, 8f, 8f, indicatorPaint)
+        canvas.drawRect(c1X, cardY + 2f, c1X + cardW, cardY + 4f, indicatorPaint)
         
-        canvas.drawText("SALDO BERSIH", c1X + 15f, cardY + 24f, sectionLabelPaint)
-        canvas.drawText(currencyFormat.format(totalBalance.value), c1X + 15f, cardY + 46f, valueLargePaint)
+        canvas.drawText(if (isEn) "NET BALANCE" else "SALDO BERSIH", c1X + 14f, cardY + 22f, sectionLabelPaint)
+        val balValueLargePaint = Paint().apply {
+            color = colorDark
+            textSize = 13.5f
+            isFakeBoldText = true
+            isAntiAlias = true
+        }
+        canvas.drawText(currencyFormat.format(totalBalance.value), c1X + 14f, cardY + 44f, balValueLargePaint)
 
-        // Card 2: Income (Green Theme)
+        // Card 2: Income
         val incCardPaint = Paint().apply {
             color = colorSuccessBg
             style = Paint.Style.FILL
@@ -1147,30 +1204,30 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
         val incBorderPaint = Paint().apply {
             color = colorSuccessBorder
             style = Paint.Style.STROKE
-            strokeWidth = 1.2f
+            strokeWidth = 1f
             isAntiAlias = true
         }
         val c2X = c1X + cardW + cardGap
-        canvas.drawRoundRect(c2X, cardY, c2X + cardW, cardY + cardHeight, 10f, 10f, incCardPaint)
-        canvas.drawRoundRect(c2X, cardY, c2X + cardW, cardY + cardHeight, 10f, 10f, incBorderPaint)
+        canvas.drawRoundRect(c2X, cardY, c2X + cardW, cardY + cardHeight, 8f, 8f, incCardPaint)
+        canvas.drawRoundRect(c2X, cardY, c2X + cardW, cardY + cardHeight, 8f, 8f, incBorderPaint)
         val incIndicatorPaint = Paint().apply {
             color = colorSuccess
             style = Paint.Style.FILL
             isAntiAlias = true
         }
-        canvas.drawRoundRect(c2X, cardY, c2X + cardW, cardY + 5f, 10f, 10f, incIndicatorPaint)
-        canvas.drawRect(c2X, cardY + 3f, c2X + cardW, cardY + 5f, incIndicatorPaint)
+        canvas.drawRoundRect(c2X, cardY, c2X + cardW, cardY + 4f, 8f, 8f, incIndicatorPaint)
+        canvas.drawRect(c2X, cardY + 2f, c2X + cardW, cardY + 4f, incIndicatorPaint)
         
         val successLabelPaint = Paint().apply {
             color = colorSuccess
-            textSize = 8.5f
+            textSize = 8f
             isFakeBoldText = true
             isAntiAlias = true
         }
-        canvas.drawText("TOTAL PEMASUKAN", c2X + 15f, cardY + 24f, successLabelPaint)
-        canvas.drawText(currencyFormat.format(totalIncome.value), c2X + 15f, cardY + 46f, greenValueLargePaint)
+        canvas.drawText(if (isEn) "TOTAL INCOME" else "TOTAL PEMASUKAN", c2X + 14f, cardY + 22f, successLabelPaint)
+        canvas.drawText(currencyFormat.format(totalIncome.value), c2X + 14f, cardY + 44f, greenValueLargePaint)
 
-        // Card 3: Expense (Red Theme)
+        // Card 3: Expense
         val expCardPaint = Paint().apply {
             color = colorDangerBg
             style = Paint.Style.FILL
@@ -1178,131 +1235,212 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
         val expBorderPaint = Paint().apply {
             color = colorDangerBorder
             style = Paint.Style.STROKE
-            strokeWidth = 1.2f
+            strokeWidth = 1f
             isAntiAlias = true
         }
         val c3X = c2X + cardW + cardGap
-        canvas.drawRoundRect(c3X, cardY, c3X + cardW, cardY + cardHeight, 10f, 10f, expCardPaint)
-        canvas.drawRoundRect(c3X, cardY, c3X + cardW, cardY + cardHeight, 10f, 10f, expBorderPaint)
+        canvas.drawRoundRect(c3X, cardY, c3X + cardW, cardY + cardHeight, 8f, 8f, expCardPaint)
+        canvas.drawRoundRect(c3X, cardY, c3X + cardW, cardY + cardHeight, 8f, 8f, expBorderPaint)
         val expIndicatorPaint = Paint().apply {
             color = colorDanger
             style = Paint.Style.FILL
             isAntiAlias = true
         }
-        canvas.drawRoundRect(c3X, cardY, c3X + cardW, cardY + 5f, 10f, 10f, expIndicatorPaint)
-        canvas.drawRect(c3X, cardY + 3f, c3X + cardW, cardY + 5f, expIndicatorPaint)
+        canvas.drawRoundRect(c3X, cardY, c3X + cardW, cardY + 4f, 8f, 8f, expIndicatorPaint)
+        canvas.drawRect(c3X, cardY + 2f, c3X + cardW, cardY + 4f, expIndicatorPaint)
         
         val dangerLabelPaint = Paint().apply {
             color = colorDanger
-            textSize = 8.5f
+            textSize = 8f
             isFakeBoldText = true
             isAntiAlias = true
         }
-        canvas.drawText("TOTAL PENGELUARAN", c3X + 15f, cardY + 24f, dangerLabelPaint)
-        canvas.drawText(currencyFormat.format(totalExpense.value), c3X + 15f, cardY + 46f, redValueLargePaint)
+        canvas.drawText(if (isEn) "TOTAL EXPENSE" else "TOTAL PENGELUARAN", c3X + 14f, cardY + 22f, dangerLabelPaint)
+        canvas.drawText(currencyFormat.format(totalExpense.value), c3X + 14f, cardY + 44f, redValueLargePaint)
 
-        y += cardHeight + 35f
+        y += cardHeight + 18f
 
-        // Limits and Budgets section
-        canvas.drawText("LIMIT & ANGGARAN BULANAN", 40f, y, headerPaint)
-        y += 12f
+        // 3. Key Metrics & Financial Health Badges (4 Bento Badges)
+        canvas.drawText(if (isEn) "KEY METRICS & CASH FLOW HEALTH" else "STATISTIK & KESEHATAN ARUS KAS", 40f, y, headerPaint)
+        y += 8f
         canvas.drawLine(40f, y, 555f, y, gridPaint)
-        y += 18f
+        y += 12f
+
+        val totalIncVal = totalIncome.value
+        val totalExpVal = totalExpense.value
+        val savingsRate = if (totalIncVal > 0.0) ((totalIncVal - totalExpVal) / totalIncVal * 100).coerceAtLeast(0.0) else 0.0
+        val topCatEntry = txs.filter { it.type == "EXPENSE" }.groupBy { it.category }.maxByOrNull { it.value.sumOf { tx -> tx.amount } }
+        val topCatName = topCatEntry?.key ?: "-"
+        val avgTxAmt = if (txs.isNotEmpty()) txs.map { it.amount }.average() else 0.0
+
+        val metricCardW = 122f
+        val metricCardH = 46f
+        val metricGap = 9f
+
+        val metricsList = listOf(
+            Triple(if (isEn) "SAVINGS RATE" else "RASIO TABUNGAN", String.format(Locale.US, "%.1f%%", savingsRate), colorPrimary),
+            Triple(if (isEn) "TOTAL TXS" else "TOTAL TRANSAKSI", "${txs.size} " + if (isEn) "tx" else "rekaman", colorDark),
+            Triple(if (isEn) "AVG TX AMOUNT" else "RATA-RATA TRANSAKSI", currencyFormat.format(avgTxAmt), colorDark),
+            Triple(if (isEn) "TOP CATEGORY" else "KATEGORI TERBESAR", topCatName, colorDanger)
+        )
+
+        metricsList.forEachIndexed { index, m ->
+            val mx = 40f + index * (metricCardW + metricGap)
+            val metricBgPaint = Paint().apply {
+                color = colorBg
+                style = Paint.Style.FILL
+            }
+            canvas.drawRoundRect(mx, y, mx + metricCardW, y + metricCardH, 6f, 6f, metricBgPaint)
+            canvas.drawRoundRect(mx, y, mx + metricCardW, y + metricCardH, 6f, 6f, gridPaint)
+            
+            val mLabelPaint = Paint().apply {
+                color = colorMuted
+                textSize = 7.5f
+                isFakeBoldText = true
+                isAntiAlias = true
+            }
+            canvas.drawText(m.first, mx + 10f, y + 16f, mLabelPaint)
+            
+            val mValPaint = Paint().apply {
+                color = m.third
+                textSize = 10f
+                isFakeBoldText = true
+                isAntiAlias = true
+            }
+            var valShow = m.second
+            if (valShow.length > 16) {
+                valShow = valShow.substring(0, 14) + ".."
+            }
+            canvas.drawText(valShow, mx + 10f, y + 33f, mValPaint)
+        }
+
+        y += metricCardH + 18f
+
+        // 4. Limits and Budgets section
+        canvas.drawText(if (isEn) "MONTHLY BUDGETS & LIMITS" else "LIMIT & ANGGARAN BULANAN", 40f, y, headerPaint)
+        y += 8f
+        canvas.drawLine(40f, y, 555f, y, gridPaint)
+        y += 12f
 
         if (budgets.isEmpty()) {
             val emptyBoxPaint = Paint().apply {
                 color = colorBg
                 style = Paint.Style.FILL
             }
-            canvas.drawRoundRect(40f, y, 555f, y + 45f, 8f, 8f, emptyBoxPaint)
-            canvas.drawRoundRect(40f, y, 555f, y + 45f, 8f, 8f, gridPaint)
-            canvas.drawText("Belum ada batasan anggaran bulanan yang ditetapkan.", 60f, y + 26f, subTitlePaint)
-            y += 60f
+            canvas.drawRoundRect(40f, y, 555f, y + 38f, 6f, 6f, emptyBoxPaint)
+            canvas.drawRoundRect(40f, y, 555f, y + 38f, 6f, 6f, gridPaint)
+            canvas.drawText(
+                if (isEn) "No monthly budget limits defined yet." else "Belum ada batasan anggaran bulanan yang ditetapkan.",
+                60f, y + 23f, subTitlePaint
+            )
+            y += 50f
         } else {
             val budgetHeaderPaint = Paint().apply {
                 color = colorBg
                 style = Paint.Style.FILL
             }
-            canvas.drawRoundRect(40f, y, 555f, y + 24f, 6f, 6f, budgetHeaderPaint)
-            canvas.drawRoundRect(40f, y, 555f, y + 24f, 6f, 6f, gridPaint)
+            canvas.drawRoundRect(40f, y, 555f, y + 22f, 6f, 6f, budgetHeaderPaint)
+            canvas.drawRoundRect(40f, y, 555f, y + 22f, 6f, 6f, gridPaint)
             
-            canvas.drawText("KATEGORI", 55f, y + 16f, boldTextPaint)
-            canvas.drawText("LIMIT ANGGARAN BULANAN", 230f, y + 16f, boldTextPaint)
-            canvas.drawText("STATUS KEAKTIFAN", 410f, y + 16f, boldTextPaint)
-            y += 32f
+            canvas.drawText(if (isEn) "CATEGORY" else "KATEGORI", 55f, y + 15f, boldTextPaint)
+            canvas.drawText(if (isEn) "MONTHLY BUDGET LIMIT" else "LIMIT ANGGARAN BULANAN", 230f, y + 15f, boldTextPaint)
+            canvas.drawText(if (isEn) "STATUS" else "STATUS KEAKTIFAN", 420f, y + 15f, boldTextPaint)
+            y += 28f
 
-            for (b in budgets) {
+            for (b in budgets.take(4)) {
                 val dotPaint = Paint().apply {
                     color = colorPrimary
                     style = Paint.Style.FILL
                     isAntiAlias = true
                 }
-                canvas.drawCircle(50f, y - 3f, 3.5f, dotPaint)
+                canvas.drawCircle(50f, y - 3f, 3f, dotPaint)
                 canvas.drawText(b.category, 65f, y, boldTextPaint)
-                canvas.drawText(currencyFormat.format(b.limitAmount) + " / bulan", 230f, y, textPaint)
+                canvas.drawText(currencyFormat.format(b.limitAmount) + if (isEn) " / mo" else " / bulan", 230f, y, textPaint)
                 
                 val badgeBgPaint = Paint().apply {
                     color = colorSuccessBg
                     style = Paint.Style.FILL
                     isAntiAlias = true
                 }
-                canvas.drawRoundRect(410f, y - 10f, 480f, y + 5f, 4f, 4f, badgeBgPaint)
+                canvas.drawRoundRect(420f, y - 9f, 485f, y + 5f, 4f, 4f, badgeBgPaint)
                 val badgeTextPaint = Paint().apply {
                     color = colorSuccess
-                    textSize = 8f
+                    textSize = 7.5f
                     isFakeBoldText = true
                     isAntiAlias = true
                 }
-                canvas.drawText("AKTIF", 425f, y + 1f, badgeTextPaint)
+                canvas.drawText(if (isEn) "ACTIVE" else "AKTIF", 435f, y + 1.5f, badgeTextPaint)
                 
-                y += 22f
-                canvas.drawLine(40f, y - 14f, 555f, y - 14f, gridPaint)
-
-                if (y > 740f) {
-                    styleFooter(canvas, pageNumber)
-                    pdfDocument.finishPage(page)
-                    pageNumber++
-                    pageInfo = PdfDocument.PageInfo.Builder(595, 842, pageNumber).create()
-                    page = pdfDocument.startPage(pageInfo)
-                    canvas = page.canvas
-                    y = 55f
-                    
-                    canvas.drawRect(40f, y, 555f, y + 24f, budgetHeaderPaint)
-                    canvas.drawRect(40f, y, 555f, y + 24f, gridPaint)
-                    canvas.drawText("KATEGORI", 55f, y + 16f, boldTextPaint)
-                    canvas.drawText("LIMIT ANGGARAN BULANAN", 230f, y + 16f, boldTextPaint)
-                    canvas.drawText("STATUS KEAKTIFAN", 410f, y + 16f, boldTextPaint)
-                    y += 32f
-                }
+                y += 20f
+                canvas.drawLine(40f, y - 13f, 555f, y - 13f, gridPaint)
             }
-            y += 10f
+            y += 8f
         }
 
-        // --- PAGE BREAK FOR VISUAL CHARTS PAGE (PAGE 2) ---
-        styleFooter(canvas, pageNumber)
+        // 5. Automated Financial Health Evaluation Card (fills the rest of Page 1 harmoniously)
+        val execCardY = y
+        val execCardH = 92f
+        canvas.drawRoundRect(40f, execCardY, 555f, execCardY + execCardH, 8f, 8f, cardBgPaint)
+        canvas.drawRoundRect(40f, execCardY, 555f, execCardY + execCardH, 8f, 8f, gridPaint)
+        canvas.drawRoundRect(40f, execCardY, 44f, execCardY + execCardH, 2f, 2f, brandBarPaint)
+
+        canvas.drawText(
+            if (isEn) "AUTOMATED FINANCIAL HEALTH EVALUATION" else "EVALUASI KESEHATAN FINANSIAL OTOMATIS",
+            55f, execCardY + 20f, boldTextPaint
+        )
+
+        val cashflowNote = if (totalIncVal >= totalExpVal) {
+            if (isEn) "• Positive cash flow: Total income comfortably covers operational expenses."
+            else "• Arus kas tercatat positif: Pemasukan mampu menutup pos pengeluaran secara sehat."
+        } else {
+            if (isEn) "• Attention needed: Expenses currently exceed income. Monitor discretionary spending."
+            else "• Perhatian: Total pengeluaran melebihi pemasukan. Pantau alokasi belanja diskresioner."
+        }
+        val budgetNote = if (isEn) {
+            "• Savings health: ${String.format(Locale.US, "%.1f%%", savingsRate)} of total income is retained for wealth preservation and emergency reserves."
+        } else {
+            "• Kesehatan tabungan: ${String.format(Locale.US, "%.1f%%", savingsRate)} dari pemasukan berhasil dialokasikan untuk tabungan mandiri."
+        }
+        val securityNote = if (isEn) {
+            "• Zero cloud telemetry: All data processing is strictly executed on device local encrypted storage."
+        } else {
+            "• Privasi penuh: Seluruh komputasi transaksi dijalankan 100% lokal terenkripsi di perangkat Anda."
+        }
+
+        canvas.drawText(cashflowNote, 55f, execCardY + 38f, subTitlePaint)
+        canvas.drawText(budgetNote, 55f, execCardY + 54f, subTitlePaint)
+        canvas.drawText(securityNote, 55f, execCardY + 70f, subTitlePaint)
+
+        styleFooter(canvas, pageNumber, isEn)
         pdfDocument.finishPage(page)
+
+        // ==========================================
+        // PAGE 2: VISUAL CHARTS & TREND ANALYTICS
+        // ==========================================
         pageNumber++
         pageInfo = PdfDocument.PageInfo.Builder(595, 842, pageNumber).create()
         page = pdfDocument.startPage(pageInfo)
         canvas = page.canvas
-        y = 55f
 
-        canvas.drawRect(40f, y, 555f, y + 4f, brandBarPaint)
-        y += 20f
+        drawDocumentHeader(
+            canvas = canvas,
+            title = if (isEn) "FINANCIAL TRENDS & VISUALIZATION" else "VISUALISASI & TREN KEUANGAN",
+            subtitle = if (isEn) "Comparative graphical analysis and category spending breakdown" else "Analisis perbandingan grafis dan pola pengeluaran kategori",
+            badgeText = null,
+            colorPrimary = colorPrimary,
+            colorDark = colorDark,
+            colorMuted = colorMuted,
+            colorOnPrimary = colorOnPrimary
+        )
 
-        canvas.drawText("VISUALISASI & TREN KEUANGAN", 40f, y, titlePaint)
-        y += 12f
-        canvas.drawText("Analisis perbandingan grafis dan pola pengeluaran kategori", 40f, y, subTitlePaint)
-        y += 20f
-        canvas.drawLine(40f, y, 555f, y, gridPaint)
-        y += 25f
+        y = 110f
 
         // Chart 1: Bar Chart
-        canvas.drawText("1. Tren Aliran Kas Bulanan (Pemasukan vs Pengeluaran)", 45f, y, boldTextPaint)
-        y += 15f
+        canvas.drawText(if (isEn) "1. Monthly Cashflow Trend (Income vs Expense)" else "1. Tren Aliran Kas Bulanan (Pemasukan vs Pengeluaran)", 40f, y, boldTextPaint)
+        y += 12f
         
         // Group by month
-        val monthFormat = SimpleDateFormat("MMM yy", Locale("id", "ID"))
+        val monthFormat = SimpleDateFormat("MMM yy", if (isEn) Locale.US else Locale("id", "ID"))
         val monthlyGroups = txs.groupBy {
             val cal = Calendar.getInstance().apply { timeInMillis = it.timestamp }
             cal.get(Calendar.YEAR) * 12 + cal.get(Calendar.MONTH)
@@ -1317,26 +1455,27 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
             Triple(label, income, expense)
         }
 
-        canvas.drawRoundRect(40f, y, 555f, y + 155f, 12f, 12f, cardBgPaint)
-        canvas.drawRoundRect(40f, y, 555f, y + 155f, 12f, 12f, gridPaint)
+        val barCardHeight = 210f
+        canvas.drawRoundRect(40f, y, 555f, y + barCardHeight, 10f, 10f, cardBgPaint)
+        canvas.drawRoundRect(40f, y, 555f, y + barCardHeight, 10f, 10f, gridPaint)
 
         if (chartData.isEmpty()) {
-            canvas.drawText("Belum ada data transaksi bulanan untuk grafik.", 60f, y + 78f, subTitlePaint)
+            canvas.drawText(if (isEn) "No monthly transaction records available for charting." else "Belum ada data transaksi bulanan untuk grafik.", 60f, y + 105f, subTitlePaint)
         } else {
             val maxVal = chartData.map { maxOf(it.second, it.third) }.maxOrNull() ?: 1.0
             val scaleMax = if (maxVal <= 0.0) 1.0 else maxVal
             
-            val baselineY = y + 120f
-            val chartHeight = 85f
+            val baselineY = y + 165f
+            val chartHeight = 120f
             
             // Draw grid lines inside chart
             val dashPaint = Paint().apply {
                 color = colorBorder
                 strokeWidth = 0.8f
             }
-            canvas.drawLine(85f, baselineY, 535f, baselineY, dashPaint)
-            canvas.drawLine(85f, baselineY - chartHeight * 0.5f, 535f, baselineY - chartHeight * 0.5f, dashPaint)
-            canvas.drawLine(85f, baselineY - chartHeight, 535f, baselineY - chartHeight, dashPaint)
+            canvas.drawLine(90f, baselineY, 535f, baselineY, dashPaint)
+            canvas.drawLine(90f, baselineY - chartHeight * 0.5f, 535f, baselineY - chartHeight * 0.5f, dashPaint)
+            canvas.drawLine(90f, baselineY - chartHeight, 535f, baselineY - chartHeight, dashPaint)
 
             // Draw Y-axis labels
             val axisLabelPaint = Paint().apply {
@@ -1344,19 +1483,19 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
                 textSize = 7.5f
                 isAntiAlias = true
             }
-            canvas.drawText("0", 50f, baselineY + 3f, axisLabelPaint)
-            canvas.drawText(currencyFormat.format(scaleMax * 0.5).replace(",00", ""), 50f, baselineY - chartHeight * 0.5f + 3f, axisLabelPaint)
-            canvas.drawText(currencyFormat.format(scaleMax).replace(",00", ""), 50f, baselineY - chartHeight + 3f, axisLabelPaint)
+            canvas.drawText("0", 48f, baselineY + 3f, axisLabelPaint)
+            canvas.drawText(currencyFormat.format(scaleMax * 0.5).replace(",00", ""), 48f, baselineY - chartHeight * 0.5f + 3f, axisLabelPaint)
+            canvas.drawText(currencyFormat.format(scaleMax).replace(",00", ""), 48f, baselineY - chartHeight + 3f, axisLabelPaint)
 
             // Draw Legends
             val legendGreenPaint = Paint().apply { color = colorSuccess; style = Paint.Style.FILL; isAntiAlias = true }
             val legendRedPaint = Paint().apply { color = colorDanger; style = Paint.Style.FILL; isAntiAlias = true }
             
-            canvas.drawRoundRect(390f, y + 10f, 400f, y + 20f, 2f, 2f, legendGreenPaint)
-            canvas.drawText("Pemasukan", 405f, y + 18f, axisLabelPaint)
+            canvas.drawRoundRect(390f, y + 12f, 400f, y + 22f, 2f, 2f, legendGreenPaint)
+            canvas.drawText(if (isEn) "Income" else "Pemasukan", 405f, y + 20f, axisLabelPaint)
             
-            canvas.drawRoundRect(470f, y + 10f, 480f, y + 20f, 2f, 2f, legendRedPaint)
-            canvas.drawText("Pengeluaran", 485f, y + 18f, axisLabelPaint)
+            canvas.drawRoundRect(470f, y + 12f, 480f, y + 22f, 2f, 2f, legendRedPaint)
+            canvas.drawText(if (isEn) "Expense" else "Pengeluaran", 485f, y + 20f, axisLabelPaint)
 
             val numMonths = chartData.size
             val startX = 110f
@@ -1380,54 +1519,55 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
                 // Income Bar
                 val incHeight = ((data.second / scaleMax) * chartHeight).toFloat()
                 if (incHeight > 0f) {
-                    canvas.drawRoundRect(cx - 14f, baselineY - incHeight, cx - 2f, baselineY, 3f, 3f, barGreenPaint)
+                    canvas.drawRoundRect(cx - 16f, baselineY - incHeight, cx - 3f, baselineY, 3f, 3f, barGreenPaint)
                     if (incHeight > 4f) {
-                        canvas.drawRect(cx - 14f, baselineY - 4f, cx - 2f, baselineY, barGreenPaint)
+                        canvas.drawRect(cx - 16f, baselineY - 4f, cx - 3f, baselineY, barGreenPaint)
                     }
                 }
                 
                 // Expense Bar
                 val expHeight = ((data.third / scaleMax) * chartHeight).toFloat()
                 if (expHeight > 0f) {
-                    canvas.drawRoundRect(cx + 2f, baselineY - expHeight, cx + 14f, baselineY, 3f, 3f, barRedPaint)
+                    canvas.drawRoundRect(cx + 3f, baselineY - expHeight, cx + 16f, baselineY, 3f, 3f, barRedPaint)
                     if (expHeight > 4f) {
-                        canvas.drawRect(cx + 2f, baselineY - 4f, cx + 14f, baselineY, barRedPaint)
+                        canvas.drawRect(cx + 3f, baselineY - 4f, cx + 16f, baselineY, barRedPaint)
                     }
                 }
                 
                 // Month Label
-                canvas.drawText(data.first, cx - 18f, baselineY + 16f, textPaint)
+                canvas.drawText(data.first, cx - 16f, baselineY + 18f, boldTextPaint)
             }
         }
         
-        y += 185f
+        y += barCardHeight + 20f
 
         // Chart 2: Donut Chart
-        canvas.drawText("2. Alokasi Pengeluaran Berdasarkan Kategori", 45f, y, boldTextPaint)
-        y += 15f
+        canvas.drawText(if (isEn) "2. Expense Allocation by Category" else "2. Alokasi Pengeluaran Berdasarkan Kategori", 40f, y, boldTextPaint)
+        y += 12f
 
         val expenseTxs = txs.filter { it.type == "EXPENSE" }
         val totalExpenseAmt = expenseTxs.sumOf { it.amount }
         val catGroups = expenseTxs.groupBy { it.category }
-            .mapValues { it.value.sumOf { it.amount } }
+            .mapValues { it.value.sumOf { tx -> tx.amount } }
             .entries.sortedByDescending { it.value }
 
-        canvas.drawRoundRect(40f, y, 555f, y + 175f, 12f, 12f, cardBgPaint)
-        canvas.drawRoundRect(40f, y, 555f, y + 175f, 12f, 12f, gridPaint)
+        val donutCardHeight = 210f
+        canvas.drawRoundRect(40f, y, 555f, y + donutCardHeight, 10f, 10f, cardBgPaint)
+        canvas.drawRoundRect(40f, y, 555f, y + donutCardHeight, 10f, 10f, gridPaint)
 
         if (totalExpenseAmt <= 0.0 || catGroups.isEmpty()) {
-            canvas.drawText("Belum ada data pengeluaran untuk diagram kategori.", 60f, y + 88f, subTitlePaint)
+            canvas.drawText(if (isEn) "No expense records available for category breakdown." else "Belum ada data pengeluaran untuk diagram kategori.", 60f, y + 105f, subTitlePaint)
         } else {
             val topCats = catGroups.take(4)
             val otherSum = if (catGroups.size > 4) catGroups.drop(4).sumOf { it.value } else 0.0
             val donutData = topCats.map { Pair(it.key, it.value) }.toMutableList()
             if (otherSum > 0.0) {
-                donutData.add(Pair("Lainnya", otherSum))
+                donutData.add(Pair(if (isEn) "Others" else "Lainnya", otherSum))
             }
 
-            val cx = 135f
-            val cy = y + 88f
-            val radius = 58f
+            val cx = 140f
+            val cy = y + 105f
+            val radius = 66f
             val rectF = RectF(cx - radius, cy - radius, cx + radius, cy + radius)
 
             var startAngle = -90f
@@ -1457,12 +1597,12 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
                 style = Paint.Style.FILL
                 isAntiAlias = true
             }
-            canvas.drawCircle(cx, cy, 35f, whitePaint)
+            canvas.drawCircle(cx, cy, 38f, whitePaint)
 
             // Draw Legends on the Right
-            val legendX = 235f
+            val legendX = 245f
             donutData.forEachIndexed { idx, pair ->
-                val legendY = y + 26f + idx * 28f
+                val legendY = y + 36f + idx * 32f
                 
                 val markerPaint = Paint().apply {
                     color = when (idx) {
@@ -1475,32 +1615,68 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
                     style = Paint.Style.FILL
                     isAntiAlias = true
                 }
-                canvas.drawRoundRect(legendX, legendY - 8f, legendX + 11f, legendY + 3f, 3f, 3f, markerPaint)
+                canvas.drawRoundRect(legendX, legendY - 8f, legendX + 12f, legendY + 4f, 3f, 3f, markerPaint)
 
-                val pctText = String.format("%.1f%%", (pair.second / totalExpenseAmt) * 100)
-                canvas.drawText("${pair.first} ($pctText)", legendX + 18f, legendY, boldTextPaint)
-                canvas.drawText(currencyFormat.format(pair.second), legendX + 18f, legendY + 11f, subTitlePaint)
+                val pctText = String.format(Locale.US, "%.1f%%", (pair.second / totalExpenseAmt) * 100)
+                canvas.drawText("${pair.first} ($pctText)", legendX + 20f, legendY, boldTextPaint)
+                canvas.drawText(currencyFormat.format(pair.second), legendX + 20f, legendY + 12f, subTitlePaint)
             }
         }
+        
+        y += donutCardHeight + 20f
 
-        // --- PAGE BREAK TO TRANSACTION HISTORY PAGE ---
-        styleFooter(canvas, pageNumber)
+        // 3. Spending Trends Takeaways (Fills bottom of Page 2)
+        val takeawayH = 75f
+        canvas.drawRoundRect(40f, y, 555f, y + takeawayH, 8f, 8f, metaBoxPaint)
+        canvas.drawRoundRect(40f, y, 555f, y + takeawayH, 8f, 8f, gridPaint)
+
+        val t1Label = if (isEn) "PEAK SPENDING CATEGORY" else "KATEGORI PENGELUARAN TERBESAR"
+        val t1Val = if (catGroups.isNotEmpty()) "${catGroups.first().key} (${currencyFormat.format(catGroups.first().value)})" else "-"
+        
+        val t2Label = if (isEn) "MONTHS RECORDED" else "BULAN AKTIF TERCATAT"
+        val t2Val = "${chartData.size} " + if (isEn) "active period(s)" else "periode aktif"
+
+        val t3Label = if (isEn) "NET MONTHLY FLOW" else "ARUS KAS BULAN BERJALAN"
+        val t3Val = currencyFormat.format(currentMonthIncome.value - currentMonthExpense.value)
+
+        canvas.drawText(t1Label, 55f, y + 20f, sectionLabelPaint)
+        canvas.drawText(t1Val, 55f, y + 36f, boldTextPaint)
+
+        canvas.drawText(t2Label, 240f, y + 20f, sectionLabelPaint)
+        canvas.drawText(t2Val, 240f, y + 36f, boldTextPaint)
+
+        canvas.drawText(t3Label, 410f, y + 20f, sectionLabelPaint)
+        canvas.drawText(t3Val, 410f, y + 36f, if (currentMonthIncome.value >= currentMonthExpense.value) greenTextPaint else redTextPaint)
+
+        canvas.drawText(
+            if (isEn) "• Systematic tracking helps optimize future budgeting limits and prevents impulsive outlays."
+            else "• Pencatatan mutasi berkala mempermudah optimalisasi limit bulanan dan mencegah pengeluaran impulsif.",
+            55f, y + 58f, subTitlePaint
+        )
+
+        styleFooter(canvas, pageNumber, isEn)
         pdfDocument.finishPage(page)
+
+        // ==========================================
+        // PAGE 3: TRANSACTION HISTORY
+        // ==========================================
         pageNumber++
         pageInfo = PdfDocument.PageInfo.Builder(595, 842, pageNumber).create()
         page = pdfDocument.startPage(pageInfo)
         canvas = page.canvas
-        y = 55f
 
-        canvas.drawRect(40f, y, 555f, y + 4f, brandBarPaint)
-        y += 20f
+        drawDocumentHeader(
+            canvas = canvas,
+            title = if (isEn) "RECENT TRANSACTION HISTORY" else "RIWAYAT TRANSAKSI TERBARU",
+            subtitle = if (isEn) "Recent financial transactions recorded on your device" else "Daftar mutasi keuangan dan rekaman transaksi terbaru di perangkat Anda",
+            badgeText = null,
+            colorPrimary = colorPrimary,
+            colorDark = colorDark,
+            colorMuted = colorMuted,
+            colorOnPrimary = colorOnPrimary
+        )
 
-        canvas.drawText("RIWAYAT TRANSAKSI TERBARU", 40f, y, titlePaint)
-        y += 12f
-        canvas.drawText("Daftar mutasi keuangan dan rekaman transaksi terbaru di perangkat Anda", 40f, y, subTitlePaint)
-        y += 20f
-        canvas.drawLine(40f, y, 555f, y, gridPaint)
-        y += 25f
+        y = 110f
 
         // Table Header
         val tableHeaderBgPaint = Paint().apply {
@@ -1509,21 +1685,21 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
         }
         val tableHeaderLabelPaint = Paint().apply {
             color = android.graphics.Color.WHITE
-            textSize = 9.5f
+            textSize = 8.5f
             isFakeBoldText = true
             isAntiAlias = true
         }
 
-        canvas.drawRoundRect(40f, y, 555f, y + 26f, 6f, 6f, tableHeaderBgPaint)
+        canvas.drawRoundRect(40f, y, 555f, y + 24f, 6f, 6f, tableHeaderBgPaint)
         
-        canvas.drawText("TANGGAL", 55f, y + 17f, tableHeaderLabelPaint)
-        canvas.drawText("KATEGORI", 140f, y + 17f, tableHeaderLabelPaint)
-        canvas.drawText("NAMA TRANSAKSI", 240f, y + 17f, tableHeaderLabelPaint)
-        canvas.drawText("JUMLAH", 465f, y + 17f, tableHeaderLabelPaint)
-        y += 26f
+        canvas.drawText(if (isEn) "DATE" else "TANGGAL", 55f, y + 16f, tableHeaderLabelPaint)
+        canvas.drawText(if (isEn) "CATEGORY" else "KATEGORI", 140f, y + 16f, tableHeaderLabelPaint)
+        canvas.drawText(if (isEn) "TRANSACTION NAME" else "NAMA TRANSAKSI", 240f, y + 16f, tableHeaderLabelPaint)
+        canvas.drawText(if (isEn) "AMOUNT" else "JUMLAH", 465f, y + 16f, tableHeaderLabelPaint)
+        y += 24f
 
         val listFormat = SimpleDateFormat("dd-MM-yyyy", Locale.getDefault())
-        val rowHeight = 24f
+        val rowHeight = 22f
         
         val zebraEvenPaint = Paint().apply {
             color = android.graphics.Color.WHITE
@@ -1534,7 +1710,12 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
             style = Paint.Style.FILL
         }
 
-        txs.take(20).forEachIndexed { index, tx ->
+        val rowBorderPaint = Paint().apply {
+            color = colorBorder
+            strokeWidth = 0.6f
+        }
+
+        txs.take(22).forEachIndexed { index, tx ->
             val dateStrTx = listFormat.format(java.util.Date(tx.timestamp))
             val amountStr = (if (tx.type == "INCOME") "+" else "-") + currencyFormat.format(tx.amount)
             val isIncome = tx.type == "INCOME"
@@ -1542,55 +1723,67 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
             val currentBgPaint = if (index % 2 == 0) zebraEvenPaint else zebraOddPaint
             canvas.drawRect(40f, y, 555f, y + rowHeight, currentBgPaint)
             
-            canvas.drawText(dateStrTx, 55f, y + 16f, textPaint)
-            canvas.drawText(tx.category, 140f, y + 16f, boldTextPaint)
+            canvas.drawText(dateStrTx, 55f, y + 15f, textPaint)
+            canvas.drawText(tx.category, 140f, y + 15f, boldTextPaint)
             
             var titleShow = tx.getCleanTitle()
             if (titleShow.length > 30) {
                 titleShow = titleShow.substring(0, 27) + "..."
             }
-            canvas.drawText(titleShow, 240f, y + 16f, textPaint)
+            canvas.drawText(titleShow, 240f, y + 15f, textPaint)
             
-            canvas.drawText(amountStr, 465f, y + 16f, if (isIncome) greenTextPaint else redTextPaint)
+            canvas.drawText(amountStr, 465f, y + 15f, if (isIncome) greenTextPaint else redTextPaint)
             y += rowHeight
 
-            val rowBorderPaint = Paint().apply {
-                color = colorBorder
-                strokeWidth = 0.8f
-            }
             canvas.drawLine(40f, y, 555f, y, rowBorderPaint)
 
-            if (y > 740f) {
-                styleFooter(canvas, pageNumber)
+            if (y > 720f && index < txs.take(22).size - 1) {
+                styleFooter(canvas, pageNumber, isEn)
                 pdfDocument.finishPage(page)
                 pageNumber++
                 pageInfo = PdfDocument.PageInfo.Builder(595, 842, pageNumber).create()
                 page = pdfDocument.startPage(pageInfo)
                 canvas = page.canvas
-                y = 55f
-                
-                canvas.drawRect(40f, y, 555f, y + 4f, brandBarPaint)
-                y += 20f
-                canvas.drawRoundRect(40f, y, 555f, y + 26f, 6f, 6f, tableHeaderBgPaint)
-                canvas.drawText("TANGGAL", 55f, y + 17f, tableHeaderLabelPaint)
-                canvas.drawText("KATEGORI", 140f, y + 17f, tableHeaderLabelPaint)
-                canvas.drawText("NAMA TRANSAKSI", 240f, y + 17f, tableHeaderLabelPaint)
-                canvas.drawText("JUMLAH", 465f, y + 17f, tableHeaderLabelPaint)
-                y += 26f
+
+                drawDocumentHeader(
+                    canvas = canvas,
+                    title = if (isEn) "RECENT TRANSACTION HISTORY (CONT.)" else "RIWAYAT TRANSAKSI TERBARU (LANJUTAN)",
+                    subtitle = if (isEn) "Continued records of financial transactions" else "Lanjutan rekaman mutasi transaksi keuangan Anda",
+                    badgeText = null,
+                    colorPrimary = colorPrimary,
+                    colorDark = colorDark,
+                    colorMuted = colorMuted,
+                    colorOnPrimary = colorOnPrimary
+                )
+                y = 110f
+                canvas.drawRoundRect(40f, y, 555f, y + 24f, 6f, 6f, tableHeaderBgPaint)
+                canvas.drawText(if (isEn) "DATE" else "TANGGAL", 55f, y + 16f, tableHeaderLabelPaint)
+                canvas.drawText(if (isEn) "CATEGORY" else "KATEGORI", 140f, y + 16f, tableHeaderLabelPaint)
+                canvas.drawText(if (isEn) "TRANSACTION NAME" else "NAMA TRANSAKSI", 240f, y + 16f, tableHeaderLabelPaint)
+                canvas.drawText(if (isEn) "AMOUNT" else "JUMLAH", 465f, y + 16f, tableHeaderLabelPaint)
+                y += 24f
             }
         }
 
-        y += 15f
-        if (y > 720f) {
-            styleFooter(canvas, pageNumber)
+        y += 14f
+        if (y > 710f) {
+            styleFooter(canvas, pageNumber, isEn)
             pdfDocument.finishPage(page)
             pageNumber++
             pageInfo = PdfDocument.PageInfo.Builder(595, 842, pageNumber).create()
             page = pdfDocument.startPage(pageInfo)
             canvas = page.canvas
-            y = 55f
-            canvas.drawRect(40f, y, 555f, y + 4f, brandBarPaint)
-            y += 20f
+            drawDocumentHeader(
+                canvas = canvas,
+                title = if (isEn) "DATA SECURITY & VERIFICATION" else "KEAMANAN & VERIFIKASI DATA",
+                subtitle = if (isEn) "Local integrity and encryption protocol" else "Protokol enkripsi dan integritas penyimpanan lokal",
+                badgeText = null,
+                colorPrimary = colorPrimary,
+                colorDark = colorDark,
+                colorMuted = colorMuted,
+                colorOnPrimary = colorOnPrimary
+            )
+            y = 110f
         }
         
         val closingBgPaint = Paint().apply {
@@ -1612,11 +1805,19 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
             isAntiAlias = true
         }
         
-        canvas.drawText("INFORMASI KEAMANAN DATA", 55f, y + 18f, disclaimerHeaderPaint)
-        canvas.drawText("Laporan ini diunduh secara instan dari aplikasi Uangku. Semua data transaksi Anda", 55f, y + 30f, disclaimerTextPaint)
-        canvas.drawText("disimpan di penyimpanan lokal perangkat yang terenkripsi dan tidak pernah diunggah ke cloud.", 55f, y + 40f, disclaimerTextPaint)
+        canvas.drawText(if (isEn) "DATA PRIVACY & LOCAL SECURITY" else "INFORMASI KEAMANAN DATA", 55f, y + 18f, disclaimerHeaderPaint)
+        canvas.drawText(
+            if (isEn) "This report was generated directly on your device by Uangku. All transactions"
+            else "Laporan ini diunduh secara instan dari aplikasi Uangku. Semua data transaksi Anda",
+            55f, y + 30f, disclaimerTextPaint
+        )
+        canvas.drawText(
+            if (isEn) "are stored securely on encrypted local device memory and are never uploaded to any cloud."
+            else "disimpan di penyimpanan lokal perangkat yang terenkripsi dan tidak pernah diunggah ke cloud.",
+            55f, y + 40f, disclaimerTextPaint
+        )
 
-        styleFooter(canvas, pageNumber)
+        styleFooter(canvas, pageNumber, isEn)
         pdfDocument.finishPage(page)
 
         val outputStream = ByteArrayOutputStream()
@@ -1631,7 +1832,7 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
         return outputStream.toByteArray()
     }
 
-    private fun styleFooter(canvas: Canvas, pageIndex: Int) {
+    private fun styleFooter(canvas: Canvas, pageIndex: Int, isEn: Boolean = false) {
         val linePaint = Paint().apply {
             color = android.graphics.Color.rgb(226, 232, 240) // Slate 200
             strokeWidth = 0.8f
@@ -1643,8 +1844,10 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
             textSize = 8f
             isAntiAlias = true
         }
-        canvas.drawText("Uangku - Laporan Keuangan Otomatis Asisten Cerdas", 40f, 814f, paint)
-        canvas.drawText("Halaman $pageIndex", 505f, 814f, paint)
+        val appTitle = if (isEn) "Uangku - Automated Personal Finance Report" else "Uangku - Laporan Keuangan Otomatis Asisten Cerdas"
+        val pageText = if (isEn) "Page $pageIndex" else "Halaman $pageIndex"
+        canvas.drawText(appTitle, 40f, 814f, paint)
+        canvas.drawText(pageText, 505f, 814f, paint)
     }
 
     // --- Private Initializer & Seeds ---
@@ -1907,8 +2110,9 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     fun getFourMonthsSummary(type: String): List<FourMonthsSummaryItem> {
         val txs = allTransactions.value
         val result = mutableListOf<FourMonthsSummaryItem>()
-        val monthFormat = SimpleDateFormat("MMMM yyyy", Locale("id", "ID"))
-        val shortFormat = SimpleDateFormat("MMM", Locale("id", "ID"))
+        val locale = if (isEnglish()) Locale.US else Locale("id", "ID")
+        val monthFormat = SimpleDateFormat("MMMM yyyy", locale)
+        val shortFormat = SimpleDateFormat("MMM", locale)
         val now = System.currentTimeMillis()
 
         for (i in 0 until 4) {

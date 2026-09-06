@@ -69,6 +69,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.material.icons.filled.LightMode
+import androidx.compose.material.icons.filled.Language
+import androidx.compose.material.icons.filled.AutoAwesome
+import com.example.ui.util.AppStrings
 import com.example.ui.FinanceViewModel
 
 @Composable
@@ -87,6 +93,8 @@ fun SettingsScreen(
     val bankNotificationEnabled by viewModel.bankNotificationEnabled.collectAsStateWithLifecycle()
     val selectedCurrency by viewModel.selectedCurrency.collectAsStateWithLifecycle()
     val usdToIdrRate by viewModel.usdToIdrRate.collectAsStateWithLifecycle()
+    val appLanguage by viewModel.appLanguage.collectAsStateWithLifecycle()
+    val dynamicColorEnabled by viewModel.dynamicColor.collectAsStateWithLifecycle()
 
     var showPinDialog by remember { mutableStateOf(false) }
     var pinInputValue by remember { mutableStateOf(currentPin) }
@@ -123,27 +131,24 @@ fun SettingsScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(bottomStart = 32.dp, bottomEnd = 32.dp))
-                        .background(
-                            if (themeDark) Color(0xFF1E293B).copy(alpha = 0.9f) 
-                            else Color.White.copy(alpha = 0.9f)
-                        )
+                        .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.92f))
                         .border(
                             1.dp,
-                            if (themeDark) Color.White.copy(alpha = 0.1f) else Color.Black.copy(alpha = 0.05f),
+                            MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
                             RoundedCornerShape(bottomStart = 32.dp, bottomEnd = 32.dp)
                         )
                         .padding(top = 48.dp, bottom = 24.dp, start = 24.dp, end = 24.dp)
                 ) {
                     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                         Text(
-                            text = "Pengaturan",
+                            text = AppStrings.settingsTitle(appLanguage),
                             style = MaterialTheme.typography.headlineLarge,
                             fontWeight = FontWeight.Black,
                             color = MaterialTheme.colorScheme.onSurface,
                             letterSpacing = (-1).sp
                         )
                         Text(
-                            text = "Atur preferensi keamanan, akses akun, dan ekspor seluruh dokumen keuangan secara lokal.",
+                            text = AppStrings.settingsSubtitle(appLanguage),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -559,9 +564,9 @@ fun SettingsScreen(
                 }
             }
 
-            // --- THEME OVERRIDES ---
+            // --- THEME & LANGUAGE APPEARANCE ---
             Text(
-                text = "Tampilan Aplikasi",
+                text = AppStrings.appearanceSection(appLanguage),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onSurface,
@@ -569,20 +574,20 @@ fun SettingsScreen(
             )
 
             Card(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().testTag("appearance_card"),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                 shape = RoundedCornerShape(20.dp),
                 border = CardDefaults.outlinedCardBorder()
             ) {
                 Column(modifier = Modifier.padding(4.dp)) {
-                    // Mode Gelap Toggle
+                    // 1. Dark Mode Toggle
                     SecuritySettingRow(
-                        title = "Ubah Ke Mode Gelap",
-                        subtitle = "Optimalkan konsumsi layar OLED dengan mode gelap yang sejuk di mata.",
+                        title = AppStrings.darkModeTitle(appLanguage),
+                        subtitle = AppStrings.darkModeSubtitle(appLanguage),
                         icon = {
                             Icon(
-                                imageVector = Icons.Default.DarkMode,
-                                contentDescription = "Dark mode override",
+                                imageVector = if (themeDark) Icons.Default.DarkMode else Icons.Default.LightMode,
+                                contentDescription = "Dark mode toggle",
                                 tint = MaterialTheme.colorScheme.primary
                             )
                         },
@@ -594,12 +599,174 @@ fun SettingsScreen(
                             )
                         }
                     )
+
+                    // Subtle Divider
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp)
+                            .height(1.dp)
+                            .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                    )
+
+                    // 2. Language Toggle (English & Indonesia) directly below Dark Mode
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 14.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f), CircleShape),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Language,
+                                    contentDescription = "Language",
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.width(14.dp))
+
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = AppStrings.languageTitle(appLanguage),
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Text(
+                                    text = AppStrings.languageSubtitle(appLanguage),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    fontSize = 12.sp
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        // Segmented Language Selector
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(46.dp)
+                                .clip(RoundedCornerShape(24.dp))
+                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
+                                .padding(4.dp),
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            val isId = appLanguage.equals("id", ignoreCase = true)
+                            val isEn = appLanguage.equals("en", ignoreCase = true)
+
+                            // Indonesian Language Option
+                            val idBgColor by animateColorAsState(
+                                targetValue = if (isId) MaterialTheme.colorScheme.primary else Color.Transparent,
+                                animationSpec = tween(250),
+                                label = "lang_id_bg"
+                            )
+                            val idTextColor by animateColorAsState(
+                                targetValue = if (isId) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                animationSpec = tween(250),
+                                label = "lang_id_text"
+                            )
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .fillMaxHeight()
+                                    .clip(RoundedCornerShape(20.dp))
+                                    .background(idBgColor)
+                                    .clickable {
+                                        viewModel.setLanguage("id")
+                                        Toast.makeText(context, "Bahasa diubah ke Bahasa Indonesia", Toast.LENGTH_SHORT).show()
+                                    }
+                                    .testTag("language_toggle_indonesia"),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = "🇮🇩 Indonesia",
+                                    color = idTextColor,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+
+                            // English Language Option
+                            val enBgColor by animateColorAsState(
+                                targetValue = if (isEn) MaterialTheme.colorScheme.primary else Color.Transparent,
+                                animationSpec = tween(250),
+                                label = "lang_en_bg"
+                            )
+                            val enTextColor by animateColorAsState(
+                                targetValue = if (isEn) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                animationSpec = tween(250),
+                                label = "lang_en_text"
+                            )
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .fillMaxHeight()
+                                    .clip(RoundedCornerShape(20.dp))
+                                    .background(enBgColor)
+                                    .clickable {
+                                        viewModel.setLanguage("en")
+                                        Toast.makeText(context, "Language switched to English", Toast.LENGTH_SHORT).show()
+                                    }
+                                    .testTag("language_toggle_english"),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = "🇬🇧 English",
+                                    color = enTextColor,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    }
+
+                    // 3. Dynamic Color (Material You) for Android 12+
+                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp)
+                                .height(1.dp)
+                                .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                        )
+
+                        SecuritySettingRow(
+                            title = AppStrings.dynamicColorTitle(appLanguage),
+                            subtitle = AppStrings.dynamicColorSubtitle(appLanguage),
+                            icon = {
+                                Icon(
+                                    imageVector = Icons.Default.AutoAwesome,
+                                    contentDescription = "Dynamic colors",
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                            },
+                            trailing = {
+                                Switch(
+                                    checked = dynamicColorEnabled,
+                                    onCheckedChange = { viewModel.setDynamicColor(it) },
+                                    modifier = Modifier.testTag("dynamic_color_switch")
+                                )
+                            }
+                        )
+                    }
                 }
             }
 
             // --- INFORMASI & INTEGRITAS DATA ---
             Text(
-                text = "Informasi & Versi Aplikasi",
+                text = AppStrings.appInfoSection(appLanguage),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onSurface,
@@ -607,7 +774,7 @@ fun SettingsScreen(
             )
 
             Card(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().testTag("app_info_card"),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                 shape = RoundedCornerShape(20.dp),
                 border = CardDefaults.outlinedCardBorder()
@@ -629,7 +796,7 @@ fun SettingsScreen(
                                 color = MaterialTheme.colorScheme.onSurface
                             )
                             Text(
-                                text = "Manajemen Keuangan Pribadi",
+                                text = AppStrings.appInfoSubtitle(appLanguage),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -669,13 +836,13 @@ fun SettingsScreen(
                         )
                         Column {
                             Text(
-                                text = "Basis Data Aman & Terenkripsi Lokal",
+                                text = AppStrings.encryptedDb(appLanguage),
                                 style = MaterialTheme.typography.labelMedium,
                                 fontWeight = FontWeight.SemiBold,
                                 color = MaterialTheme.colorScheme.onSurface
                             )
                             Text(
-                                text = "Pembaruan versi dijamin tidak menghapus data transaksi lama (Room Migration v2).",
+                                text = AppStrings.updateSafeNote(appLanguage),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )

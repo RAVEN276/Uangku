@@ -363,6 +363,7 @@ fun DashboardScreen(
     val budgetAlert by viewModel.budgetAlert.collectAsStateWithLifecycle()
     val userName by viewModel.userName.collectAsStateWithLifecycle()
     val themeDark by viewModel.themeDark.collectAsStateWithLifecycle()
+    val appLanguage by viewModel.appLanguage.collectAsStateWithLifecycle()
     val bankNotificationEnabled by viewModel.bankNotificationEnabled.collectAsStateWithLifecycle()
     val context = androidx.compose.ui.platform.LocalContext.current
 
@@ -470,7 +471,7 @@ fun DashboardScreen(
             ) {
                 Column {
                     Text(
-                        text = "Good Morning,",
+                        text = com.example.ui.util.AppStrings.greeting(appLanguage),
                         style = MaterialTheme.typography.bodyLarge,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
