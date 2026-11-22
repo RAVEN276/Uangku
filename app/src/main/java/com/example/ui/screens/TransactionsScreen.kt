@@ -1,6 +1,7 @@
 package com.example.ui.screens
 
 import androidx.compose.animation.animateColorAsState
+import com.example.ui.theme.MotionTokens
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -8,6 +9,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -16,9 +18,11 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -44,6 +48,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.FilterList
+import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -62,15 +67,19 @@ import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -82,9 +91,15 @@ import androidx.compose.ui.window.Dialog
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.data.model.Transaction
 import com.example.ui.FinanceViewModel
-import com.example.ui.components.LockerSpeedDialMenu
+import com.example.ui.components.ExpressiveMorphChip
+import com.example.ui.components.ExpressiveSegmentOption
+import com.example.ui.components.ExpressiveSegmentedSelector
 import com.example.ui.components.ReceiptScannerDialog
 import com.example.ui.components.RupiahVisualTransformation
+import com.example.ui.theme.ExpressiveShapeTokens
+import com.example.ui.theme.LocalUangkuColors
+import com.example.ui.theme.tabular
+import com.example.ui.util.AppStrings
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -98,11 +113,11 @@ fun TransactionsScreen(
     val context = LocalContext.current
     val txs by viewModel.allTransactions.collectAsStateWithLifecycle()
     val selectedCurrency by viewModel.selectedCurrency.collectAsStateWithLifecycle()
+    val appLanguage by viewModel.appLanguage.collectAsStateWithLifecycle()
     var showAddDialog by remember { mutableStateOf(false) }
     var capturedReceiptBitmap by remember { mutableStateOf<Bitmap?>(null) }
     var capturedReceiptUri by remember { mutableStateOf<Uri?>(null) }
     var pendingCameraUri by remember { mutableStateOf<Uri?>(null) }
-    var isSpeedDialExpanded by remember { mutableStateOf(false) }
     var defaultNewType by remember { mutableStateOf("EXPENSE") }
     var transactionToEdit by remember { mutableStateOf<Transaction?>(null) }
     var transactionToDelete by remember { mutableStateOf<Transaction?>(null) }
@@ -125,7 +140,7 @@ fun TransactionsScreen(
             pendingCameraUri = uri
             takePictureLauncher.launch(uri)
         } else {
-            Toast.makeText(context, "Izin kamera diperlukan untuk memindai nota", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, AppStrings.cameraPermissionRequired(appLanguage), Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -160,198 +175,230 @@ fun TransactionsScreen(
     }.sortedByDescending { it.timestamp }
 
     // Grouping by Date
-    val df = SimpleDateFormat("dd MMM yyyy", Locale("id", "ID"))
+    val df = SimpleDateFormat("dd MMM yyyy", if (AppStrings.isEn(appLanguage)) Locale.US else Locale("id", "ID"))
     val groupedTxs = filteredTxs.groupBy { df.format(Date(it.timestamp)) }
 
-    val themeDark = MaterialTheme.colorScheme.surface.let { it.red * 0.299 + it.green * 0.587 + it.blue * 0.114 < 0.5f }
+    val uangkuColors = LocalUangkuColors.current
+    val themeDark = uangkuColors.isDark
 
-    Scaffold(
-        modifier = modifier.fillMaxSize(),
-        containerColor = Color.Transparent,
-        floatingActionButton = {
-            LockerSpeedDialMenu(
-                isExpanded = isSpeedDialExpanded,
-                onToggleExpand = { isSpeedDialExpanded = !isSpeedDialExpanded },
-                onSelectExpense = {
-                    defaultNewType = "EXPENSE"
-                    transactionToEdit = null
-                    showAddDialog = true
-                },
-                onSelectIncome = {
-                    defaultNewType = "INCOME"
-                    transactionToEdit = null
-                    showAddDialog = true
-                },
-                onSelectScanReceipt = {
-                    launchDirectCamera()
-                },
+    BoxWithConstraints(modifier = modifier.fillMaxSize()) {
+        val isCompactWidth = maxWidth < 600.dp
+
+        Scaffold(
+            modifier = Modifier.fillMaxSize(),
+            containerColor = Color.Transparent
+        ) { innerPadding ->
+            Box(
                 modifier = Modifier
-                    .padding(bottom = 72.dp, end = 8.dp)
-                    .testTag("transactions_speed_dial_locker")
-            )
-        }
-    ) { innerPadding ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(
-                    Brush.verticalGradient(
-                        colors = if (themeDark) listOf(Color(0xFF0F172A), Color(0xFF020617))
-                                 else listOf(Color(0xFFF8FAFC), Color(0xFFE2E8F0))
-                    )
-                )
-                .padding(innerPadding)
-        ) {
-            Column(
-                modifier = Modifier.fillMaxSize()
+                    .fillMaxSize()
+                    .background(MaterialTheme.colorScheme.background)
+                    .padding(innerPadding),
+                contentAlignment = Alignment.TopCenter
             ) {
-                // SPATIAL HEADER
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(bottomStart = 32.dp, bottomEnd = 32.dp))
-                        .background(
-                            if (themeDark) Color(0xFF1E293B).copy(alpha = 0.9f) 
-                            else Color.White.copy(alpha = 0.9f)
-                        )
-                        .border(
-                            1.dp,
-                            if (themeDark) Color.White.copy(alpha = 0.1f) else Color.Black.copy(alpha = 0.05f),
-                            RoundedCornerShape(bottomStart = 32.dp, bottomEnd = 32.dp)
-                        )
-                        .padding(top = 48.dp, bottom = 24.dp, start = 24.dp, end = 24.dp)
-                ) {
-                    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                        Text(
-                            text = "Riwayat Transaksi",
-                            style = MaterialTheme.typography.headlineLarge,
-                            fontWeight = FontWeight.Black,
-                            color = MaterialTheme.colorScheme.onSurface,
-                            letterSpacing = (-1).sp
-                        )
-
-                        // Bento Search Bar
-                        OutlinedTextField(
-                            value = searchQuery,
-                            onValueChange = { searchQuery = it },
-                            placeholder = { Text("Cari aktivitas...") },
-                            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
-                            singleLine = true,
-                            shape = RoundedCornerShape(24.dp),
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                unfocusedBorderColor = if (themeDark) Color.White.copy(alpha = 0.1f) else Color.Black.copy(alpha = 0.1f),
-                                focusedBorderColor = Color(0xFF10B981)
-                            )
-                        )
-                        
-                        // Filter Pills
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            modifier = Modifier.horizontalScroll(rememberScrollState())
-                        ) {
-                            listOf("ALL" to "Semua", "INCOME" to "Pemasukan", "EXPENSE" to "Pengeluaran").forEach { (type, label) ->
-                                val isSelected = filterType == type
-                                Box(
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(24.dp))
-                                        .background(
-                                            if (isSelected) Color(0xFF10B981)
-                                            else if (themeDark) Color(0xFF334155) else Color(0xFFF1F5F9)
-                                        )
-                                        .clickable { filterType = type }
-                                        .padding(horizontal = 16.dp, vertical = 8.dp)
-                                ) {
-                                    Text(
-                                        text = label,
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // LIST OF TRANSACTIONS
-                LazyColumn(
+                Column(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(horizontal = 16.dp),
-                    contentPadding = PaddingValues(top = 16.dp, bottom = 150.dp),
-                    verticalArrangement = Arrangement.spacedBy(24.dp)
+                        .widthIn(max = 900.dp)
                 ) {
-                    if (groupedTxs.isEmpty()) {
-                        item {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 64.dp),
-                                contentAlignment = Alignment.Center
+                    // SPATIAL HEADER
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(bottomStart = ExpressiveShapeTokens.HeroCorner, bottomEnd = ExpressiveShapeTokens.HeroCorner))
+                            .background(MaterialTheme.colorScheme.surfaceContainerLow)
+                            .border(
+                                1.dp,
+                                MaterialTheme.colorScheme.outlineVariant,
+                                RoundedCornerShape(bottomStart = ExpressiveShapeTokens.HeroCorner, bottomEnd = ExpressiveShapeTokens.HeroCorner)
+                            )
+                            .padding(top = 36.dp, bottom = 20.dp, start = 20.dp, end = 20.dp)
+                    ) {
+                        Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Icon(
-                                        Icons.Default.FilterList,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(64.dp),
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-                                    )
-                                    Spacer(modifier = Modifier.height(16.dp))
-                                    Text(
-                                        text = "Tidak ada transaksi ditemukan",
-                                        style = MaterialTheme.typography.titleMedium,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
+                                Text(
+                                    text = AppStrings.transactionsTitle(appLanguage),
+                                    style = MaterialTheme.typography.headlineMedium,
+                                    fontWeight = FontWeight.Black,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Surface(
+                                        onClick = { launchDirectCamera() },
+                                        shape = RoundedCornerShape(16.dp),
+                                        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                                        modifier = Modifier
+                                            .size(48.dp)
+                                            .testTag("transactions_scan_receipt_btn")
+                                    ) {
+                                        Box(contentAlignment = Alignment.Center) {
+                                            Icon(
+                                                imageVector = Icons.Default.QrCodeScanner,
+                                                contentDescription = AppStrings.scanReceipt(appLanguage),
+                                                tint = MaterialTheme.colorScheme.onSurface,
+                                                modifier = Modifier.size(20.dp)
+                                            )
+                                        }
+                                    }
+                                    Button(
+                                        onClick = {
+                                            defaultNewType = "EXPENSE"
+                                            transactionToEdit = null
+                                            showAddDialog = true
+                                        },
+                                        shape = RoundedCornerShape(16.dp),
+                                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 10.dp),
+                                        modifier = Modifier
+                                            .heightIn(min = 48.dp)
+                                            .testTag("transactions_add_button")
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Add,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text(
+                                            text = AppStrings.quickAdd(appLanguage),
+                                            fontWeight = FontWeight.Bold,
+                                            maxLines = 1
+                                        )
+                                    }
+                                }
+                            }
+
+                            // Bento Search Bar
+                            OutlinedTextField(
+                                value = searchQuery,
+                                onValueChange = { searchQuery = it },
+                                placeholder = { Text(AppStrings.searchPlaceholder(appLanguage)) },
+                                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                                singleLine = true,
+                                shape = RoundedCornerShape(ExpressiveShapeTokens.BentoCorner),
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
+                                    focusedBorderColor = MaterialTheme.colorScheme.primary
+                                )
+                            )
+
+                            // Expressive Shape-Morphing Filter Pills
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                modifier = Modifier.horizontalScroll(rememberScrollState())
+                            ) {
+                                listOf(
+                                    "ALL" to AppStrings.filterAll(appLanguage),
+                                    "INCOME" to AppStrings.income(appLanguage),
+                                    "EXPENSE" to AppStrings.expense(appLanguage)
+                                ).forEach { (type, label) ->
+                                    val isSelected = filterType == type
+                                    ExpressiveMorphChip(
+                                        selected = isSelected,
+                                        onClick = { filterType = type }
+                                    ) {
+                                        Text(
+                                            text = label,
+                                            style = MaterialTheme.typography.labelLarge,
+                                            fontSize = 13.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
                                 }
                             }
                         }
                     }
 
-                    for ((dateStr, txList) in groupedTxs) {
-                        item {
-                            Text(
-                                text = dateStr,
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.animateItem().padding(start = 8.dp, bottom = 8.dp)
-                            )
-                            Column(
-                                modifier = Modifier
-                                    .animateItem()
-                                    .fillMaxWidth()
-                                    .clip(RoundedCornerShape(32.dp))
-                                    .background(
-                                        if (themeDark) Color(0xFF1E293B).copy(alpha = 0.6f) 
-                                        else Color.White.copy(alpha = 0.7f)
-                                    )
-                                    .border(
-                                        1.dp,
-                                        if (themeDark) Color.White.copy(alpha = 0.05f) else Color.Black.copy(alpha = 0.05f),
-                                        RoundedCornerShape(32.dp)
-                                    )
-                                    .padding(8.dp),
-                                verticalArrangement = Arrangement.spacedBy(4.dp)
-                            ) {
-                                for (tx in txList) {
-                                    TransactionItemRowBento(
-                                        tx = tx,
-                                        themeDark = themeDark,
-                                        viewModel = viewModel,
-                                        onDelete = { transactionToDelete = it },
-                                        onUpdate = { 
-                                            transactionToEdit = it
-                                            showAddDialog = true 
-                                        }
-                                    )
+                    // LIST OF TRANSACTIONS
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(horizontal = 16.dp),
+                        contentPadding = PaddingValues(top = 16.dp, bottom = if (isCompactWidth) 112.dp else 40.dp),
+                        verticalArrangement = Arrangement.spacedBy(20.dp)
+                    ) {
+                        if (groupedTxs.isEmpty()) {
+                            item {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 64.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                        Icon(
+                                            Icons.Default.FilterList,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(64.dp),
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                        Spacer(modifier = Modifier.height(16.dp))
+                                        Text(
+                                            text = AppStrings.noTransactionsFound(appLanguage),
+                                            style = MaterialTheme.typography.titleMedium,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
                                 }
+                            }
+                        }
+
+                        for ((dateStr, txList) in groupedTxs) {
+                            item(key = "group_$dateStr") {
+                                Text(
+                                    text = dateStr,
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.animateItem().padding(start = 8.dp, bottom = 8.dp)
+                                )
+                                Column(
+                                    modifier = Modifier
+                                        .animateItem()
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(ExpressiveShapeTokens.BentoCorner))
+                                        .background(MaterialTheme.colorScheme.surfaceContainer)
+                                        .border(
+                                            1.dp,
+                                            MaterialTheme.colorScheme.outlineVariant,
+                                            RoundedCornerShape(ExpressiveShapeTokens.BentoCorner)
+                                        )
+                                        .padding(8.dp),
+                                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    for (tx in txList) {
+                                        key(tx.id) {
+                                            TransactionItemRowBento(
+                                                tx = tx,
+                                                themeDark = themeDark,
+                                                viewModel = viewModel,
+                                                lang = appLanguage,
+                                                onDelete = { transactionToDelete = it },
+                                                onUpdate = {
+                                                    transactionToEdit = it
+                                                    showAddDialog = true
+                                                }
+                                            )
+                                        }
+                                    }
                             }
                         }
                     }
                 }
             }
         }
+    }
     }
 
     if (showAddDialog) {
@@ -406,25 +453,25 @@ fun TransactionsScreen(
             onDismissRequest = { transactionToDelete = null },
             modifier = Modifier.testTag("delete_confirmation_dialog"),
             shape = RoundedCornerShape(32.dp),
-            containerColor = if (themeDark) Color(0xFF1E293B) else Color.White,
+            containerColor = uangkuColors.cardSurface,
             icon = {
                 Box(
                     modifier = Modifier
                         .size(56.dp)
-                        .background(Color(0xFFEF4444).copy(alpha = 0.15f), CircleShape),
+                        .background(uangkuColors.expenseContainer, CircleShape),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         imageVector = Icons.Default.Delete,
                         contentDescription = null,
-                        tint = Color(0xFFEF4444),
+                        tint = uangkuColors.onExpenseContainer,
                         modifier = Modifier.size(28.dp)
                     )
                 }
             },
             title = {
                 Text(
-                    text = "Hapus Transaksi?",
+                    text = AppStrings.deleteTxTitle(appLanguage),
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold,
                     textAlign = TextAlign.Center,
@@ -437,7 +484,7 @@ fun TransactionsScreen(
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     Text(
-                        text = "Apakah Anda yakin ingin menghapus data transaksi ini? Data yang dihapus tidak dapat dikembalikan.",
+                        text = AppStrings.deleteTxDesc(appLanguage),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         textAlign = TextAlign.Center,
@@ -447,11 +494,8 @@ fun TransactionsScreen(
                     // Bento summary card preview
                     Surface(
                         shape = RoundedCornerShape(20.dp),
-                        color = if (themeDark) Color(0xFF0F172A) else Color(0xFFF1F5F9),
-                        border = BorderStroke(
-                            1.dp,
-                            if (themeDark) Color.White.copy(alpha = 0.08f) else Color.Black.copy(alpha = 0.06f)
-                        ),
+                        color = uangkuColors.elevatedSubSurface,
+                        border = BorderStroke(1.dp, uangkuColors.cardBorder),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Row(
@@ -464,8 +508,8 @@ fun TransactionsScreen(
                                 modifier = Modifier
                                     .size(40.dp)
                                     .background(
-                                        if (tx.type == "INCOME") Color(0xFF10B981).copy(alpha = 0.15f)
-                                        else Color(0xFFEF4444).copy(alpha = 0.15f),
+                                        if (tx.type == "INCOME") uangkuColors.incomeContainer
+                                        else uangkuColors.expenseContainer,
                                         CircleShape
                                     ),
                                 contentAlignment = Alignment.Center
@@ -473,7 +517,7 @@ fun TransactionsScreen(
                                 Icon(
                                     imageVector = if (tx.type == "INCOME") Icons.Default.ArrowUpward else Icons.Default.ArrowDownward,
                                     contentDescription = null,
-                                    tint = if (tx.type == "INCOME") Color(0xFF10B981) else Color(0xFFEF4444),
+                                    tint = if (tx.type == "INCOME") uangkuColors.onIncomeContainer else uangkuColors.onExpenseContainer,
                                     modifier = Modifier.size(20.dp)
                                 )
                             }
@@ -489,7 +533,7 @@ fun TransactionsScreen(
                                     overflow = TextOverflow.Ellipsis
                                 )
                                 Text(
-                                    text = tx.category,
+                                    text = AppStrings.translateCategory(tx.category, appLanguage),
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -499,7 +543,7 @@ fun TransactionsScreen(
                                 text = (if (tx.type == "INCOME") "+" else "-") + viewModel.formatCurrency(tx.amount),
                                 style = MaterialTheme.typography.titleSmall,
                                 fontWeight = FontWeight.Black,
-                                color = if (tx.type == "INCOME") Color(0xFF10B981) else Color(0xFFEF4444)
+                                color = if (tx.type == "INCOME") uangkuColors.incomeText else uangkuColors.expenseText
                             )
                         }
                     }
@@ -511,11 +555,11 @@ fun TransactionsScreen(
                         val deletedTitle = tx.title
                         viewModel.deleteTransaction(tx)
                         transactionToDelete = null
-                        Toast.makeText(context, "Transaksi \"$deletedTitle\" berhasil dihapus", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, AppStrings.txDeletedToast(appLanguage, deletedTitle), Toast.LENGTH_SHORT).show()
                     },
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFFEF4444),
-                        contentColor = Color.White
+                        containerColor = MaterialTheme.colorScheme.error,
+                        contentColor = MaterialTheme.colorScheme.onError
                     ),
                     shape = RoundedCornerShape(20.dp),
                     modifier = Modifier.testTag("confirm_delete_button")
@@ -526,7 +570,7 @@ fun TransactionsScreen(
                         modifier = Modifier.size(18.dp)
                     )
                     Spacer(modifier = Modifier.width(6.dp))
-                    Text("Hapus", fontWeight = FontWeight.Bold)
+                    Text(AppStrings.delete(appLanguage), fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
@@ -535,7 +579,7 @@ fun TransactionsScreen(
                     shape = RoundedCornerShape(20.dp),
                     modifier = Modifier.testTag("cancel_delete_button")
                 ) {
-                    Text("Batal", fontWeight = FontWeight.SemiBold)
+                    Text(AppStrings.cancel(appLanguage), fontWeight = FontWeight.SemiBold)
                 }
             }
         )
@@ -548,36 +592,59 @@ fun TransactionItemRowBento(
     tx: Transaction,
     themeDark: Boolean,
     viewModel: FinanceViewModel,
+    lang: String = "ID",
     onDelete: (Transaction) -> Unit,
     onUpdate: (Transaction) -> Unit
 ) {
+    val haptic = LocalHapticFeedback.current
+    val uangkuColors = LocalUangkuColors.current
+    val currentTx by rememberUpdatedState(tx)
+    val currentOnDelete by rememberUpdatedState(onDelete)
+    val currentOnUpdate by rememberUpdatedState(onUpdate)
+
     val dismissState = rememberSwipeToDismissBoxState(
+        initialValue = SwipeToDismissBoxValue.Settled,
         confirmValueChange = { dismissValue ->
-            when (dismissValue) {
-                SwipeToDismissBoxValue.StartToEnd -> {
-                    onUpdate(tx)
-                    false // Bounce back
-                }
-                SwipeToDismissBoxValue.EndToStart -> {
-                    onDelete(tx)
-                    false // Keep item in place until user confirms deletion in the alert dialog
-                }
-                else -> false
-            }
-        }
+            dismissValue != SwipeToDismissBoxValue.Settled
+        },
+        positionalThreshold = { totalDistance -> totalDistance * 0.28f }
     )
+
+    LaunchedEffect(dismissState.currentValue) {
+        when (dismissState.currentValue) {
+            SwipeToDismissBoxValue.StartToEnd -> {
+                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                currentOnUpdate(currentTx)
+                dismissState.snapTo(SwipeToDismissBoxValue.Settled)
+            }
+            SwipeToDismissBoxValue.EndToStart -> {
+                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                currentOnDelete(currentTx)
+                dismissState.snapTo(SwipeToDismissBoxValue.Settled)
+            }
+            SwipeToDismissBoxValue.Settled -> Unit
+        }
+    }
 
     SwipeToDismissBox(
         state = dismissState,
         backgroundContent = {
             val direction = dismissState.dismissDirection
+            val bgTarget = when (dismissState.targetValue) {
+                SwipeToDismissBoxValue.Settled -> uangkuColors.elevatedSubSurface
+                SwipeToDismissBoxValue.StartToEnd -> MaterialTheme.colorScheme.primaryContainer
+                SwipeToDismissBoxValue.EndToStart -> uangkuColors.expenseContainer
+            }
             val color by animateColorAsState(
-                when (dismissState.targetValue) {
-                    SwipeToDismissBoxValue.Settled -> Color.Transparent
-                    SwipeToDismissBoxValue.StartToEnd -> Color(0xFF3B82F6) // Blue for edit
-                    SwipeToDismissBoxValue.EndToStart -> Color(0xFFEF4444) // Red for delete
-                }
+                targetValue = bgTarget,
+                animationSpec = MotionTokens.colorTransition,
+                label = "swipe_color"
             )
+            val iconTint = when (dismissState.targetValue) {
+                SwipeToDismissBoxValue.StartToEnd -> MaterialTheme.colorScheme.onPrimaryContainer
+                SwipeToDismissBoxValue.EndToStart -> uangkuColors.expenseText
+                else -> MaterialTheme.colorScheme.onSurfaceVariant
+            }
             val alignment = when (direction) {
                 SwipeToDismissBoxValue.StartToEnd -> Alignment.CenterStart
                 SwipeToDismissBoxValue.EndToStart -> Alignment.CenterEnd
@@ -592,27 +659,39 @@ fun TransactionItemRowBento(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .clip(RoundedCornerShape(24.dp))
+                    .clip(RoundedCornerShape(ExpressiveShapeTokens.RowCardCorner))
                     .background(color)
                     .padding(horizontal = 24.dp),
                 contentAlignment = alignment
             ) {
                 if (direction != SwipeToDismissBoxValue.Settled) {
-                    Icon(
-                        imageVector = icon,
-                        contentDescription = null,
-                        tint = Color.White,
-                        modifier = Modifier.size(28.dp)
-                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(
+                            imageVector = icon,
+                            contentDescription = if (direction == SwipeToDismissBoxValue.StartToEnd) AppStrings.edit(lang) else AppStrings.delete(lang),
+                            tint = iconTint,
+                            modifier = Modifier.size(22.dp)
+                        )
+                        Text(
+                            text = if (direction == SwipeToDismissBoxValue.StartToEnd) AppStrings.edit(lang) else AppStrings.delete(lang),
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = iconTint
+                        )
+                    }
                 }
             }
         },
         content = {
+            val uangkuColors = LocalUangkuColors.current
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(24.dp))
-                    .background(if (themeDark) Color(0xFF0F172A) else Color(0xFFF8FAFC))
+                    .clip(RoundedCornerShape(ExpressiveShapeTokens.RowCardCorner))
+                    .background(uangkuColors.cardSurface)
                     .clickable { onUpdate(tx) }
                     .padding(16.dp),
                 verticalAlignment = Alignment.CenterVertically
@@ -621,8 +700,8 @@ fun TransactionItemRowBento(
                     modifier = Modifier
                         .size(48.dp)
                         .background(
-                            if (tx.type == "INCOME") Color(0xFF10B981).copy(alpha = 0.15f)
-                            else Color(0xFFEF4444).copy(alpha = 0.15f),
+                            if (tx.type == "INCOME") uangkuColors.incomeContainer
+                            else uangkuColors.expenseContainer,
                             CircleShape
                         ),
                     contentAlignment = Alignment.Center
@@ -630,7 +709,7 @@ fun TransactionItemRowBento(
                     Icon(
                         imageVector = if (tx.type == "INCOME") Icons.Default.ArrowUpward else Icons.Default.ArrowDownward,
                         contentDescription = null,
-                        tint = if (tx.type == "INCOME") Color(0xFF10B981) else Color(0xFFEF4444),
+                        tint = if (tx.type == "INCOME") uangkuColors.onIncomeContainer else uangkuColors.onExpenseContainer,
                         modifier = Modifier.size(24.dp)
                     )
                 }
@@ -641,32 +720,55 @@ fun TransactionItemRowBento(
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface,
-                        maxLines = 1
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
-                    Spacer(modifier = Modifier.height(2.dp))
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
                         Box(
                             modifier = Modifier
                                 .background(
-                                    if (themeDark) Color.White.copy(alpha = 0.1f) else Color.Black.copy(alpha = 0.05f),
+                                    uangkuColors.cardSurface,
                                     RoundedCornerShape(8.dp)
                                 )
-                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                                .border(1.dp, uangkuColors.cardBorder, RoundedCornerShape(8.dp))
+                                .padding(horizontal = 8.dp, vertical = 2.dp)
                         ) {
                             Text(
-                                text = tx.category,
-                                fontSize = 10.sp,
+                                text = AppStrings.translateCategory(tx.category, lang),
+                                fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
+                        if (!tx.bankSource.isNullOrBlank()) {
+                            Box(
+                                modifier = Modifier
+                                    .background(
+                                        MaterialTheme.colorScheme.primaryContainer,
+                                        RoundedCornerShape(8.dp)
+                                    )
+                                    .padding(horizontal = 8.dp, vertical = 2.dp)
+                            ) {
+                                Text(
+                                    text = tx.bankSource,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                                )
+                            }
+                        }
                     }
                 }
+                Spacer(modifier = Modifier.width(8.dp))
                 Text(
                     text = (if (tx.type == "INCOME") "+" else "-") + viewModel.formatCurrency(tx.amount),
-                    style = MaterialTheme.typography.titleMedium,
+                    style = MaterialTheme.typography.titleMedium.tabular(),
                     fontWeight = FontWeight.Black,
-                    color = if (tx.type == "INCOME") Color(0xFF10B981) else Color(0xFFEF4444)
+                    color = if (tx.type == "INCOME") uangkuColors.incomeText else uangkuColors.expenseText
                 )
             }
         }
@@ -684,17 +786,29 @@ fun AddTransactionModalBento(
     onDelete: ((Transaction) -> Unit)? = null
 ) {
     val selectedCurrency by viewModel.selectedCurrency.collectAsStateWithLifecycle()
+    val appLanguage by viewModel.appLanguage.collectAsStateWithLifecycle()
     var title by remember { mutableStateOf(initialTransaction?.title ?: "") }
     var amount by remember { mutableStateOf(initialTransaction?.amount?.toLong()?.toString() ?: "") }
-    val type = initialTransaction?.type ?: defaultType
+    var type by remember(initialTransaction, defaultType) { mutableStateOf(initialTransaction?.type ?: defaultType) }
     val categories = if (type == "INCOME") listOf("Gaji", "Bonus", "Investasi", "Penjualan", "Hadiah", "Lainnya") else listOf("Makanan", "Belanja", "Transportasi", "Tagihan", "Hiburan", "Kesehatan", "Sewa", "Lainnya")
-    var category by remember { mutableStateOf(initialTransaction?.category ?: (if (type == "INCOME") "Gaji" else "Makanan")) }
+    var category by remember(initialTransaction, type) {
+        mutableStateOf(
+            if (initialTransaction != null && initialTransaction.type == type) initialTransaction.category
+            else if (type == "INCOME") "Gaji" else "Makanan"
+        )
+    }
+
+    val uangkuColors = LocalUangkuColors.current
+    val accentFg = if (type == "INCOME") uangkuColors.incomeText else uangkuColors.expenseText
+    val accentBg = if (type == "INCOME") uangkuColors.incomeContainer else uangkuColors.expenseContainer
+    val onAccentBg = if (type == "INCOME") uangkuColors.onIncomeContainer else uangkuColors.onExpenseContainer
 
     Dialog(onDismissRequest = onDismiss) {
         Surface(
             shape = RoundedCornerShape(32.dp),
-            color = if (themeDark) Color(0xFF1E293B) else Color.White,
-            contentColor = if (themeDark) Color.White else Color(0xFF0F172A),
+            color = uangkuColors.cardSurface,
+            contentColor = MaterialTheme.colorScheme.onSurface,
+            border = BorderStroke(1.dp, uangkuColors.cardBorder),
             modifier = Modifier.fillMaxWidth().testTag("add_transaction_modal_surface")
         ) {
             Column(
@@ -708,13 +822,14 @@ fun AddTransactionModalBento(
                 ) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        modifier = Modifier.weight(1f)
                     ) {
                         Box(
                             modifier = Modifier
                                 .size(44.dp)
                                 .background(
-                                    color = if (type == "INCOME") Color(0xFF10B981).copy(alpha = 0.18f) else Color(0xFFEF4444).copy(alpha = 0.18f),
+                                    color = accentBg,
                                     shape = CircleShape
                                 ),
                             contentAlignment = Alignment.Center
@@ -722,53 +837,65 @@ fun AddTransactionModalBento(
                             Icon(
                                 imageVector = if (type == "INCOME") Icons.AutoMirrored.Filled.TrendingUp else Icons.AutoMirrored.Filled.TrendingDown,
                                 contentDescription = null,
-                                tint = if (type == "INCOME") Color(0xFF10B981) else Color(0xFFEF4444),
+                                tint = onAccentBg,
                                 modifier = Modifier.size(24.dp)
                             )
                         }
                         Column {
                             Text(
                                 text = if (initialTransaction == null) {
-                                    if (type == "INCOME") "Catat Pemasukan" else "Catat Pengeluaran"
+                                    if (type == "INCOME") AppStrings.recordIncome(appLanguage) else AppStrings.recordExpense(appLanguage)
                                 } else {
-                                    if (type == "INCOME") "Edit Pemasukan" else "Edit Pengeluaran"
+                                    if (type == "INCOME") AppStrings.editIncome(appLanguage) else AppStrings.editExpense(appLanguage)
                                 },
                                 style = MaterialTheme.typography.titleLarge,
                                 fontWeight = FontWeight.Bold,
-                                color = if (themeDark) Color.White else Color(0xFF0F172A)
+                                color = MaterialTheme.colorScheme.onSurface
                             )
                             Text(
-                                text = if (type == "INCOME") "Pemasukan Dana Baru" else "Pengeluaran Biaya Baru",
+                                text = if (type == "INCOME") AppStrings.newIncomeDesc(appLanguage) else AppStrings.newExpenseDesc(appLanguage),
                                 style = MaterialTheme.typography.bodySmall,
-                                color = if (type == "INCOME") Color(0xFF10B981) else Color(0xFFEF4444),
+                                color = accentFg,
                                 fontWeight = FontWeight.SemiBold
                             )
                         }
                     }
-                    IconButton(onClick = onDismiss, modifier = Modifier.size(36.dp)) {
+                    IconButton(onClick = onDismiss, modifier = Modifier.size(48.dp)) {
                         Icon(
                             Icons.Default.Close,
-                            contentDescription = "Tutup",
-                            tint = if (themeDark) Color.White.copy(alpha = 0.8f) else Color(0xFF64748B)
+                            contentDescription = AppStrings.close(appLanguage),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
 
+                ExpressiveSegmentedSelector(
+                    options = listOf(
+                        ExpressiveSegmentOption(key = "EXPENSE", label = AppStrings.expense(appLanguage)),
+                        ExpressiveSegmentOption(key = "INCOME", label = AppStrings.income(appLanguage))
+                    ),
+                    selectedKey = type,
+                    onSelect = { newType ->
+                        type = newType
+                        category = if (newType == "INCOME") "Gaji" else "Makanan"
+                    }
+                )
+
                 OutlinedTextField(
                     value = title,
                     onValueChange = { title = it },
-                    label = { Text("Keterangan", fontWeight = FontWeight.Medium) },
-                    placeholder = { Text(if (type == "INCOME") "cth. Gaji Bulanan, Bonus Proyek" else "cth. Belanja Bulanan, Bensin") },
+                    label = { Text(AppStrings.description(appLanguage), fontWeight = FontWeight.Medium) },
+                    placeholder = { Text(if (type == "INCOME") AppStrings.descPlaceholderIncome(appLanguage) else AppStrings.descPlaceholderExpense(appLanguage)) },
                     shape = RoundedCornerShape(20.dp),
                     modifier = Modifier.fillMaxWidth(),
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = if (themeDark) Color.White else Color(0xFF0F172A),
-                        unfocusedTextColor = if (themeDark) Color(0xFFF1F5F9) else Color(0xFF1E293B),
-                        focusedBorderColor = if (type == "INCOME") Color(0xFF10B981) else Color(0xFFEF4444),
-                        unfocusedBorderColor = if (themeDark) Color.White.copy(alpha = 0.22f) else Color.Black.copy(alpha = 0.15f),
-                        focusedLabelColor = if (type == "INCOME") Color(0xFF10B981) else Color(0xFFEF4444),
-                        unfocusedLabelColor = if (themeDark) Color(0xFF94A3B8) else Color(0xFF64748B),
-                        cursorColor = if (type == "INCOME") Color(0xFF10B981) else Color(0xFFEF4444)
+                        focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                        unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                        focusedBorderColor = accentFg,
+                        unfocusedBorderColor = uangkuColors.cardBorder,
+                        focusedLabelColor = accentFg,
+                        unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        cursorColor = accentFg
                     )
                 )
 
@@ -778,30 +905,30 @@ fun AddTransactionModalBento(
                         val clean = input.filter { it.isDigit() }
                         if (clean.length <= 15) amount = clean
                     },
-                    label = { Text("Nominal (${if (selectedCurrency == "USD") "USD $" else "Rupiah Rp"})", fontWeight = FontWeight.Medium) },
-                    placeholder = { Text(if (selectedCurrency == "USD") "misal: 25" else "misal: 45.000") },
+                    label = { Text("${AppStrings.amount(appLanguage)} (${if (selectedCurrency == "USD") "USD $" else "Rupiah Rp"})", fontWeight = FontWeight.Medium) },
+                    placeholder = { Text(AppStrings.amountPlaceholder(appLanguage, selectedCurrency == "USD")) },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     visualTransformation = RupiahVisualTransformation(isUsd = selectedCurrency == "USD"),
                     shape = RoundedCornerShape(20.dp),
                     modifier = Modifier.fillMaxWidth(),
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = if (themeDark) Color.White else Color(0xFF0F172A),
-                        unfocusedTextColor = if (themeDark) Color(0xFFF1F5F9) else Color(0xFF1E293B),
-                        focusedBorderColor = if (type == "INCOME") Color(0xFF10B981) else Color(0xFFEF4444),
-                        unfocusedBorderColor = if (themeDark) Color.White.copy(alpha = 0.22f) else Color.Black.copy(alpha = 0.15f),
-                        focusedLabelColor = if (type == "INCOME") Color(0xFF10B981) else Color(0xFFEF4444),
-                        unfocusedLabelColor = if (themeDark) Color(0xFF94A3B8) else Color(0xFF64748B),
-                        cursorColor = if (type == "INCOME") Color(0xFF10B981) else Color(0xFFEF4444)
+                        focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                        unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                        focusedBorderColor = accentFg,
+                        unfocusedBorderColor = uangkuColors.cardBorder,
+                        focusedLabelColor = accentFg,
+                        unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        cursorColor = accentFg
                     )
                 )
 
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(
-                        text = "Kategori",
+                        text = AppStrings.category(appLanguage),
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.Bold,
-                        color = if (themeDark) Color.White else Color(0xFF0F172A)
+                        color = MaterialTheme.colorScheme.onSurface
                     )
                     
                     Row(
@@ -812,23 +939,15 @@ fun AddTransactionModalBento(
                     ) {
                         categories.forEach { cat ->
                             val isSelected = category == cat
-                            Surface(
-                                shape = RoundedCornerShape(16.dp),
-                                color = if (isSelected) (if (type == "INCOME") Color(0xFF10B981) else Color(0xFFEF4444))
-                                        else if (themeDark) Color(0xFF334155) else Color(0xFFF1F5F9),
-                                border = BorderStroke(
-                                    1.dp,
-                                    if (isSelected) Color.Transparent
-                                    else if (themeDark) Color.White.copy(alpha = 0.12f) else Color.Black.copy(alpha = 0.08f)
-                                ),
-                                modifier = Modifier.clickable { category = cat }
+                            ExpressiveMorphChip(
+                                selected = isSelected,
+                                onClick = { category = cat }
                             ) {
                                 Text(
-                                    text = cat,
+                                    text = AppStrings.translateCategory(cat, appLanguage),
+                                    style = MaterialTheme.typography.labelLarge,
                                     fontSize = 13.sp,
-                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                    color = if (isSelected) Color.White else if (themeDark) Color(0xFFE2E8F0) else Color(0xFF334155),
-                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
                                 )
                             }
                         }
@@ -848,9 +967,9 @@ fun AddTransactionModalBento(
                                 onDelete(initialTransaction)
                             },
                             colors = ButtonDefaults.outlinedButtonColors(
-                                contentColor = Color(0xFFEF4444)
+                                contentColor = uangkuColors.expenseText
                             ),
-                            border = BorderStroke(1.dp, Color(0xFFEF4444).copy(alpha = 0.6f)),
+                            border = BorderStroke(1.dp, uangkuColors.expenseText),
                             shape = RoundedCornerShape(20.dp),
                             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
                             modifier = Modifier
@@ -859,12 +978,12 @@ fun AddTransactionModalBento(
                         ) {
                             Icon(
                                 Icons.Default.Delete,
-                                contentDescription = "Hapus Transaksi",
-                                tint = Color(0xFFEF4444),
+                                contentDescription = AppStrings.delete(appLanguage),
+                                tint = uangkuColors.expenseText,
                                 modifier = Modifier.size(18.dp)
                             )
                             Spacer(modifier = Modifier.width(6.dp))
-                            Text("Hapus", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                            Text(AppStrings.delete(appLanguage), fontWeight = FontWeight.Bold, fontSize = 14.sp)
                         }
                     }
 
@@ -898,14 +1017,14 @@ fun AddTransactionModalBento(
                             .height(50.dp),
                         shape = RoundedCornerShape(20.dp),
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = if (type == "INCOME") Color(0xFF10B981) else Color(0xFFEF4444),
-                            contentColor = Color.White
+                            containerColor = MaterialTheme.colorScheme.primary,
+                            contentColor = MaterialTheme.colorScheme.onPrimary
                         ),
                         contentPadding = PaddingValues(horizontal = 14.dp, vertical = 12.dp),
                         enabled = title.isNotBlank() && amount.filter { it.isDigit() }.isNotEmpty()
                     ) {
                         Text(
-                            text = if (initialTransaction != null) "Perbarui" else "Simpan Transaksi",
+                            text = if (initialTransaction != null) AppStrings.update(appLanguage) else AppStrings.saveTransaction(appLanguage),
                             fontSize = 15.sp,
                             fontWeight = FontWeight.Bold,
                             maxLines = 1

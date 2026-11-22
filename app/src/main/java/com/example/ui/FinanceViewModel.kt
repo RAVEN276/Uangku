@@ -158,11 +158,11 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
         val baseBalance = 0.0 // Base manual wallet cash (Starting entirely from 0)
 
         totalIncome = allTransactions.map { txs ->
-            txs.filter { it.type == "INCOME" }.sumOf { it.amount }
+            txs.filter { it.type == "INCOME" && it.amount > 0.0 }.sumOf { it.amount }
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
 
         totalExpense = allTransactions.map { txs ->
-            txs.filter { it.type == "EXPENSE" }.sumOf { it.amount }
+            txs.filter { it.type == "EXPENSE" && it.amount > 0.0 }.sumOf { it.amount }
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
 
         currentMonthIncome = allTransactions.map { txs ->
@@ -170,7 +170,7 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
             val currYear = cal.get(Calendar.YEAR)
             val currMonth = cal.get(Calendar.MONTH)
             txs.filter { tx ->
-                if (tx.type != "INCOME") return@filter false
+                if (tx.type != "INCOME" || tx.amount <= 0.0) return@filter false
                 val txCal = Calendar.getInstance().apply { timeInMillis = tx.timestamp }
                 txCal.get(Calendar.YEAR) == currYear && txCal.get(Calendar.MONTH) == currMonth
             }.sumOf { it.amount }
@@ -181,7 +181,7 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
             val currYear = cal.get(Calendar.YEAR)
             val currMonth = cal.get(Calendar.MONTH)
             txs.filter { tx ->
-                if (tx.type != "EXPENSE") return@filter false
+                if (tx.type != "EXPENSE" || tx.amount <= 0.0) return@filter false
                 val txCal = Calendar.getInstance().apply { timeInMillis = tx.timestamp }
                 txCal.get(Calendar.YEAR) == currYear && txCal.get(Calendar.MONTH) == currMonth
             }.sumOf { it.amount }
@@ -425,11 +425,12 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
 
     // --- Transactions Actions ---
     fun addTransaction(title: String, amount: Double, type: String, category: String, bankSource: String? = null) {
+        if (amount <= 0.0 || amount.isNaN() || amount.isInfinite() || title.isBlank()) return
         viewModelScope.launch {
             val transaction = Transaction(
-                title = title,
+                title = title.trim(),
                 amount = amount,
-                type = type,
+                type = if (type == "INCOME") "INCOME" else "EXPENSE",
                 category = category,
                 bankSource = bankSource
             )
@@ -440,14 +441,21 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
 
     fun parseAndAddNotification(packageName: String, title: String, text: String): Boolean {
         val parsed = com.example.service.MyNotificationListenerService.parseNotification(packageName, title, text)
-        if (parsed != null) {
-            viewModelScope.launch {
-                repository.insertTransaction(parsed)
-                triggerAutoSync()
-            }
-            return true
+            ?: return false
+        if (parsed.amount <= 0.0) return false
+        val isRecentDuplicate = allTransactions.value.any { existing ->
+            existing.type == parsed.type &&
+                existing.amount == parsed.amount &&
+                existing.bankSource == parsed.bankSource &&
+                kotlin.math.abs(parsed.timestamp - existing.timestamp) < 120_000L
         }
-        return false
+        if (isRecentDuplicate) return false
+
+        viewModelScope.launch {
+            repository.insertTransaction(parsed)
+            triggerAutoSync()
+        }
+        return true
     }
 
     fun deleteTransaction(transaction: Transaction) {
@@ -458,6 +466,7 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun updateTransaction(transaction: Transaction) {
+        if (transaction.amount <= 0.0 || transaction.amount.isNaN() || transaction.amount.isInfinite()) return
         viewModelScope.launch {
             repository.insertTransaction(transaction)
             triggerAutoSync()
@@ -466,6 +475,7 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
 
     // --- Budget Management & Warnings ---
     fun setBudget(category: String, amount: Double, alertThreshold: Int = 80) {
+        if (amount <= 0.0 || amount.isNaN() || amount.isInfinite()) return
         viewModelScope.launch {
             val budget = Budget(category = category, limitAmount = amount, alertThresholdPercent = alertThreshold)
             repository.insertBudget(budget)
@@ -496,6 +506,7 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun depositToSavingGoal(goal: SavingGoal, amount: Double) {
+        if (amount <= 0.0 || amount.isNaN() || amount.isInfinite()) return
         viewModelScope.launch {
             val updated = goal.copy(currentAmount = goal.currentAmount + amount)
             repository.insertSavingGoal(updated)
@@ -589,7 +600,7 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
             combine(allTransactions, allBudgets) { txs, budgets ->
                 // Check overall limit & category limits
                 val currentMonthExpenses = txs.filter { tx ->
-                    tx.type == "EXPENSE" && run {
+                    tx.type == "EXPENSE" && tx.amount > 0.0 && run {
                         val cal1 = java.util.Calendar.getInstance()
                         cal1.timeInMillis = tx.timestamp
                         val cal2 = java.util.Calendar.getInstance()
@@ -600,17 +611,17 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
 
                 val expensesByCategory = currentMonthExpenses.groupBy { it.category }
 
-                val totalExpenseSum = currentMonthExpenses.sumOf { it.amount }
+                val totalExpenseSum = currentMonthExpenses.sumOf { it.amount }.coerceAtLeast(0.0)
 
                 val todayExpenseSum = txs.filter { tx ->
-                    tx.type == "EXPENSE" && run {
+                    tx.type == "EXPENSE" && tx.amount > 0.0 && run {
                         val cal1 = java.util.Calendar.getInstance()
                         cal1.timeInMillis = tx.timestamp
                         val cal2 = java.util.Calendar.getInstance()
                         cal1.get(java.util.Calendar.YEAR) == cal2.get(java.util.Calendar.YEAR) &&
                         cal1.get(java.util.Calendar.DAY_OF_YEAR) == cal2.get(java.util.Calendar.DAY_OF_YEAR)
                     }
-                }.sumOf { it.amount }
+                }.sumOf { it.amount }.coerceAtLeast(0.0)
 
                 var alertText: String? = null
 
@@ -620,7 +631,7 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
                     } else if (budget.category == "DAILY") {
                         todayExpenseSum
                     } else {
-                        expensesByCategory[budget.category]?.sumOf { it.amount } ?: 0.0
+                        expensesByCategory[budget.category]?.sumOf { it.amount }?.coerceAtLeast(0.0) ?: 0.0
                     }
 
                     if (budget.limitAmount > 0) {
@@ -629,9 +640,9 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
                             val limitStr = formatCurrency(budget.limitAmount)
                             val spentStr = formatCurrency(spent)
                             alertText = when (budget.category) {
-                                "ALL" -> "⚠️ Peringatan Anggaran: Total pengeluaran Anda ($spentStr) telah melampaui ${budget.alertThresholdPercent}% dari limit bulanan ($limitStr)!"
-                                "DAILY" -> "⚠️ Peringatan Anggaran: Pengeluaran harian Anda hari ini ($spentStr) telah melampaui ${budget.alertThresholdPercent}% dari limit harian ($limitStr)!"
-                                else -> "⚠️ Peringatan Anggaran: Kategori '${budget.category}' ($spentStr) telah melampaui ${budget.alertThresholdPercent}% dari limit ($limitStr)!"
+                                "ALL" -> "Peringatan Anggaran: Total pengeluaran Anda ($spentStr) telah melampaui ${budget.alertThresholdPercent}% dari limit bulanan ($limitStr)."
+                                "DAILY" -> "Peringatan Anggaran: Pengeluaran harian Anda hari ini ($spentStr) telah melampaui ${budget.alertThresholdPercent}% dari limit harian ($limitStr)."
+                                else -> "Peringatan Anggaran: Kategori '${budget.category}' ($spentStr) telah melampaui ${budget.alertThresholdPercent}% dari limit ($limitStr)."
                             }
                             break
                         }
@@ -2017,8 +2028,8 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
                     sendLocalNotification(
                         context = context,
                         notificationId = 9999 + badge.hashCode(),
-                        title = "🏆 Lencana Baru Terbuka!",
-                        message = "Selamat! Anda mendapatkan lencana '${badge.name}' (${badge.icon}) - ${badge.description}"
+                        title = "Lencana Baru Terbuka!",
+                        message = "Selamat! Anda mendapatkan lencana '${badge.name}' - ${badge.description}"
                     )
                 }
             }
@@ -2124,14 +2135,14 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
             val targetMonth = cal.get(Calendar.MONTH)
 
             val matching = txs.filter { tx ->
-                if (tx.type != type) return@filter false
+                if (tx.type != type || tx.amount <= 0.0) return@filter false
                 val txCal = Calendar.getInstance().apply { timeInMillis = tx.timestamp }
                 txCal.get(Calendar.YEAR) == targetYear && txCal.get(Calendar.MONTH) == targetMonth
             }
 
-            val total = matching.sumOf { it.amount }
+            val total = matching.sumOf { it.amount }.coerceAtLeast(0.0)
             val catMap = matching.groupBy { it.category }
-                .mapValues { it.value.sumOf { tx -> tx.amount } }
+                .mapValues { it.value.sumOf { tx -> tx.amount }.coerceAtLeast(0.0) }
             val topCat = catMap.maxByOrNull { it.value }
 
             result.add(

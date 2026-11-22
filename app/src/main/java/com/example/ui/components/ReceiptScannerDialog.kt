@@ -99,6 +99,8 @@ import com.example.service.ParsedReceiptItem
 import com.example.service.ParsedReceiptResult
 import com.example.service.ReceiptOcrScanner
 import com.example.ui.FinanceViewModel
+import com.example.ui.theme.LocalUangkuColors
+import com.example.ui.theme.MotionTokens
 import kotlinx.coroutines.launch
 
 /**
@@ -326,19 +328,15 @@ fun ReceiptScannerDialog(
                         ) {
                             Box(
                                 modifier = Modifier
-                                    .size(42.dp)
-                                    .clip(RoundedCornerShape(14.dp))
-                                    .background(
-                                        Brush.linearGradient(
-                                            listOf(Color(0xFF3B82F6), Color(0xFF10B981))
-                                        )
-                                    ),
+                                    .size(44.dp)
+                                    .clip(RoundedCornerShape(16.dp))
+                                    .background(MaterialTheme.colorScheme.tertiaryContainer),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.DocumentScanner,
-                                    contentDescription = "Google Drive OCR",
-                                    tint = Color.White,
+                                    contentDescription = "Pemindai Struk OCR",
+                                    tint = MaterialTheme.colorScheme.onTertiaryContainer,
                                     modifier = Modifier.size(24.dp)
                                 )
                             }
@@ -349,21 +347,21 @@ fun ReceiptScannerDialog(
                                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                                 ) {
                                     Text(
-                                        text = "Google Drive OCR",
+                                        text = "Pindai Nota OCR",
                                         style = MaterialTheme.typography.titleMedium,
-                                        fontWeight = FontWeight.Black,
+                                        fontWeight = FontWeight.ExtraBold,
                                         color = MaterialTheme.colorScheme.onSurface
                                     )
                                     Surface(
-                                        color = Color(0xFF3B82F6).copy(alpha = 0.15f),
+                                        color = MaterialTheme.colorScheme.primaryContainer,
                                         shape = RoundedCornerShape(8.dp)
                                     ) {
                                         Text(
-                                            text = "Drive DocScan",
-                                            color = Color(0xFF3B82F6),
-                                            fontSize = 9.sp,
-                                            fontWeight = FontWeight.ExtraBold,
-                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                            text = "Auto OCR",
+                                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
                                         )
                                     }
                                 }
@@ -375,92 +373,25 @@ fun ReceiptScannerDialog(
                             }
                         }
 
-                        IconButton(onClick = onDismiss, modifier = Modifier.size(32.dp)) {
+                        IconButton(onClick = onDismiss, modifier = Modifier.size(48.dp)) {
                             Icon(Icons.Default.Close, contentDescription = "Tutup", tint = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
 
-                    // 2. Google Drive Style Mode Switcher: [ 📸 Foto | ✍️ Manual ]
-                    Surface(
-                        shape = RoundedCornerShape(24.dp),
-                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 4.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(4.dp),
-                            horizontalArrangement = Arrangement.spacedBy(4.dp)
-                        ) {
-                            // "Foto" Tab
-                            Box(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .clip(RoundedCornerShape(20.dp))
-                                    .background(
-                                        if (activeMode == "FOTO") MaterialTheme.colorScheme.primary
-                                        else Color.Transparent
-                                    )
-                                    .clickable { activeMode = "FOTO" }
-                                    .padding(vertical = 10.dp)
-                                    .testTag("tab_mode_foto"),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.CameraAlt,
-                                        contentDescription = "Foto",
-                                        tint = if (activeMode == "FOTO") MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                    Text(
-                                        text = "Foto (Scan OCR)",
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 13.sp,
-                                        color = if (activeMode == "FOTO") MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                            }
-
-                            // "Manual" Tab
-                            Box(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .clip(RoundedCornerShape(20.dp))
-                                    .background(
-                                        if (activeMode == "MANUAL") MaterialTheme.colorScheme.primary
-                                        else Color.Transparent
-                                    )
-                                    .clickable { activeMode = "MANUAL" }
-                                    .padding(vertical = 10.dp)
-                                    .testTag("tab_mode_manual"),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.EditNote,
-                                        contentDescription = "Manual",
-                                        tint = if (activeMode == "MANUAL") MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                    Text(
-                                        text = "Manual",
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 13.sp,
-                                        color = if (activeMode == "MANUAL") MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                            }
-                        }
-                    }
+                    // 2. Document Scanner Mode Switcher: [ Foto | Manual ]
+                    val uangkuColors = LocalUangkuColors.current
+                    ExpressiveSegmentedSelector(
+                        options = listOf(
+                            ExpressiveSegmentOption("FOTO", "Foto (Scan OCR)", testTag = "tab_mode_foto"),
+                            ExpressiveSegmentOption("MANUAL", "Manual", testTag = "tab_mode_manual")
+                        ),
+                        selectedKey = activeMode,
+                        onSelect = { activeMode = it },
+                        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                        activeColor = MaterialTheme.colorScheme.primary,
+                        onActiveColor = MaterialTheme.colorScheme.onPrimary,
+                        inactiveContentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
 
                     // 3. FOTO MODE CONTENT
                     if (activeMode == "FOTO") {
@@ -480,7 +411,7 @@ fun ReceiptScannerDialog(
                                     val strokeW = 3.dp.toPx()
                                     val cornerLen = 32.dp.toPx()
                                     val pad = 16.dp.toPx()
-                                    val rectColor = Color(0xFF38BDF8)
+                                    val rectColor = Color(0xFF56C292)
 
                                     // Top-Left Corner
                                     drawLine(rectColor, androidx.compose.ui.geometry.Offset(pad, pad), androidx.compose.ui.geometry.Offset(pad + cornerLen, pad), strokeW)
@@ -500,20 +431,11 @@ fun ReceiptScannerDialog(
                                 Box(
                                     modifier = Modifier
                                         .fillMaxWidth()
+                                        .padding(horizontal = 16.dp)
                                         .height(2.dp)
                                         .align(Alignment.TopCenter)
                                         .offset(y = (230.dp * laserPosition))
-                                        .background(
-                                            Brush.horizontalGradient(
-                                                listOf(
-                                                    Color.Transparent,
-                                                    Color(0xFF38BDF8),
-                                                    Color(0xFF67E8F9),
-                                                    Color(0xFF38BDF8),
-                                                    Color.Transparent
-                                                )
-                                            )
-                                        )
+                                        .background(Color(0xFF56C292))
                                 )
 
                                 Column(
@@ -531,7 +453,7 @@ fun ReceiptScannerDialog(
                                         Icon(
                                             imageVector = Icons.Default.DocumentScanner,
                                             contentDescription = "Arahkan Kamera",
-                                            tint = Color(0xFF38BDF8),
+                                            tint = Color(0xFF56C292),
                                             modifier = Modifier.size(30.dp)
                                         )
                                     }
@@ -619,8 +541,8 @@ fun ReceiptScannerDialog(
                                     Box(
                                         modifier = Modifier
                                             .size(52.dp)
-                                            .clip(CircleShape)
-                                            .background(MaterialTheme.colorScheme.surfaceVariant)
+                                            .clip(RoundedCornerShape(18.dp))
+                                            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
                                             .clickable {
                                                 galleryLauncher.launch(
                                                     PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
@@ -640,20 +562,16 @@ fun ReceiptScannerDialog(
                                     Text("Galeri", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 }
 
-                                // Big Google Drive Circular Camera Shutter Button
+                                // Big Expressive Camera Shutter Button
                                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                     Box(
                                         modifier = Modifier
                                             .size(76.dp)
                                             .clip(CircleShape)
-                                            .border(4.dp, MaterialTheme.colorScheme.primary, CircleShape)
+                                            .border(3.5.dp, MaterialTheme.colorScheme.primary, CircleShape)
                                             .padding(6.dp)
                                             .clip(CircleShape)
-                                            .background(
-                                                Brush.linearGradient(
-                                                    listOf(Color(0xFF3B82F6), Color(0xFF2563EB))
-                                                )
-                                            )
+                                            .background(MaterialTheme.colorScheme.primary)
                                             .clickable { launchCameraShutter() }
                                             .testTag("scan_camera_shutter_btn"),
                                         contentAlignment = Alignment.Center
@@ -661,8 +579,8 @@ fun ReceiptScannerDialog(
                                         Icon(
                                             imageVector = Icons.Default.CameraAlt,
                                             contentDescription = "Jepret Foto",
-                                            tint = Color.White,
-                                            modifier = Modifier.size(32.dp)
+                                            tint = MaterialTheme.colorScheme.onPrimary,
+                                            modifier = Modifier.size(30.dp)
                                         )
                                     }
                                     Spacer(modifier = Modifier.height(4.dp))
@@ -674,8 +592,11 @@ fun ReceiptScannerDialog(
                                     Box(
                                         modifier = Modifier
                                             .size(52.dp)
-                                            .clip(CircleShape)
-                                            .background(MaterialTheme.colorScheme.surfaceVariant)
+                                            .clip(RoundedCornerShape(18.dp))
+                                            .background(
+                                                if (flashEnabled) MaterialTheme.colorScheme.secondaryContainer
+                                                else MaterialTheme.colorScheme.surfaceContainerHigh
+                                            )
                                             .clickable {
                                                 flashEnabled = !flashEnabled
                                                 Toast.makeText(context, if (flashEnabled) "Lampu kilat aktif" else "Lampu kilat mati", Toast.LENGTH_SHORT).show()
@@ -686,7 +607,7 @@ fun ReceiptScannerDialog(
                                         Icon(
                                             imageVector = if (flashEnabled) Icons.Default.FlashOn else Icons.Default.FlashOff,
                                             contentDescription = "Flashlight",
-                                            tint = if (flashEnabled) Color(0xFFF59E0B) else MaterialTheme.colorScheme.onSurfaceVariant,
+                                            tint = if (flashEnabled) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
                                             modifier = Modifier.size(24.dp)
                                         )
                                     }
@@ -724,7 +645,7 @@ fun ReceiptScannerDialog(
                                     val strokeW = 4.dp.toPx()
                                     val cornerLen = 28.dp.toPx()
                                     val pad = 12.dp.toPx()
-                                    val rectColor = Color(0xFF38BDF8)
+                                    val rectColor = Color(0xFF56C292)
 
                                     drawLine(rectColor, androidx.compose.ui.geometry.Offset(pad, pad), androidx.compose.ui.geometry.Offset(pad + cornerLen, pad), strokeW)
                                     drawLine(rectColor, androidx.compose.ui.geometry.Offset(pad, pad), androidx.compose.ui.geometry.Offset(pad, pad + cornerLen), strokeW)
@@ -741,20 +662,11 @@ fun ReceiptScannerDialog(
                                     Box(
                                         modifier = Modifier
                                             .fillMaxWidth()
+                                            .padding(horizontal = 12.dp)
                                             .height(2.dp)
                                             .align(Alignment.TopCenter)
                                             .offset(y = (180.dp * laserPosition))
-                                            .background(
-                                                Brush.horizontalGradient(
-                                                    listOf(
-                                                        Color.Transparent,
-                                                        Color(0xFF38BDF8),
-                                                        Color(0xFF67E8F9),
-                                                        Color(0xFF38BDF8),
-                                                        Color.Transparent
-                                                    )
-                                                )
-                                            )
+                                            .background(Color(0xFF56C292))
                                     )
                                 }
 
@@ -766,7 +678,7 @@ fun ReceiptScannerDialog(
                                     ) {
                                         CircularProgressIndicator(
                                             modifier = Modifier.size(28.dp),
-                                            color = Color(0xFF38BDF8),
+                                            color = Color(0xFF56C292),
                                             strokeWidth = 2.5.dp
                                         )
                                         Text(
@@ -805,9 +717,9 @@ fun ReceiptScannerDialog(
                             Card(
                                 modifier = Modifier.fillMaxWidth(),
                                 colors = CardDefaults.cardColors(
-                                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+                                    containerColor = MaterialTheme.colorScheme.surfaceContainerLow
                                 ),
-                                shape = RoundedCornerShape(20.dp)
+                                shape = RoundedCornerShape(24.dp)
                             ) {
                                 Column(
                                     modifier = Modifier.padding(16.dp),
@@ -869,20 +781,13 @@ fun ReceiptScannerDialog(
                                         ) {
                                             categoryList.forEach { cat ->
                                                 val isSelected = selectedCategory.equals(cat, ignoreCase = true)
-                                                Box(
-                                                    modifier = Modifier
-                                                        .clip(RoundedCornerShape(12.dp))
-                                                        .background(
-                                                            if (isSelected) MaterialTheme.colorScheme.primary
-                                                            else MaterialTheme.colorScheme.surfaceVariant
-                                                        )
-                                                        .clickable { selectedCategory = cat }
-                                                        .padding(horizontal = 12.dp, vertical = 6.dp)
+                                                ExpressiveMorphChip(
+                                                    selected = isSelected,
+                                                    onClick = { selectedCategory = cat }
                                                 ) {
                                                     Text(
                                                         text = cat,
-                                                        color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
-                                                        fontSize = 11.sp,
+                                                        fontSize = 12.sp,
                                                         fontWeight = FontWeight.Bold
                                                     )
                                                 }
@@ -968,8 +873,8 @@ fun ReceiptScannerDialog(
                                                 ) {
                                                     Text(
                                                         text = "Sentuh baris teks di bawah untuk menyalin ke input:",
-                                                        fontSize = 10.sp,
-                                                        color = Color(0xFF38BDF8),
+                                                        fontSize = 11.sp,
+                                                        color = Color(0xFF7DD3FC),
                                                         fontWeight = FontWeight.SemiBold
                                                     )
                                                     rawOcrText.lines().filter { it.isNotBlank() }.forEach { line ->
@@ -988,15 +893,15 @@ fun ReceiptScannerDialog(
                                                                         Toast.makeText(context, "Toko diset ke: $line", Toast.LENGTH_SHORT).show()
                                                                     }
                                                                 }
-                                                                .padding(horizontal = 8.dp, vertical = 4.dp),
+                                                                .padding(horizontal = 8.dp, vertical = 6.dp),
                                                             horizontalArrangement = Arrangement.SpaceBetween,
                                                             verticalAlignment = Alignment.CenterVertically
                                                         ) {
                                                             Text(
                                                                 text = line,
                                                                 fontFamily = FontFamily.Monospace,
-                                                                fontSize = 10.sp,
-                                                                color = Color(0xFFE2E8F0),
+                                                                fontSize = 11.sp,
+                                                                color = Color(0xFFF1F5F9),
                                                                 modifier = Modifier.weight(1f)
                                                             )
                                                             Icon(
@@ -1075,7 +980,7 @@ fun ReceiptScannerDialog(
                         Card(
                             modifier = Modifier.fillMaxWidth(),
                             colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+                                containerColor = uangkuColors.elevatedSubSurface
                             ),
                             shape = RoundedCornerShape(24.dp)
                         ) {
@@ -1109,50 +1014,52 @@ fun ReceiptScannerDialog(
                                     Box(
                                         modifier = Modifier
                                             .weight(1f)
+                                            .heightIn(min = 48.dp)
                                             .clip(RoundedCornerShape(14.dp))
                                             .background(
-                                                if (selectedType == "EXPENSE") Color(0xFFEF4444).copy(alpha = 0.2f)
-                                                else MaterialTheme.colorScheme.surfaceVariant
+                                                if (selectedType == "EXPENSE") uangkuColors.expenseContainer
+                                                else uangkuColors.cardSurface
                                             )
                                             .border(
                                                 width = 1.dp,
-                                                color = if (selectedType == "EXPENSE") Color(0xFFEF4444) else Color.Transparent,
+                                                color = if (selectedType == "EXPENSE") uangkuColors.expenseText else uangkuColors.cardBorder,
                                                 shape = RoundedCornerShape(14.dp)
                                             )
                                             .clickable { selectedType = "EXPENSE" }
-                                            .padding(vertical = 8.dp),
+                                            .padding(vertical = 10.dp),
                                         contentAlignment = Alignment.Center
                                     ) {
                                         Text(
                                             text = "Pengeluaran",
                                             fontWeight = FontWeight.Bold,
                                             fontSize = 12.sp,
-                                            color = if (selectedType == "EXPENSE") Color(0xFFEF4444) else MaterialTheme.colorScheme.onSurfaceVariant
+                                            color = if (selectedType == "EXPENSE") uangkuColors.onExpenseContainer else MaterialTheme.colorScheme.onSurfaceVariant
                                         )
                                     }
 
                                     Box(
                                         modifier = Modifier
                                             .weight(1f)
+                                            .heightIn(min = 48.dp)
                                             .clip(RoundedCornerShape(14.dp))
                                             .background(
-                                                if (selectedType == "INCOME") Color(0xFF10B981).copy(alpha = 0.2f)
-                                                else MaterialTheme.colorScheme.surfaceVariant
+                                                if (selectedType == "INCOME") uangkuColors.incomeContainer
+                                                else uangkuColors.cardSurface
                                             )
                                             .border(
                                                 width = 1.dp,
-                                                color = if (selectedType == "INCOME") Color(0xFF10B981) else Color.Transparent,
+                                                color = if (selectedType == "INCOME") uangkuColors.incomeText else uangkuColors.cardBorder,
                                                 shape = RoundedCornerShape(14.dp)
                                             )
                                             .clickable { selectedType = "INCOME" }
-                                            .padding(vertical = 8.dp),
+                                            .padding(vertical = 10.dp),
                                         contentAlignment = Alignment.Center
                                     ) {
                                         Text(
                                             text = "Pemasukan",
                                             fontWeight = FontWeight.Bold,
                                             fontSize = 12.sp,
-                                            color = if (selectedType == "INCOME") Color(0xFF10B981) else MaterialTheme.colorScheme.onSurfaceVariant
+                                            color = if (selectedType == "INCOME") uangkuColors.onIncomeContainer else MaterialTheme.colorScheme.onSurfaceVariant
                                         )
                                     }
                                 }
@@ -1215,20 +1122,13 @@ fun ReceiptScannerDialog(
                                     ) {
                                         categoryList.forEach { cat ->
                                             val isSelected = selectedCategory.equals(cat, ignoreCase = true)
-                                            Box(
-                                                modifier = Modifier
-                                                    .clip(RoundedCornerShape(12.dp))
-                                                    .background(
-                                                        if (isSelected) MaterialTheme.colorScheme.primary
-                                                        else MaterialTheme.colorScheme.surfaceVariant
-                                                    )
-                                                    .clickable { selectedCategory = cat }
-                                                    .padding(horizontal = 12.dp, vertical = 6.dp)
+                                            ExpressiveMorphChip(
+                                                selected = isSelected,
+                                                onClick = { selectedCategory = cat }
                                             ) {
                                                 Text(
                                                     text = cat,
-                                                    color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
-                                                    fontSize = 11.sp,
+                                                    fontSize = 12.sp,
                                                     fontWeight = FontWeight.Bold
                                                 )
                                             }

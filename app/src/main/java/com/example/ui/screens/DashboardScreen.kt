@@ -4,15 +4,20 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
+import com.example.ui.theme.LocalUangkuColors
+import com.example.ui.theme.MotionTokens
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -20,7 +25,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -47,8 +52,18 @@ import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.Analytics
 import androidx.compose.material.icons.filled.TrendingUp
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.material.icons.filled.Bolt
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.LocalOffer
+import androidx.compose.material.icons.filled.Movie
+import androidx.compose.material.icons.filled.MusicNote
+import androidx.compose.material.icons.filled.PlayCircle
+import androidx.compose.material.icons.filled.ShoppingBag
+import androidx.compose.material.icons.filled.ShoppingCart
+import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material.icons.filled.Shield
-import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -68,9 +83,13 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.input.KeyboardType
+import com.example.ui.components.ExpressiveMorphChip
+import com.example.ui.components.ExpressiveSegmentOption
+import com.example.ui.components.ExpressiveSegmentedSelector
 import com.example.ui.components.RupiahVisualTransformation
-import com.example.ui.components.LockerSpeedDialMenu
 import com.example.ui.components.ReceiptScannerDialog
+import com.example.ui.theme.ExpressiveShapeTokens
+import com.example.ui.theme.tabular
 import androidx.compose.animation.animateContentSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -83,7 +102,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
@@ -133,7 +151,6 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.TrendingDown
@@ -170,7 +187,10 @@ fun parseMarkdownLine(line: String, defaultColor: Color, boldColor: Color): Anno
 fun BeautifulMarkdownView(displayText: String, themeDark: Boolean) {
     val scrollState = androidx.compose.foundation.rememberScrollState()
     val lines = remember(displayText) { displayText.split("\n") }
-    
+    val uangkuColors = LocalUangkuColors.current
+    val bodyTextColor = MaterialTheme.colorScheme.onSurface
+    val headingColor = MaterialTheme.colorScheme.onSurface
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -180,7 +200,6 @@ fun BeautifulMarkdownView(displayText: String, themeDark: Boolean) {
         lines.forEach { line ->
             val trimmed = line.trim()
             if (trimmed.isEmpty()) {
-                // Spacer for empty paragraphs
                 Spacer(modifier = Modifier.height(4.dp))
             } else if (trimmed.startsWith("### ")) {
                 val titleText = trimmed.removePrefix("### ").trim()
@@ -190,7 +209,7 @@ fun BeautifulMarkdownView(displayText: String, themeDark: Boolean) {
                         fontWeight = FontWeight.ExtraBold,
                         letterSpacing = 0.5.sp
                     ),
-                    color = if (themeDark) Color(0xFFC084FC) else Color(0xFF5B21B6),
+                    color = uangkuColors.aiAccent,
                     modifier = Modifier.padding(top = 10.dp, bottom = 4.dp)
                 )
             } else if (trimmed.startsWith("#### ")) {
@@ -201,14 +220,14 @@ fun BeautifulMarkdownView(displayText: String, themeDark: Boolean) {
                         fontWeight = FontWeight.Bold,
                         letterSpacing = 0.25.sp
                     ),
-                    color = if (themeDark) Color(0xFFE9D5FF) else Color(0xFF4C229E),
+                    color = uangkuColors.onAiContainer,
                     modifier = Modifier.padding(top = 14.dp, bottom = 4.dp)
                 )
             } else if (trimmed.startsWith("- ")) {
                 val isRecommendation = trimmed.contains("🔴") || trimmed.contains("⚠️") || trimmed.contains("✅") || trimmed.contains("✨") || trimmed.contains("📈") || trimmed.contains("📉")
-                
+
                 if (isRecommendation) {
-                    val emoji = when {
+                    val recMarker = when {
                         trimmed.contains("🔴") -> "🔴"
                         trimmed.contains("⚠️") -> "⚠️"
                         trimmed.contains("✅") -> "✅"
@@ -218,49 +237,55 @@ fun BeautifulMarkdownView(displayText: String, themeDark: Boolean) {
                         else -> ""
                     }
                     var cleanTextLine = trimmed.removePrefix("- ").trim()
-                    if (emoji.isNotEmpty()) {
-                        cleanTextLine = cleanTextLine.replace(emoji, "").trim()
+                    if (recMarker.isNotEmpty()) {
+                        cleanTextLine = cleanTextLine.replace(recMarker, "").trim()
                     }
-                    
-                    val (bgColor, borderColor, textColor) = when (emoji) {
+
+                    val (bgColor, borderColor, accentTextColor, onBgColor) = when (recMarker) {
                         "🔴" -> listOf(
-                            if (themeDark) Color(0xFF2D0613) else Color(0xFFFFF1F2),
-                            if (themeDark) Color(0xFF881337) else Color(0xFFFECDD3),
-                            if (themeDark) Color(0xFFFDA4AF) else Color(0xFF9F1239)
+                            uangkuColors.expenseContainer,
+                            uangkuColors.expenseText.copy(alpha = 0.4f),
+                            uangkuColors.expenseText,
+                            uangkuColors.onExpenseContainer
                         )
                         "⚠️" -> listOf(
-                            if (themeDark) Color(0xFF2E1B05) else Color(0xFFFFFBEB),
-                            if (themeDark) Color(0xFF78350F) else Color(0xFFFDE68A),
-                            if (themeDark) Color(0xFFFCD34D) else Color(0xFF92400E)
+                            uangkuColors.warningContainer,
+                            uangkuColors.warningText.copy(alpha = 0.4f),
+                            uangkuColors.warningText,
+                            uangkuColors.onWarningContainer
                         )
                         "✅", "✨" -> listOf(
-                            if (themeDark) Color(0xFF022C22) else Color(0xFFF0FDF4),
-                            if (themeDark) Color(0xFF065F46) else Color(0xFFBBF7D0),
-                            if (themeDark) Color(0xFF34D399) else Color(0xFF15803D)
+                            uangkuColors.incomeContainer,
+                            uangkuColors.incomeText.copy(alpha = 0.4f),
+                            uangkuColors.incomeText,
+                            uangkuColors.onIncomeContainer
                         )
                         "📈" -> listOf(
-                            if (themeDark) Color(0xFF1E152F) else Color(0xFFF5F3FF),
-                            if (themeDark) Color(0xFF4A1D96) else Color(0xFFDDD6FE),
-                            if (themeDark) Color(0xFFA78BFA) else Color(0xFF6D28D9)
+                            uangkuColors.aiContainer,
+                            uangkuColors.aiBorder,
+                            uangkuColors.aiAccent,
+                            uangkuColors.onAiContainer
                         )
                         "📉" -> listOf(
-                            if (themeDark) Color(0xFF0F172A) else Color(0xFFEFF6FF),
-                            if (themeDark) Color(0xFF1E3A8A) else Color(0xFFBFDBFE),
-                            if (themeDark) Color(0xFF60A5FA) else Color(0xFF1D4ED8)
+                            MaterialTheme.colorScheme.primaryContainer,
+                            MaterialTheme.colorScheme.primary.copy(alpha = 0.35f),
+                            MaterialTheme.colorScheme.primary,
+                            MaterialTheme.colorScheme.onPrimaryContainer
                         )
                         else -> listOf(
-                            if (themeDark) Color(0xFF1F2937) else Color(0xFFF9FAFB),
-                            if (themeDark) Color(0xFF374151) else Color(0xFFF3F4F6),
-                            if (themeDark) Color(0xFFD1D5DB) else Color(0xFF374151)
+                            uangkuColors.elevatedSubSurface,
+                            uangkuColors.cardBorder,
+                            MaterialTheme.colorScheme.primary,
+                            MaterialTheme.colorScheme.onSurface
                         )
                     }
-                    
+
                     val annotatedCardText = parseMarkdownLine(
                         cleanTextLine,
-                        defaultColor = if (themeDark) Color(0xFFE2E8F0) else Color(0xFF334155),
-                        boldColor = textColor
+                        defaultColor = onBgColor,
+                        boldColor = onBgColor
                     )
-                    
+
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -273,32 +298,45 @@ fun BeautifulMarkdownView(displayText: String, themeDark: Boolean) {
                             verticalAlignment = Alignment.Top,
                             horizontalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
-                            Text(text = emoji, fontSize = 16.sp, modifier = Modifier.padding(top = 1.dp))
+                            val iconVec = when (recMarker) {
+                                "🔴" -> Icons.Default.Close
+                                "⚠️" -> Icons.Default.NotificationsActive
+                                "✅", "✨" -> Icons.Default.Check
+                                "📈" -> Icons.AutoMirrored.Filled.TrendingUp
+                                "📉" -> Icons.AutoMirrored.Filled.TrendingDown
+                                else -> Icons.Default.Check
+                            }
+                            Icon(
+                                imageVector = iconVec,
+                                contentDescription = null,
+                                tint = accentTextColor,
+                                modifier = Modifier.size(18.dp).padding(top = 2.dp)
+                            )
                             Text(
                                 text = annotatedCardText,
                                 style = MaterialTheme.typography.bodySmall.copy(lineHeight = 18.sp),
-                                color = if (themeDark) Color(0xFFE2E8F0) else Color(0xFF334155)
+                                color = onBgColor
                             )
                         }
                     }
                 } else {
                     val contentLine = trimmed.removePrefix("- ").trim()
-                    val icon = when {
-                        contentLine.startsWith("**Total Belanja**") || contentLine.startsWith("Total Belanja") -> "🛍️"
-                        contentLine.startsWith("**Rerata Transaksi**") || contentLine.startsWith("Rerata Transaksi") -> "📊"
-                        contentLine.startsWith("**Sektor Dominan**") || contentLine.startsWith("Sektor Dominan") -> "🏷️"
-                        contentLine.startsWith("**Rasio Laju Belanja Harian**") || contentLine.contains("Laju Belanja") -> "⚡"
-                        contentLine.startsWith("**Proyeksi Sisa Bulan Ini**") || contentLine.contains("Proyeksi") -> "📅"
-                        contentLine.startsWith("**Estimasi Saldo Akhir Bulan**") || contentLine.contains("Estimasi Saldo") -> "💰"
-                        else -> "•"
+                    val bulletIcon = when {
+                        contentLine.startsWith("**Total Belanja**") || contentLine.startsWith("Total Belanja") -> Icons.Default.ShoppingBag
+                        contentLine.startsWith("**Rerata Transaksi**") || contentLine.startsWith("Rerata Transaksi") -> Icons.Default.Analytics
+                        contentLine.startsWith("**Sektor Dominan**") || contentLine.startsWith("Sektor Dominan") -> Icons.Default.LocalOffer
+                        contentLine.startsWith("**Rasio Laju Belanja Harian**") || contentLine.contains("Laju Belanja") -> Icons.Default.Bolt
+                        contentLine.startsWith("**Proyeksi Sisa Bulan Ini**") || contentLine.contains("Proyeksi") -> Icons.Default.CalendarToday
+                        contentLine.startsWith("**Estimasi Saldo Akhir Bulan**") || contentLine.contains("Estimasi Saldo") -> Icons.Default.AccountBalanceWallet
+                        else -> Icons.Default.Info
                     }
-                    
+
                     val annotatedBulletText = parseMarkdownLine(
                         contentLine,
-                        defaultColor = if (themeDark) Color(0xFFE2E8F0) else Color(0xFF334155),
-                        boldColor = if (themeDark) Color.White else Color(0xFF111827)
+                        defaultColor = bodyTextColor,
+                        boldColor = headingColor
                     )
-                    
+
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -306,15 +344,16 @@ fun BeautifulMarkdownView(displayText: String, themeDark: Boolean) {
                         verticalAlignment = Alignment.Top,
                         horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        Text(
-                            text = icon,
-                            fontSize = if (icon == "•") 16.sp else 14.sp,
-                            modifier = Modifier.padding(top = 1.dp)
+                        Icon(
+                            imageVector = bulletIcon,
+                            contentDescription = null,
+                            tint = uangkuColors.aiAccent,
+                            modifier = Modifier.padding(top = 2.dp).size(16.dp)
                         )
                         Text(
                             text = annotatedBulletText,
                             style = MaterialTheme.typography.bodyMedium.copy(lineHeight = 20.sp),
-                            color = if (themeDark) Color(0xFFE2E8F0) else Color(0xFF334155)
+                            color = bodyTextColor
                         )
                     }
                 }
@@ -326,19 +365,19 @@ fun BeautifulMarkdownView(displayText: String, themeDark: Boolean) {
                         fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
                         lineHeight = 16.sp
                     ),
-                    color = if (themeDark) Color(0xFFA78BFA).copy(alpha = 0.8f) else Color(0xFF6D28D9).copy(alpha = 0.8f),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(top = 10.dp, bottom = 4.dp)
                 )
             } else {
                 val annotatedText = parseMarkdownLine(
                     trimmed,
-                    defaultColor = if (themeDark) Color(0xFFE2E8F0) else Color(0xFF334155),
-                    boldColor = if (themeDark) Color.White else Color(0xFF111827)
+                    defaultColor = bodyTextColor,
+                    boldColor = headingColor
                 )
                 Text(
                     text = annotatedText,
                     style = MaterialTheme.typography.bodyMedium.copy(lineHeight = 20.sp),
-                    color = if (themeDark) Color(0xFFE2E8F0) else Color(0xFF334155),
+                    color = bodyTextColor,
                     modifier = Modifier.padding(vertical = 2.dp)
                 )
             }
@@ -363,6 +402,7 @@ fun DashboardScreen(
     val budgetAlert by viewModel.budgetAlert.collectAsStateWithLifecycle()
     val userName by viewModel.userName.collectAsStateWithLifecycle()
     val themeDark by viewModel.themeDark.collectAsStateWithLifecycle()
+    val uangkuColors = LocalUangkuColors.current
     val appLanguage by viewModel.appLanguage.collectAsStateWithLifecycle()
     val bankNotificationEnabled by viewModel.bankNotificationEnabled.collectAsStateWithLifecycle()
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -387,7 +427,6 @@ fun DashboardScreen(
         }
     }
 
-    var isSpeedDialExpanded by remember { mutableStateOf(false) }
     var initialDialogType by remember { mutableStateOf("EXPENSE") }
     var capturedReceiptBitmap by remember { mutableStateOf<Bitmap?>(null) }
     var capturedReceiptUri by remember { mutableStateOf<Uri?>(null) }
@@ -430,487 +469,563 @@ fun DashboardScreen(
         }
     }
 
-    Scaffold(
-        modifier = modifier.fillMaxSize(),
-        floatingActionButton = {
-            LockerSpeedDialMenu(
-                isExpanded = isSpeedDialExpanded,
-                onToggleExpand = { isSpeedDialExpanded = !isSpeedDialExpanded },
-                onSelectExpense = {
-                    initialDialogType = "EXPENSE"
-                    showQuickAddDialog = true
-                },
-                onSelectIncome = {
-                    initialDialogType = "INCOME"
-                    showQuickAddDialog = true
-                },
-                onSelectScanReceipt = {
-                    launchDirectCamera()
-                },
-                modifier = Modifier
-                    .padding(bottom = 72.dp, end = 4.dp)
-                    .testTag("dashboard_speed_dial_menu")
-            )
-        }
-    ) { innerPadding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-                .padding(horizontal = 16.dp)
-                .verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            Spacer(modifier = Modifier.height(8.dp))
-            
-            // BENTO: Welcome & Profile Header
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column {
-                    Text(
-                        text = com.example.ui.util.AppStrings.greeting(appLanguage),
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Text(
-                        text = userName,
-                        style = MaterialTheme.typography.headlineMedium,
-                        fontWeight = FontWeight.Black,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        letterSpacing = (-1).sp
-                    )
-                }
-                Box(
-                    modifier = Modifier
-                        .size(54.dp)
-                        .background(MaterialTheme.colorScheme.surfaceVariant, CircleShape)
-                        .clickable { viewModel.triggerAutoSync() },
-                    contentAlignment = Alignment.Center
-                ) {
-                    if (isSyncing) {
-                        androidx.compose.material3.CircularProgressIndicator(
-                            modifier = Modifier.size(24.dp),
-                            color = MaterialTheme.colorScheme.primary,
-                            strokeWidth = 2.dp
-                        )
-                    } else {
-                        Text(
-                            text = userName.take(1).uppercase(),
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-            }
+    BoxWithConstraints(modifier = modifier.fillMaxSize()) {
+        val isCompactWidth = maxWidth < 600.dp
+        val isWideDashboard = maxWidth >= 840.dp
 
-            // BENTO: Main Balance Card (Glass/Mesh style)
+        Scaffold(
+            modifier = Modifier.fillMaxSize(),
+            containerColor = Color.Transparent
+        ) { innerPadding ->
             Box(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .aspectRatio(1.6f)
-                    .clip(RoundedCornerShape(32.dp))
-                    .background(
-                        Brush.linearGradient(
-                            colors = if (themeDark) listOf(Color(0xFF1E293B), Color(0xFF0F172A))
-                                     else listOf(Color(0xFFF1F5F9), Color(0xFFE2E8F0))
-                        )
-                    )
-                    .border(
-                        1.dp,
-                        if (themeDark) Color.White.copy(alpha = 0.1f) else Color.Black.copy(alpha = 0.05f),
-                        RoundedCornerShape(32.dp)
-                    )
+                    .fillMaxSize()
+                    .background(MaterialTheme.colorScheme.background)
+                    .padding(innerPadding),
+                contentAlignment = Alignment.TopCenter
             ) {
-                // Decorative mesh/blur shapes could go here
-                Box(
+                Column(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(24.dp)
+                        .widthIn(max = 1040.dp)
+                        .padding(horizontal = 16.dp)
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    Column(
-                        modifier = Modifier.fillMaxSize(),
-                        verticalArrangement = Arrangement.SpaceBetween
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // BENTO: Welcome & Profile Header
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.Top
+                        Column {
+                            Text(
+                                text = com.example.ui.util.AppStrings.greeting(appLanguage),
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Text(
+                                text = userName,
+                                style = MaterialTheme.typography.headlineMedium,
+                                fontWeight = FontWeight.Black,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                letterSpacing = (-0.5).sp
+                            )
+                        }
+                        Box(
+                            modifier = Modifier
+                                .size(54.dp)
+                                .clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.surfaceContainerHigh, CircleShape)
+                                .border(1.dp, MaterialTheme.colorScheme.outlineVariant, CircleShape)
+                                .clickable { viewModel.triggerAutoSync() },
+                            contentAlignment = Alignment.Center
                         ) {
-                            Column {
-                                Text(
-                                    text = "Total Balance",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    color = if (themeDark) Color.White.copy(alpha = 0.6f) else Color.Black.copy(alpha = 0.6f)
+                            if (isSyncing) {
+                                androidx.compose.material3.CircularProgressIndicator(
+                                    modifier = Modifier.size(24.dp),
+                                    color = MaterialTheme.colorScheme.primary,
+                                    strokeWidth = 2.dp
                                 )
-                                Spacer(modifier = Modifier.height(8.dp))
+                            } else {
                                 Text(
-                                    text = if (isBalanceHidden) "Rp ••••••••" else rubelFormat.format(totalBalance),
-                                    style = MaterialTheme.typography.displaySmall,
-                                    fontWeight = FontWeight.Black,
-                                    color = if (themeDark) Color.White else Color.Black,
-                                    letterSpacing = (-1).sp
-                                )
-                            }
-                            IconButton(
-                                onClick = { isBalanceHidden = !isBalanceHidden },
-                                modifier = Modifier
-                                    .background(
-                                        if (themeDark) Color.White.copy(alpha = 0.1f) else Color.Black.copy(alpha = 0.05f),
-                                        CircleShape
-                                    )
-                            ) {
-                                Icon(
-                                    imageVector = if (isBalanceHidden) Icons.Default.VisibilityOff else Icons.Default.Visibility,
-                                    contentDescription = "Toggle",
-                                    tint = if (themeDark) Color.White else Color.Black
+                                    text = userName.take(1).uppercase(),
+                                    style = MaterialTheme.typography.titleLarge,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.primary
                                 )
                             }
                         }
+                    }
 
-                        // Bottom Actions inside card
+                    val heroCardContent: @Composable (Modifier) -> Unit = { cardModifier ->
+                        Box(
+                            modifier = cardModifier
+                                .defaultMinSize(minHeight = 204.dp)
+                                .clip(RoundedCornerShape(ExpressiveShapeTokens.HeroCorner))
+                                .background(uangkuColors.heroStart)
+                                .border(
+                                    1.dp,
+                                    uangkuColors.cardBorder,
+                                    RoundedCornerShape(ExpressiveShapeTokens.HeroCorner)
+                                )
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .defaultMinSize(minHeight = 204.dp)
+                                    .padding(24.dp),
+                                verticalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.Top
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = com.example.ui.util.AppStrings.totalBalance(appLanguage),
+                                            style = MaterialTheme.typography.titleMedium,
+                                            color = uangkuColors.onHeroVariant,
+                                            fontWeight = FontWeight.SemiBold
+                                        )
+                                        Spacer(modifier = Modifier.height(8.dp))
+                                        Text(
+                                            text = if (isBalanceHidden) "Rp ••••••••" else rubelFormat.format(totalBalance),
+                                            style = MaterialTheme.typography.displaySmall.tabular(),
+                                            fontWeight = FontWeight.Black,
+                                            color = uangkuColors.onHero,
+                                            letterSpacing = (-1).sp
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    IconButton(
+                                        onClick = { isBalanceHidden = !isBalanceHidden },
+                                        modifier = Modifier
+                                            .size(48.dp)
+                                            .background(MaterialTheme.colorScheme.surfaceContainerLowest, CircleShape)
+                                            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, CircleShape)
+                                    ) {
+                                        Icon(
+                                            imageVector = if (isBalanceHidden) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                                            contentDescription = "Toggle saldo",
+                                            tint = MaterialTheme.colorScheme.onSurface
+                                        )
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(20.dp))
+
+                                // Bottom Actions inside Hero card
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                ) {
+                                    Button(
+                                        onClick = {
+                                            initialDialogType = "EXPENSE"
+                                            showQuickAddDialog = true
+                                        },
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .height(52.dp)
+                                            .testTag("dashboard_quick_add_button"),
+                                        shape = RoundedCornerShape(20.dp),
+                                        colors = ButtonDefaults.buttonColors(
+                                            containerColor = MaterialTheme.colorScheme.primary,
+                                            contentColor = MaterialTheme.colorScheme.onPrimary
+                                        )
+                                    ) {
+                                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text(
+                                            text = com.example.ui.util.AppStrings.quickAdd(appLanguage),
+                                            fontWeight = FontWeight.Bold,
+                                            maxLines = 1
+                                        )
+                                    }
+                                    OutlinedButton(
+                                        onClick = { onNavigateToTransactions() },
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .height(52.dp),
+                                        shape = RoundedCornerShape(20.dp),
+                                        colors = ButtonDefaults.outlinedButtonColors(
+                                            containerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
+                                            contentColor = MaterialTheme.colorScheme.onSurface
+                                        ),
+                                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+                                    ) {
+                                        Icon(Icons.Default.ListAlt, contentDescription = null, modifier = Modifier.size(18.dp))
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text(
+                                            text = com.example.ui.util.AppStrings.history(appLanguage),
+                                            fontWeight = FontWeight.Bold,
+                                            maxLines = 1
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    val incomeShape = RoundedCornerShape(
+                        topStart = ExpressiveShapeTokens.BentoCorner,
+                        bottomStart = ExpressiveShapeTokens.BentoCorner,
+                        topEnd = ExpressiveShapeTokens.BentoInnerCorner,
+                        bottomEnd = ExpressiveShapeTokens.BentoInnerCorner
+                    )
+                    val expenseShape = RoundedCornerShape(
+                        topStart = ExpressiveShapeTokens.BentoInnerCorner,
+                        bottomStart = ExpressiveShapeTokens.BentoInnerCorner,
+                        topEnd = ExpressiveShapeTokens.BentoCorner,
+                        bottomEnd = ExpressiveShapeTokens.BentoCorner
+                    )
+                    val analysisShape = incomeShape
+                    val scanShape = expenseShape
+
+                    val cashflowBentoRow: @Composable () -> Unit = {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
-                            Button(
-                                onClick = { showQuickAddDialog = true },
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .height(54.dp),
-                                shape = RoundedCornerShape(16.dp),
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = if (themeDark) Color.White else Color.Black,
-                                    contentColor = if (themeDark) Color.Black else Color.White
-                                )
-                            ) {
-                                Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text("Add", fontWeight = FontWeight.Bold)
-                            }
-                            Button(
-                                onClick = { onNavigateToTransactions() },
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .height(54.dp),
-                                shape = RoundedCornerShape(16.dp),
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = if (themeDark) Color.White.copy(alpha = 0.1f) else Color.Black.copy(alpha = 0.05f),
-                                    contentColor = if (themeDark) Color.White else Color.Black
-                                ),
-                                elevation = null
-                            ) {
-                                Icon(Icons.Default.ListAlt, contentDescription = null, modifier = Modifier.size(18.dp))
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text("History", fontWeight = FontWeight.Bold)
-                            }
-                        }
-                    }
-                }
-            }
-
-            // BENTO: 2 Column Grid (Income / Expense)
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                // Income Bento Box (Bulanan & Ringkasan 4 Bulan)
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(136.dp)
-                        .clip(RoundedCornerShape(32.dp))
-                        .background(
-                            Brush.linearGradient(
-                                colors = listOf(Color(0xFFD1FAE5), Color(0xFFA7F3D0))
-                            )
-                        )
-                        .clickable { showSummaryType = "INCOME" }
-                        .padding(18.dp)
-                        .testTag("dashboard_income_bento_box")
-                ) {
-                    Column(
-                        modifier = Modifier.fillMaxSize(),
-                        verticalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
+                            // Income Bento Box
                             Box(
                                 modifier = Modifier
-                                    .size(42.dp)
-                                    .background(Color(0xFF059669).copy(alpha = 0.15f), CircleShape),
-                                contentAlignment = Alignment.Center
+                                    .weight(1f)
+                                    .defaultMinSize(minHeight = 138.dp)
+                                    .clip(incomeShape)
+                                    .background(uangkuColors.incomeContainer)
+                                    .border(1.dp, uangkuColors.incomeBorder, incomeShape)
+                                    .clickable { showSummaryType = "INCOME" }
+                                    .padding(18.dp)
+                                    .testTag("dashboard_income_bento_box")
                             ) {
-                                Icon(Icons.Default.ArrowUpward, contentDescription = null, tint = Color(0xFF059669), modifier = Modifier.size(22.dp))
+                                Column(
+                                    modifier = Modifier.defaultMinSize(minHeight = 102.dp).fillMaxWidth(),
+                                    verticalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(40.dp)
+                                                .background(uangkuColors.cardSurface, CircleShape),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Icon(Icons.Default.ArrowUpward, contentDescription = null, tint = uangkuColors.incomeText, modifier = Modifier.size(20.dp))
+                                        }
+                                        Surface(
+                                            shape = RoundedCornerShape(12.dp),
+                                            color = uangkuColors.cardSurface
+                                        ) {
+                                            Text(
+                                                text = com.example.ui.util.AppStrings.thisMonth(appLanguage),
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = uangkuColors.onIncomeContainer,
+                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                                            )
+                                        }
+                                    }
+                                    Spacer(modifier = Modifier.height(10.dp))
+                                    Column {
+                                        Text(
+                                            text = com.example.ui.util.AppStrings.income(appLanguage),
+                                            style = MaterialTheme.typography.labelMedium,
+                                            color = uangkuColors.onIncomeContainer,
+                                            fontWeight = FontWeight.SemiBold
+                                        )
+                                        Text(
+                                            text = if (isBalanceHidden) "•••" else rubelFormat.format(currentMonthIncome),
+                                            style = MaterialTheme.typography.titleLarge.tabular(),
+                                            fontWeight = FontWeight.Black,
+                                            color = uangkuColors.onIncomeContainer,
+                                            fontSize = 18.sp,
+                                            maxLines = 1
+                                        )
+                                    }
+                                }
                             }
-                            Surface(
-                                shape = RoundedCornerShape(12.dp),
-                                color = Color(0xFF059669).copy(alpha = 0.15f)
-                            ) {
-                                Text(
-                                    text = "Bulan Ini",
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color(0xFF065F46),
-                                    modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
-                                )
-                            }
-                        }
-                        Column {
-                            Text(
-                                text = "Income",
-                                style = MaterialTheme.typography.labelMedium,
-                                color = Color(0xFF065F46).copy(alpha = 0.85f),
-                                fontWeight = FontWeight.SemiBold
-                            )
-                            Text(
-                                text = if (isBalanceHidden) "•••" else rubelFormat.format(currentMonthIncome),
-                                style = MaterialTheme.typography.titleLarge,
-                                fontWeight = FontWeight.Black,
-                                color = Color(0xFF064E3B),
-                                fontSize = 18.sp,
-                                maxLines = 1
-                            )
-                        }
-                    }
-                }
 
-                // Expense Bento Box (Bulanan & Ringkasan 4 Bulan)
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(136.dp)
-                        .clip(RoundedCornerShape(32.dp))
-                        .background(
-                            Brush.linearGradient(
-                                colors = listOf(Color(0xFFFFE4E6), Color(0xFFFECDD3))
-                            )
-                        )
-                        .clickable { showSummaryType = "EXPENSE" }
-                        .padding(18.dp)
-                        .testTag("dashboard_expense_bento_box")
-                ) {
-                    Column(
-                        modifier = Modifier.fillMaxSize(),
-                        verticalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
+                            // Expense Bento Box
                             Box(
                                 modifier = Modifier
-                                    .size(42.dp)
-                                    .background(Color(0xFFE11D48).copy(alpha = 0.15f), CircleShape),
-                                contentAlignment = Alignment.Center
+                                    .weight(1f)
+                                    .defaultMinSize(minHeight = 138.dp)
+                                    .clip(expenseShape)
+                                    .background(uangkuColors.expenseContainer)
+                                    .border(1.dp, uangkuColors.expenseBorder, expenseShape)
+                                    .clickable { showSummaryType = "EXPENSE" }
+                                    .padding(18.dp)
+                                    .testTag("dashboard_expense_bento_box")
                             ) {
-                                Icon(Icons.Default.ArrowDownward, contentDescription = null, tint = Color(0xFFE11D48), modifier = Modifier.size(22.dp))
+                                Column(
+                                    modifier = Modifier.defaultMinSize(minHeight = 102.dp).fillMaxWidth(),
+                                    verticalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(40.dp)
+                                                .background(uangkuColors.cardSurface, CircleShape),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Icon(Icons.Default.ArrowDownward, contentDescription = null, tint = uangkuColors.expenseText, modifier = Modifier.size(20.dp))
+                                        }
+                                        Surface(
+                                            shape = RoundedCornerShape(12.dp),
+                                            color = uangkuColors.cardSurface
+                                        ) {
+                                            Text(
+                                                text = com.example.ui.util.AppStrings.thisMonth(appLanguage),
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = uangkuColors.onExpenseContainer,
+                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                                            )
+                                        }
+                                    }
+                                    Spacer(modifier = Modifier.height(10.dp))
+                                    Column {
+                                        Text(
+                                            text = com.example.ui.util.AppStrings.expense(appLanguage),
+                                            style = MaterialTheme.typography.labelMedium,
+                                            color = uangkuColors.onExpenseContainer,
+                                            fontWeight = FontWeight.SemiBold
+                                        )
+                                        Text(
+                                            text = if (isBalanceHidden) "•••" else rubelFormat.format(currentMonthExpense),
+                                            style = MaterialTheme.typography.titleLarge.tabular(),
+                                            fontWeight = FontWeight.Black,
+                                            color = uangkuColors.onExpenseContainer,
+                                            fontSize = 18.sp,
+                                            maxLines = 1
+                                        )
+                                    }
+                                }
                             }
-                            Surface(
-                                shape = RoundedCornerShape(12.dp),
-                                color = Color(0xFFE11D48).copy(alpha = 0.15f)
-                            ) {
-                                Text(
-                                    text = "Bulan Ini",
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color(0xFF9F1239),
-                                    modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
-                                )
-                            }
-                        }
-                        Column {
-                            Text(
-                                text = "Expense",
-                                style = MaterialTheme.typography.labelMedium,
-                                color = Color(0xFF9F1239).copy(alpha = 0.85f),
-                                fontWeight = FontWeight.SemiBold
-                            )
-                            Text(
-                                text = if (isBalanceHidden) "•••" else rubelFormat.format(currentMonthExpense),
-                                style = MaterialTheme.typography.titleLarge,
-                                fontWeight = FontWeight.Black,
-                                color = Color(0xFF881337),
-                                fontSize = 18.sp,
-                                maxLines = 1
-                            )
                         }
                     }
-                }
-            }
 
-            // BENTO: Analytics & AI Card
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(32.dp))
-                    .background(
-                        Brush.linearGradient(
-                            colors = if (themeDark) listOf(Color(0xFF4C1D95), Color(0xFF312E81))
-                                     else listOf(Color(0xFFEDE9FE), Color(0xFFDDD6FE))
-                        )
-                    )
-                    .clickable { showMlReportDialog = true }
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(24.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                Icons.Default.AutoAwesome,
-                                contentDescription = null,
-                                tint = if (themeDark) Color(0xFFC4B5FD) else Color(0xFF7C3AED),
-                                modifier = Modifier.size(20.dp)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = "AI Insights",
-                                style = MaterialTheme.typography.labelLarge,
-                                color = if (themeDark) Color(0xFFC4B5FD) else Color(0xFF7C3AED),
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = "Tap to view smart financial analysis",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = if (themeDark) Color.White else Color(0xFF4C1D95)
-                        )
-                    }
-                    Box(
-                        modifier = Modifier
-                            .size(48.dp)
-                            .background(if (themeDark) Color.White.copy(alpha = 0.2f) else Color.White.copy(alpha = 0.5f), CircleShape),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            Icons.Default.Analytics,
-                            contentDescription = null,
-                            tint = if (themeDark) Color.White else Color(0xFF4C1D95)
-                        )
-                    }
-                }
-            }
-            
-            // BENTO: Recent Transactions
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 8.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "Recent Activity",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Black,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                if (recentTxs.isNotEmpty()) {
-                    TextButton(
-                        onClick = onNavigateToTransactions,
-                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
-                    ) {
-                        Text(
-                            text = "Lihat Semua",
-                            style = MaterialTheme.typography.labelMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                    }
-                }
-            }
-
-            if (recentTxs.isEmpty()) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 32.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        "No transactions yet",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            } else {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .animateContentSize()
-                        .clip(RoundedCornerShape(32.dp))
-                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
-                        .padding(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    recentTxs.forEach { tx ->
-                        // BENTO: Compact Transaction Row
+                    val featureBentoRow: @Composable () -> Unit = {
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clip(RoundedCornerShape(24.dp))
-                                .background(MaterialTheme.colorScheme.surface)
-                                .clickable { onNavigateToTransactions() }
-                                .padding(16.dp),
-                            verticalAlignment = Alignment.CenterVertically
+                                .height(IntrinsicSize.Min),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
+                            // Wide Analysis Bento Card (1.42f)
                             Box(
                                 modifier = Modifier
-                                    .size(42.dp)
-                                    .background(
-                                        if (tx.type == "INCOME") Color(0xFF10B981).copy(alpha = 0.1f)
-                                        else Color(0xFFEF4444).copy(alpha = 0.1f),
-                                        CircleShape
-                                    ),
-                                contentAlignment = Alignment.Center
+                                    .weight(1.42f)
+                                    .fillMaxHeight()
+                                    .defaultMinSize(minHeight = 114.dp)
+                                    .clip(analysisShape)
+                                    .background(uangkuColors.aiSurface)
+                                    .border(1.dp, uangkuColors.aiBorder, analysisShape)
+                                    .clickable { showMlReportDialog = true }
+                                    .padding(18.dp)
                             ) {
-                                Icon(
-                                    imageVector = if (tx.type == "INCOME") Icons.Default.ArrowUpward else Icons.Default.ArrowDownward,
-                                    contentDescription = null,
-                                    tint = if (tx.type == "INCOME") Color(0xFF10B981) else Color(0xFFEF4444),
-                                    modifier = Modifier.size(18.dp)
-                                )
+                                Row(
+                                    modifier = Modifier.fillMaxSize(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Icon(
+                                                Icons.Default.Analytics,
+                                                contentDescription = null,
+                                                tint = uangkuColors.aiAccent,
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                            Spacer(modifier = Modifier.width(6.dp))
+                                            Text(
+                                                text = com.example.ui.util.AppStrings.aiInsights(appLanguage),
+                                                style = MaterialTheme.typography.labelLarge,
+                                                color = uangkuColors.aiAccent,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        }
+                                        Spacer(modifier = Modifier.height(6.dp))
+                                        Text(
+                                            text = com.example.ui.util.AppStrings.aiInsightsDesc(appLanguage),
+                                            style = MaterialTheme.typography.titleSmall,
+                                            fontWeight = FontWeight.Bold,
+                                            color = uangkuColors.onAiContainer
+                                        )
+                                    }
+                                }
                             }
-                            Spacer(modifier = Modifier.width(12.dp))
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = tx.title,
-                                    style = MaterialTheme.typography.bodyLarge,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onSurface,
-                                    maxLines = 1
-                                )
-                                Text(
-                                    text = tx.category,
-                                    style = MaterialTheme.typography.labelMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
+
+                            // Compact Scan Receipt Bento Action (0.58f)
+                            Box(
+                                modifier = Modifier
+                                    .weight(0.58f)
+                                    .fillMaxHeight()
+                                    .defaultMinSize(minHeight = 114.dp)
+                                    .clip(scanShape)
+                                    .background(uangkuColors.cardSurface)
+                                    .border(1.dp, uangkuColors.cardBorder, scanShape)
+                                    .clickable { launchDirectCamera() }
+                                    .padding(14.dp)
+                            ) {
+                                Column(
+                                    modifier = Modifier.fillMaxSize(),
+                                    verticalArrangement = Arrangement.SpaceBetween,
+                                    horizontalAlignment = Alignment.CenterHorizontally
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(40.dp)
+                                            .background(MaterialTheme.colorScheme.primaryContainer, CircleShape),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.QrCodeScanner,
+                                            contentDescription = com.example.ui.util.AppStrings.scanReceipt(appLanguage),
+                                            tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    Text(
+                                        text = com.example.ui.util.AppStrings.scanReceipt(appLanguage),
+                                        style = MaterialTheme.typography.labelMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        textAlign = TextAlign.Center,
+                                        maxLines = 2
+                                    )
+                                }
                             }
-                            Text(
-                                text = (if (tx.type == "INCOME") "+" else "-") + rubelFormat.format(tx.amount),
-                                style = MaterialTheme.typography.bodyLarge,
-                                fontWeight = FontWeight.Black,
-                                color = if (tx.type == "INCOME") Color(0xFF10B981) else Color(0xFFEF4444)
-                            )
                         }
                     }
+
+                    if (isWideDashboard) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(IntrinsicSize.Min),
+                            horizontalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            heroCardContent(Modifier.weight(1.12f).fillMaxHeight())
+                            Column(
+                                modifier = Modifier.weight(0.88f),
+                                verticalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                cashflowBentoRow()
+                                featureBentoRow()
+                            }
+                        }
+                    } else {
+                        heroCardContent(Modifier.fillMaxWidth())
+                        cashflowBentoRow()
+                        featureBentoRow()
+                    }
+
+                    // BENTO: Recent Transactions
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 8.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = com.example.ui.util.AppStrings.recentActivity(appLanguage),
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Black,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        if (recentTxs.isNotEmpty()) {
+                            TextButton(
+                                onClick = onNavigateToTransactions,
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+                            ) {
+                                Text(
+                                    text = com.example.ui.util.AppStrings.viewAll(appLanguage),
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                        }
+                    }
+
+                    if (recentTxs.isEmpty()) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(ExpressiveShapeTokens.BentoCorner))
+                                .background(MaterialTheme.colorScheme.surfaceContainerLow)
+                                .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(ExpressiveShapeTokens.BentoCorner))
+                                .padding(vertical = 32.dp, horizontal = 20.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                com.example.ui.util.AppStrings.noTransactions(appLanguage),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    } else {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .animateContentSize()
+                                .clip(RoundedCornerShape(ExpressiveShapeTokens.BentoCorner))
+                                .background(MaterialTheme.colorScheme.surfaceContainer)
+                                .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(ExpressiveShapeTokens.BentoCorner))
+                                .padding(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            recentTxs.forEach { tx ->
+                                // BENTO: Compact Transaction Row
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(ExpressiveShapeTokens.RowCardCorner))
+                                        .background(uangkuColors.cardSurface)
+                                        .clickable { onNavigateToTransactions() }
+                                        .padding(16.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(42.dp)
+                                            .background(
+                                                if (tx.type == "INCOME") uangkuColors.incomeContainer
+                                                else uangkuColors.expenseContainer,
+                                                CircleShape
+                                            ),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = if (tx.type == "INCOME") Icons.Default.ArrowUpward else Icons.Default.ArrowDownward,
+                                            contentDescription = null,
+                                            tint = if (tx.type == "INCOME") uangkuColors.incomeText else uangkuColors.expenseText,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.width(12.dp))
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = tx.getCleanTitle(),
+                                            style = MaterialTheme.typography.bodyLarge,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.onSurface,
+                                            maxLines = 1
+                                        )
+                                        Text(
+                                            text = tx.category,
+                                            style = MaterialTheme.typography.labelMedium,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                    Text(
+                                        text = (if (tx.type == "INCOME") "+" else "-") + rubelFormat.format(tx.amount),
+                                        style = MaterialTheme.typography.bodyLarge.tabular(),
+                                        fontWeight = FontWeight.Black,
+                                        color = if (tx.type == "INCOME") uangkuColors.incomeText else uangkuColors.expenseText
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.navigationBarsPadding().height(if (isCompactWidth) 108.dp else 32.dp))
                 }
             }
-
-            Spacer(modifier = Modifier.navigationBarsPadding().height(150.dp))
         }
     }
 
@@ -928,14 +1043,16 @@ fun DashboardScreen(
     if (showQuickAddDialog) {
         var txTitle by remember { mutableStateOf("") }
         var txAmount by remember { mutableStateOf("") }
-        val txType = initialDialogType
+        var txType by remember(initialDialogType) { mutableStateOf(initialDialogType) }
         var txCategory by remember(initialDialogType) { mutableStateOf(if (initialDialogType == "INCOME") "Gaji" else "Makanan") }
 
         Dialog(onDismissRequest = { showQuickAddDialog = false }) {
             Surface(
                 shape = RoundedCornerShape(32.dp),
-                color = MaterialTheme.colorScheme.surface,
-                tonalElevation = 6.dp,
+                color = MaterialTheme.colorScheme.surfaceContainerLow,
+                contentColor = MaterialTheme.colorScheme.onSurface,
+                border = BorderStroke(1.dp, uangkuColors.cardBorder),
+                tonalElevation = 4.dp,
                 modifier = Modifier
                     .fillMaxWidth()
                     .testTag("quick_add_dialog_surface")
@@ -944,7 +1061,7 @@ fun DashboardScreen(
                     modifier = Modifier.padding(24.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    // Header indicating transaction type directly without extra switches
+                    // Header indicating transaction type
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -953,7 +1070,7 @@ fun DashboardScreen(
                             modifier = Modifier
                                 .size(44.dp)
                                 .background(
-                                    color = if (txType == "INCOME") Color(0xFF10B981).copy(alpha = 0.15f) else Color(0xFFEF4444).copy(alpha = 0.15f),
+                                    color = if (txType == "INCOME") uangkuColors.incomeContainer else uangkuColors.expenseContainer,
                                     shape = CircleShape
                                 ),
                             contentAlignment = Alignment.Center
@@ -961,25 +1078,37 @@ fun DashboardScreen(
                             Icon(
                                 imageVector = if (txType == "INCOME") Icons.AutoMirrored.Filled.TrendingUp else Icons.AutoMirrored.Filled.TrendingDown,
                                 contentDescription = null,
-                                tint = if (txType == "INCOME") Color(0xFF10B981) else Color(0xFFEF4444),
+                                tint = if (txType == "INCOME") uangkuColors.incomeText else uangkuColors.expenseText,
                                 modifier = Modifier.size(24.dp)
                             )
                         }
                         Column {
                             Text(
-                                text = if (txType == "INCOME") "Catat Pemasukan" else "Catat Pengeluaran",
+                                text = if (txType == "INCOME") com.example.ui.util.AppStrings.recordIncome(appLanguage) else com.example.ui.util.AppStrings.recordExpense(appLanguage),
                                 style = MaterialTheme.typography.titleLarge,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onSurface
                             )
                             Text(
-                                text = if (txType == "INCOME") "Pemasukan Dana Baru" else "Pengeluaran Biaya Baru",
+                                text = if (txType == "INCOME") com.example.ui.util.AppStrings.newIncomeDesc(appLanguage) else com.example.ui.util.AppStrings.newExpenseDesc(appLanguage),
                                 style = MaterialTheme.typography.bodySmall,
-                                color = if (txType == "INCOME") Color(0xFF10B981) else Color(0xFFEF4444),
+                                color = if (txType == "INCOME") uangkuColors.incomeText else uangkuColors.expenseText,
                                 fontWeight = FontWeight.SemiBold
                             )
                         }
                     }
+
+                    ExpressiveSegmentedSelector(
+                        options = listOf(
+                            ExpressiveSegmentOption(key = "EXPENSE", label = com.example.ui.util.AppStrings.expense(appLanguage)),
+                            ExpressiveSegmentOption(key = "INCOME", label = com.example.ui.util.AppStrings.income(appLanguage))
+                        ),
+                        selectedKey = txType,
+                        onSelect = { newType ->
+                            txType = newType
+                            txCategory = if (newType == "INCOME") "Gaji" else "Makanan"
+                        }
+                    )
 
                     OutlinedTextField(
                         value = txTitle,
@@ -991,14 +1120,14 @@ fun DashboardScreen(
                                 txCategory = predicted
                             }
                         },
-                        label = { Text("Deskripsi Transaksi") },
-                        placeholder = { Text(if (txType == "INCOME") "misal: Gaji Bulanan, Bonus Proyek" else "misal: Sate Ayam, Beli Bensin") },
+                        label = { Text(com.example.ui.util.AppStrings.description(appLanguage)) },
+                        placeholder = { Text(if (txType == "INCOME") com.example.ui.util.AppStrings.descPlaceholderIncome(appLanguage) else com.example.ui.util.AppStrings.descPlaceholderExpense(appLanguage)) },
                         singleLine = true,
                         shape = RoundedCornerShape(24.dp),
                         modifier = Modifier.fillMaxWidth(),
-                        colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = if (themeDark) androidx.compose.ui.graphics.Color(0xFFC084FC) else androidx.compose.ui.graphics.Color(0xFF6D28D9),
-                            unfocusedBorderColor = if (themeDark) androidx.compose.ui.graphics.Color.White.copy(alpha = 0.15f) else androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.15f)
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = MaterialTheme.colorScheme.primary,
+                            unfocusedBorderColor = MaterialTheme.colorScheme.outline
                         )
                     )
 
@@ -1010,22 +1139,22 @@ fun DashboardScreen(
                                 txAmount = clean
                             }
                         },
-                        label = { Text("Jumlah (${if (selectedCurrency == "USD") "USD $" else "Rupiah Rp"})") },
-                        placeholder = { Text(if (selectedCurrency == "USD") "misal: 25" else "misal: 45.000") },
+                        label = { Text("${com.example.ui.util.AppStrings.amount(appLanguage)} (${if (selectedCurrency == "USD") "USD $" else "Rupiah Rp"})") },
+                        placeholder = { Text(com.example.ui.util.AppStrings.amountPlaceholder(appLanguage, selectedCurrency == "USD")) },
                         singleLine = true,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         visualTransformation = RupiahVisualTransformation(isUsd = selectedCurrency == "USD"),
                         shape = RoundedCornerShape(24.dp),
                         modifier = Modifier.fillMaxWidth(),
-                        colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = if (themeDark) androidx.compose.ui.graphics.Color(0xFFC084FC) else androidx.compose.ui.graphics.Color(0xFF6D28D9),
-                            unfocusedBorderColor = if (themeDark) androidx.compose.ui.graphics.Color.White.copy(alpha = 0.15f) else androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.15f)
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = MaterialTheme.colorScheme.primary,
+                            unfocusedBorderColor = MaterialTheme.colorScheme.outline
                         )
                     )
 
                     // Category dropdown text label options
                     Text(
-                        text = "Pilih Kategori:",
+                        text = com.example.ui.util.AppStrings.selectCategory(appLanguage),
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.Bold
                     )
@@ -1039,19 +1168,13 @@ fun DashboardScreen(
                         val rowCats = if (txType == "INCOME") listOf("Gaji", "Bonus", "Investasi", "Penjualan", "Hadiah", "Lainnya") else listOf("Makanan", "Belanja", "Transportasi", "Tagihan", "Hiburan", "Kesehatan", "Sewa", "Lainnya")
                         rowCats.forEach { cat ->
                             val isSelected = txCategory == cat
-                            Box(
-                                modifier = Modifier
-                                    .background(
-                                        color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
-                                        shape = RoundedCornerShape(12.dp)
-                                    )
-                                    .clickable { txCategory = cat }
-                                    .padding(horizontal = 12.dp, vertical = 6.dp)
+                            ExpressiveMorphChip(
+                                selected = isSelected,
+                                onClick = { txCategory = cat }
                             ) {
                                 Text(
-                                    text = cat,
-                                    color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
-                                    fontSize = 11.sp,
+                                    text = com.example.ui.util.AppStrings.translateCategory(cat, appLanguage),
+                                    fontSize = 12.sp,
                                     fontWeight = FontWeight.Bold
                                 )
                             }
@@ -1064,7 +1187,7 @@ fun DashboardScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         TextButton(onClick = { showQuickAddDialog = false }) {
-                            Text("Batal")
+                            Text(com.example.ui.util.AppStrings.cancel(appLanguage))
                         }
                         Spacer(modifier = Modifier.width(8.dp))
                         Button(
@@ -1083,7 +1206,7 @@ fun DashboardScreen(
                             },
                             enabled = txTitle.isNotBlank() && txAmount.filter { it.isDigit() }.isNotEmpty()
                         ) {
-                            Text("Simpan")
+                            Text(com.example.ui.util.AppStrings.save(appLanguage))
                         }
                     }
                 }
@@ -1160,7 +1283,7 @@ fun DashboardScreen(
                             modifier = Modifier
                                 .size(40.dp)
                                 .background(
-                                    color = if (themeDark) Color(0xFF500F31) else Color(0xFFFCE4EC),
+                                    color = MaterialTheme.colorScheme.secondaryContainer,
                                     shape = CircleShape
                                 ),
                             contentAlignment = Alignment.Center
@@ -1168,12 +1291,12 @@ fun DashboardScreen(
                             Icon(
                                 imageVector = Icons.Default.CreditCard,
                                 contentDescription = null,
-                                tint = if (themeDark) Color(0xFFF06292) else Color(0xFF880E4F),
+                                tint = MaterialTheme.colorScheme.onSecondaryContainer,
                                 modifier = Modifier.size(20.dp)
                             )
                         }
                         Text(
-                            text = "Tagihan Berkala Baru",
+                            text = com.example.ui.util.AppStrings.newRecurringBillTitle(appLanguage),
                             style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.Black,
                             color = MaterialTheme.colorScheme.onSurface
@@ -1181,17 +1304,17 @@ fun DashboardScreen(
                     }
 
                     Text(
-                        text = "Isi form atau pilih salah satu pintasan layanan populer di bawah untuk mengisi otomatis.",
+                        text = com.example.ui.util.AppStrings.recurringBillSubtitle(appLanguage),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
 
                     // Popular Subscriptions Shortcut Row
                     Text(
-                        text = "Rekomendasi Layanan Populer:",
+                        text = com.example.ui.util.AppStrings.popularServices(appLanguage),
                         style = MaterialTheme.typography.labelLarge,
                         fontWeight = FontWeight.Bold,
-                        color = if (themeDark) Color(0xFFF06292) else Color(0xFF880E4F)
+                        color = MaterialTheme.colorScheme.primary
                     )
                     Row(
                         modifier = Modifier
@@ -1200,15 +1323,24 @@ fun DashboardScreen(
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         popularTemplates.forEach { (name, price, cat) ->
+                            val templateIcon = when (name) {
+                                "Spotify" -> Icons.Default.MusicNote
+                                "Netflix" -> Icons.Default.Movie
+                                "YouTube" -> Icons.Default.PlayCircle
+                                "ISP WiFi" -> Icons.Default.Wifi
+                                "Token Listrik" -> Icons.Default.Bolt
+                                else -> Icons.Default.Home
+                            }
                             Box(
                                 modifier = Modifier
+                                    .heightIn(min = 48.dp)
                                     .background(
-                                        color = if (themeDark) Color(0xFF2C1423) else Color(0xFFFCE4EC).copy(alpha = 0.5f),
+                                        color = MaterialTheme.colorScheme.secondaryContainer,
                                         shape = RoundedCornerShape(12.dp)
                                     )
                                     .border(
                                         1.dp,
-                                        if (themeDark) Color(0xFF500F31) else Color(0xFFF8BBD0),
+                                        uangkuColors.cardBorder,
                                         RoundedCornerShape(12.dp)
                                     )
                                     .clickable {
@@ -1218,29 +1350,24 @@ fun DashboardScreen(
                                         billCycle = "Bulanan"
                                         billDueDate = "Setiap tanggal 5"
                                     }
-                                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                                    .padding(horizontal = 12.dp, vertical = 10.dp),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
                                 ) {
-                                    Text(
-                                        text = when (name) {
-                                            "Spotify" -> "🎵"
-                                            "Netflix" -> "🍿"
-                                            "YouTube" -> "📺"
-                                            "ISP WiFi" -> "🌐"
-                                            "Token Listrik" -> "⚡"
-                                            else -> "🏠"
-                                        },
-                                        fontSize = 12.sp
+                                    Icon(
+                                        imageVector = templateIcon,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                                        modifier = Modifier.size(16.dp)
                                     )
                                     Text(
                                         text = name,
                                         fontWeight = FontWeight.Bold,
-                                        fontSize = 11.sp,
-                                        color = if (themeDark) Color(0xFFEF9A9A) else Color(0xFF880E4F)
+                                        fontSize = 12.sp,
+                                        color = MaterialTheme.colorScheme.onSecondaryContainer
                                     )
                                 }
                             }
@@ -1251,14 +1378,14 @@ fun DashboardScreen(
                     OutlinedTextField(
                         value = billTitle,
                         onValueChange = { billTitle = it },
-                        label = { Text("Nama Tagihan") },
-                        placeholder = { Text("misal: Langganan Spotify Family") },
+                        label = { Text(com.example.ui.util.AppStrings.billNameLabel(appLanguage)) },
+                        placeholder = { Text(com.example.ui.util.AppStrings.billNamePlaceholder(appLanguage)) },
                         singleLine = true,
                         shape = RoundedCornerShape(24.dp),
                         modifier = Modifier.fillMaxWidth(),
-                        colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = if (themeDark) androidx.compose.ui.graphics.Color(0xFFC084FC) else androidx.compose.ui.graphics.Color(0xFF6D28D9),
-                            unfocusedBorderColor = if (themeDark) androidx.compose.ui.graphics.Color.White.copy(alpha = 0.15f) else androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.15f)
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = MaterialTheme.colorScheme.primary,
+                            unfocusedBorderColor = MaterialTheme.colorScheme.outline
                         )
                     )
 
@@ -1271,12 +1398,17 @@ fun DashboardScreen(
                                     billAmountInput = clean
                                 }
                             },
-                            label = { Text("Nominal Tagihan (${if (selectedCurrency == "USD") "USD $" else "Rupiah Rp"})") },
-                            placeholder = { Text(if (selectedCurrency == "USD") "misal: 10" else "misal: 125.000") },
+                            label = { Text(com.example.ui.util.AppStrings.billAmountLabel(appLanguage, selectedCurrency)) },
+                            placeholder = { Text(com.example.ui.util.AppStrings.billAmountPlaceholder(appLanguage, selectedCurrency == "USD")) },
                             singleLine = true,
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                             visualTransformation = RupiahVisualTransformation(isUsd = selectedCurrency == "USD"),
-                            modifier = Modifier.fillMaxWidth()
+                            shape = RoundedCornerShape(24.dp),
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = MaterialTheme.colorScheme.primary,
+                                unfocusedBorderColor = MaterialTheme.colorScheme.outline
+                            )
                         )
 
                         // Quick Amount Adders
@@ -1290,21 +1422,24 @@ fun DashboardScreen(
                                 val priceFormatted = if (amt >= 1000) "${amt / 1000}rb" else amt.toString()
                                 Box(
                                     modifier = Modifier
+                                        .heightIn(min = 48.dp)
                                         .background(
-                                            color = if (themeDark) Color(0xFF1E1A2B) else Color(0xFFECEFF1),
-                                            shape = RoundedCornerShape(8.dp)
+                                            color = uangkuColors.elevatedSubSurface,
+                                            shape = RoundedCornerShape(10.dp)
                                         )
+                                        .border(1.dp, uangkuColors.cardBorder, RoundedCornerShape(10.dp))
                                         .clickable {
                                             val current = billAmountInput.filter { it.isDigit() }.toLongOrNull() ?: 0L
                                             billAmountInput = (current + amt).toString()
                                         }
-                                        .padding(horizontal = 10.dp, vertical = 6.dp)
+                                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                                    contentAlignment = Alignment.Center
                                 ) {
                                     Text(
                                         text = "+Rp$priceFormatted",
                                         fontWeight = FontWeight.Bold,
-                                        fontSize = 10.sp,
-                                        color = if (themeDark) Color.LightGray else Color.DarkGray
+                                        fontSize = 11.sp,
+                                        color = MaterialTheme.colorScheme.onSurface
                                     )
                                 }
                             }
@@ -1314,18 +1449,18 @@ fun DashboardScreen(
                     OutlinedTextField(
                         value = billDueDate,
                         onValueChange = { billDueDate = it },
-                        label = { Text("Jatuh Tempo (Hari / Tanggal)") },
-                        placeholder = { Text("misal: Tanggal 15, Senin pertama") },
+                        label = { Text(com.example.ui.util.AppStrings.billDueDateLabel(appLanguage)) },
+                        placeholder = { Text(com.example.ui.util.AppStrings.billDueDatePlaceholder(appLanguage)) },
                         singleLine = true,
                         shape = RoundedCornerShape(24.dp),
                         modifier = Modifier.fillMaxWidth(),
-                        colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = if (themeDark) androidx.compose.ui.graphics.Color(0xFFC084FC) else androidx.compose.ui.graphics.Color(0xFF6D28D9),
-                            unfocusedBorderColor = if (themeDark) androidx.compose.ui.graphics.Color.White.copy(alpha = 0.15f) else androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.15f)
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = MaterialTheme.colorScheme.primary,
+                            unfocusedBorderColor = MaterialTheme.colorScheme.outline
                         )
                     )
 
-                    Text("Siklus Tagihan Berkala:", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                    Text(com.example.ui.util.AppStrings.billCycleLabel(appLanguage), fontWeight = FontWeight.Bold, fontSize = 12.sp)
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -1334,27 +1469,20 @@ fun DashboardScreen(
                     ) {
                         cycleOptions.forEach { cy ->
                             val isSelected = billCycle == cy
-                            Box(
-                                modifier = Modifier
-                                    .background(
-                                        color = if (isSelected) Color(0xFFF06292) else if (themeDark) Color(0xFF2C1423) else Color(0xFFF3E5F5),
-                                        shape = RoundedCornerShape(12.dp)
-                                    )
-                                    .clickable { billCycle = cy }
-                                    .padding(horizontal = 20.dp, vertical = 10.dp),
-                                contentAlignment = Alignment.Center
+                            ExpressiveMorphChip(
+                                selected = isSelected,
+                                onClick = { billCycle = cy }
                             ) {
                                 Text(
-                                    text = cy,
+                                    text = com.example.ui.util.AppStrings.translateCycle(cy, appLanguage),
                                     fontWeight = FontWeight.Bold,
-                                    fontSize = 12.sp,
-                                    color = if (isSelected) Color.White else if (themeDark) Color(0xFFEF9A9A) else Color(0xFF880E4F)
+                                    fontSize = 12.sp
                                 )
                             }
                         }
                     }
 
-                    Text("Kategori Tagihan:", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                    Text(com.example.ui.util.AppStrings.billCategoryLabel(appLanguage), fontWeight = FontWeight.Bold, fontSize = 12.sp)
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -1363,21 +1491,14 @@ fun DashboardScreen(
                     ) {
                         catsOptions.forEach { cat ->
                             val isSelected = billCategory == cat
-                            Box(
-                                modifier = Modifier
-                                    .background(
-                                        color = if (isSelected) Color(0xFFF06292) else if (themeDark) Color(0xFF2C1423) else Color(0xFFF3E5F5),
-                                        shape = RoundedCornerShape(12.dp)
-                                    )
-                                    .clickable { billCategory = cat }
-                                    .padding(horizontal = 16.dp, vertical = 10.dp),
-                                contentAlignment = Alignment.Center
+                            ExpressiveMorphChip(
+                                selected = isSelected,
+                                onClick = { billCategory = cat }
                             ) {
                                 Text(
-                                    text = cat,
+                                    text = com.example.ui.util.AppStrings.translateCategory(cat, appLanguage),
                                     fontWeight = FontWeight.Bold,
-                                    fontSize = 12.sp,
-                                    color = if (isSelected) Color.White else if (themeDark) Color(0xFFEF9A9A) else Color(0xFF880E4F)
+                                    fontSize = 12.sp
                                 )
                             }
                         }
@@ -1388,7 +1509,7 @@ fun DashboardScreen(
                         horizontalArrangement = Arrangement.End
                     ) {
                         TextButton(onClick = { showAddBillDialog = false }) {
-                            Text("Batal")
+                            Text(com.example.ui.util.AppStrings.cancel(appLanguage))
                         }
                         Spacer(modifier = Modifier.width(8.dp))
                         Button(
@@ -1401,14 +1522,14 @@ fun DashboardScreen(
                                         amount = amtValue,
                                         category = billCategory,
                                         billingCycle = billCycle,
-                                        dueDate = billDueDate.ifEmpty { "Setiap akhir bulan" }
+                                        dueDate = billDueDate.ifEmpty { com.example.ui.util.AppStrings.defaultDueEndMonth(appLanguage) }
                                     )
                                     showAddBillDialog = false
                                 }
                             },
                             enabled = billTitle.isNotBlank() && billAmountInput.filter { it.isDigit() }.isNotEmpty()
                         ) {
-                            Text("Simpan")
+                            Text(com.example.ui.util.AppStrings.save(appLanguage))
                         }
                     }
                 }
@@ -1446,11 +1567,8 @@ fun DashboardScreen(
                     .fillMaxHeight(0.88f)
                     .testTag("ml_report_dialog_container"),
                 shape = RoundedCornerShape(32.dp),
-                color = if (themeDark) Color(0xFF110D1C) else Color.White,
-                border = BorderStroke(
-                    width = 1.dp,
-                    color = if (themeDark) Color(0xFF4C229E) else Color(0xFFE2E8F0)
-                ),
+                color = uangkuColors.cardSurface,
+                border = BorderStroke(1.dp, uangkuColors.aiBorder),
                 tonalElevation = 10.dp
             ) {
                 Column(
@@ -1471,32 +1589,29 @@ fun DashboardScreen(
                             Box(
                                 modifier = Modifier
                                     .size(40.dp)
-                                    .background(
-                                        if (themeDark) Color(0xFF2E1C4E) else Color(0xFFF1E9FF),
-                                        CircleShape
-                                    ),
+                                    .background(uangkuColors.aiContainer, CircleShape),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(
-                                    imageVector = Icons.Default.AutoAwesome,
+                                    imageVector = Icons.Default.Analytics,
                                     contentDescription = "On-Device ML Engine",
-                                    tint = if (themeDark) Color(0xFFD8B4FE) else Color(0xFF6D28D9),
+                                    tint = uangkuColors.onAiContainer,
                                     modifier = Modifier.size(20.dp)
                                 )
                             }
                             Spacer(modifier = Modifier.width(12.dp))
                             Column {
                                 Text(
-                                    text = "Asisten Cerdas",
+                                    text = com.example.ui.util.AppStrings.assistantTitle(appLanguage),
                                     fontWeight = FontWeight.Black,
                                     style = MaterialTheme.typography.titleMedium,
-                                    color = if (themeDark) Color.White else Color(0xFF311062)
+                                    color = MaterialTheme.colorScheme.onSurface
                                 )
                                 Text(
-                                    text = "Saran & Analisis Keuangan Otomatis",
+                                    text = com.example.ui.util.AppStrings.assistantSubtitle(appLanguage),
                                     style = MaterialTheme.typography.bodySmall,
-                                    color = if (themeDark) Color(0xFFC084FC) else Color(0xFF6D28D9),
-                                    fontSize = 10.sp,
+                                    color = uangkuColors.aiAccent,
+                                    fontSize = 11.sp,
                                     fontWeight = FontWeight.SemiBold
                                 )
                             }
@@ -1510,15 +1625,15 @@ fun DashboardScreen(
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.Refresh,
-                                    contentDescription = "Hitung Ulang ML",
-                                    tint = if (themeDark) Color(0xFFC084FC) else Color(0xFF6D28D9)
+                                    contentDescription = com.example.ui.util.AppStrings.recalculateTooltip(appLanguage),
+                                    tint = uangkuColors.aiAccent
                                 )
                             }
                             IconButton(onClick = { showMlReportDialog = false }) {
                                 Icon(
                                     imageVector = Icons.Default.Close,
-                                    contentDescription = "Close",
-                                    tint = if (themeDark) Color.White.copy(alpha = 0.7f) else Color.DarkGray
+                                    contentDescription = com.example.ui.util.AppStrings.close(appLanguage),
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
                         }
@@ -1543,15 +1658,15 @@ fun DashboardScreen(
                                         .fillMaxWidth(0.85f)
                                         .height(6.dp)
                                         .clip(RoundedCornerShape(3.dp)),
-                                    color = if (themeDark) Color(0xFFC084FC) else Color(0xFF6D28D9),
-                                    trackColor = if (themeDark) Color(0xFF221A30) else Color(0xFFE9E4F5)
+                                    color = uangkuColors.aiAccent,
+                                    trackColor = uangkuColors.elevatedSubSurface
                                 )
                                 Spacer(modifier = Modifier.height(14.dp))
                                 Text(
-                                    text = "Mengalkulasi parameter matematika, klastering spasial, dan peramalan tren...",
+                                    text = com.example.ui.util.AppStrings.recalculatingInsights(appLanguage),
                                     style = MaterialTheme.typography.bodySmall,
-                                    fontSize = 11.sp,
-                                    color = if (themeDark) Color.LightGray else Color(0xFF4A4A4A),
+                                    fontSize = 12.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     textAlign = TextAlign.Center
                                 )
                             }
@@ -1559,7 +1674,6 @@ fun DashboardScreen(
                             val isColdState = mlInsights == null || mlInsights!!.totalExpense == 0.0 || (summary != null && summary!!.startsWith("Belum ada data pengeluaran"))
 
                             if (isColdState) {
-                                // Cold Onboarding layout for Untrained local Model
                                 Column(
                                     modifier = Modifier
                                         .fillMaxSize()
@@ -1570,13 +1684,8 @@ fun DashboardScreen(
                                     Card(
                                         modifier = Modifier.fillMaxWidth(),
                                         shape = RoundedCornerShape(24.dp),
-                                        colors = CardDefaults.cardColors(
-                                            containerColor = if (themeDark) Color(0xFF1A1428) else Color(0xFFF6F3FB)
-                                        ),
-                                        border = BorderStroke(
-                                            1.5.dp,
-                                            if (themeDark) Color(0xFF332057) else Color(0xFFEDE3FB)
-                                        )
+                                        colors = CardDefaults.cardColors(containerColor = uangkuColors.aiSurface),
+                                        border = BorderStroke(1.5.dp, uangkuColors.aiBorder)
                                     ) {
                                         Column(
                                             modifier = Modifier
@@ -1587,16 +1696,13 @@ fun DashboardScreen(
                                             Box(
                                                 modifier = Modifier
                                                     .size(68.dp)
-                                                    .background(
-                                                        if (themeDark) Color(0xFF2E1C4E) else Color(0xFFF1E9FF),
-                                                        CircleShape
-                                                    ),
+                                                    .background(uangkuColors.aiContainer, CircleShape),
                                                 contentAlignment = Alignment.Center
                                             ) {
                                                 Icon(
-                                                    imageVector = Icons.Default.AutoAwesome,
+                                                    imageVector = Icons.Default.Analytics,
                                                     contentDescription = null,
-                                                    tint = if (themeDark) Color(0xFFC084FC) else Color(0xFF6D28D9),
+                                                    tint = uangkuColors.onAiContainer,
                                                     modifier = Modifier.size(34.dp)
                                                 )
                                             }
@@ -1604,70 +1710,22 @@ fun DashboardScreen(
                                             Spacer(modifier = Modifier.height(16.dp))
 
                                             Text(
-                                                text = "Model Analisis Belum Terlatih",
+                                                text = com.example.ui.util.AppStrings.mlColdTitle(appLanguage),
                                                 fontSize = 15.sp,
                                                 fontWeight = FontWeight.Black,
-                                                color = if (themeDark) Color.White else Color(0xFF311062),
+                                                color = MaterialTheme.colorScheme.onSurface,
                                                 textAlign = TextAlign.Center
                                             )
 
                                             Spacer(modifier = Modifier.height(8.dp))
 
                                             Text(
-                                                text = "Asisten Cerdas memproses data keuangan hibrida di memori perlindungan lokal perangkat Anda. Tambahkan transaksi pengeluaran terlebih dahulu agar model lokal kami dapat melacak laju belanja harian.",
-                                                fontSize = 11.sp,
-                                                color = if (themeDark) Color.LightGray.copy(alpha = 0.7f) else Color.DarkGray,
+                                                text = com.example.ui.util.AppStrings.mlColdDesc(appLanguage),
+                                                fontSize = 12.sp,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
                                                 textAlign = TextAlign.Center,
-                                                lineHeight = 16.sp
+                                                lineHeight = 18.sp
                                             )
-
-                                            Spacer(modifier = Modifier.height(18.dp))
-
-                                            Column(
-                                                modifier = Modifier
-                                                    .fillMaxWidth()
-                                                    .background(
-                                                        if (themeDark) Color(0xFF0F0A18) else Color(0xFFFAF7FE),
-                                                        RoundedCornerShape(14.dp)
-                                                    )
-                                                    .border(
-                                                        1.dp,
-                                                        if (themeDark) Color(0xFF26183F) else Color(0xFFF1EAFD),
-                                                        RoundedCornerShape(14.dp)
-                                                    )
-                                                    .padding(12.dp),
-                                                verticalArrangement = Arrangement.spacedBy(8.dp)
-                                            ) {
-                                                listOf(
-                                                    Pair("🎯 Skor Keseimbangan FHS", "Kombinasi rasio tabungan, konsentrasi belanja, & burn rate."),
-                                                    Pair("🛒 Segmentasi K-Means", "Klastering cerdas perilaku belanja rutin harian vs makro."),
-                                                    Pair("📈 Peramalan Holt Linear", "Peramalan time-series tingkat sirkulasi kas pekan depan."),
-                                                    Pair("🛡️ Deteksi Anomali IQR", "Pemetaan bias pengeluaran ekstrem di luar kewajaran belanja.")
-                                                ).forEach { (title, desc) ->
-                                                    Row(verticalAlignment = Alignment.Top) {
-                                                        Text(
-                                                            text = "⚡",
-                                                            fontSize = 11.sp,
-                                                            modifier = Modifier.padding(top = 1.dp, end = 6.dp),
-                                                            color = if (themeDark) Color(0xFFC084FC) else Color(0xFF6D28D9)
-                                                        )
-                                                        Column {
-                                                            Text(
-                                                                text = title,
-                                                                fontSize = 10.5.sp,
-                                                                fontWeight = FontWeight.Bold,
-                                                                color = if (themeDark) Color.White else Color(0xFF311062)
-                                                            )
-                                                            Text(
-                                                                text = desc,
-                                                                fontSize = 9.sp,
-                                                                color = if (themeDark) Color.LightGray.copy(alpha = 0.6f) else Color.Gray,
-                                                                lineHeight = 12.sp
-                                                            )
-                                                        }
-                                                    }
-                                                }
-                                            }
 
                                             Spacer(modifier = Modifier.height(18.dp))
 
@@ -1677,90 +1735,83 @@ fun DashboardScreen(
                                                     showQuickAddDialog = true
                                                 },
                                                 colors = ButtonDefaults.buttonColors(
-                                                    containerColor = if (themeDark) Color(0xFF6D28D9) else Color(0xFF5B21B6)
+                                                    containerColor = MaterialTheme.colorScheme.primary,
+                                                    contentColor = MaterialTheme.colorScheme.onPrimary
                                                 ),
-                                                shape = RoundedCornerShape(12.dp),
+                                                shape = RoundedCornerShape(14.dp),
                                                 modifier = Modifier
                                                     .fillMaxWidth()
-                                                    .height(40.dp)
+                                                    .height(48.dp)
                                             ) {
                                                 Icon(
                                                     imageVector = Icons.Default.Add,
                                                     contentDescription = null,
-                                                    tint = Color.White,
-                                                    modifier = Modifier.size(14.dp)
+                                                    modifier = Modifier.size(18.dp)
                                                 )
                                                 Spacer(modifier = Modifier.width(6.dp))
-                                                Text("Tambah Pengeluaran Pertama", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                                Text(com.example.ui.util.AppStrings.recordFirstExpense(appLanguage), fontSize = 13.sp, fontWeight = FontWeight.Bold)
                                             }
                                         }
                                     }
                                 }
                             } else {
-                                // Full visual dashboard reporting layout
                                 val insights = mlInsights!!
                                 val rp = NumberFormat.getCurrencyInstance(Locale("id", "ID")).apply {
                                     maximumFractionDigits = 0
                                 }
 
                                 Column(
-                                        modifier = Modifier
-                                            .fillMaxSize()
-                                            .verticalScroll(rememberScrollState()),
-                                        verticalArrangement = Arrangement.spacedBy(16.dp)
-                                    ) {
-                                    // 1. Health Score Meter (Animated Arc Dial)
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .verticalScroll(rememberScrollState()),
+                                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                                ) {
+                                    // 1. Health Score Meter
                                     val scoreColor = when {
-                                        insights.financialHealthScore >= 85 -> if (themeDark) Color(0xFFC084FC) else Color(0xFF7C3AED)
-                                        insights.financialHealthScore >= 70 -> if (themeDark) Color(0xFF34D399) else Color(0xFF059669)
-                                        insights.financialHealthScore >= 50 -> if (themeDark) Color(0xFFFBBF24) else Color(0xFFD97706)
-                                        else -> if (themeDark) Color(0xFFF87171) else Color(0xFFDC2626)
+                                        insights.financialHealthScore >= 85 -> uangkuColors.aiAccent
+                                        insights.financialHealthScore >= 70 -> uangkuColors.incomeText
+                                        insights.financialHealthScore >= 50 -> uangkuColors.warningText
+                                        else -> uangkuColors.expenseText
                                     }
-                                    
+
                                     val scoreLabel = when {
-                                        insights.financialHealthScore >= 85 -> "RATING: SANGAT PRIMA ✨"
-                                        insights.financialHealthScore >= 70 -> "RATING: KONDISI SEHAT 👍"
-                                        insights.financialHealthScore >= 50 -> "RATING: PERLU WASPADA ⚠️"
-                                        else -> "RATING: DEFISIT KRITIS 🚨"
+                                        insights.financialHealthScore >= 85 -> com.example.ui.util.AppStrings.fhsRatingOptimal(appLanguage)
+                                        insights.financialHealthScore >= 70 -> com.example.ui.util.AppStrings.fhsRatingGood(appLanguage)
+                                        insights.financialHealthScore >= 50 -> com.example.ui.util.AppStrings.fhsRatingCaution(appLanguage)
+                                        else -> com.example.ui.util.AppStrings.fhsRatingCritical(appLanguage)
                                     }
 
                                     Card(
                                         modifier = Modifier.fillMaxWidth().animateContentSize(),
                                         shape = RoundedCornerShape(24.dp),
-                                        colors = CardDefaults.cardColors(
-                                            containerColor = if (themeDark) Color(0xFF1B1527) else Color(0xFFF5F2FB)
-                                        ),
-                                        border = BorderStroke(
-                                            1.dp,
-                                            if (themeDark) Color(0xFF332057) else Color(0xFFE5DEFF)
-                                        )
+                                        colors = CardDefaults.cardColors(containerColor = uangkuColors.aiSurface),
+                                        border = BorderStroke(1.dp, uangkuColors.aiBorder)
                                     ) {
                                         Column(
                                             modifier = Modifier.padding(16.dp),
                                             horizontalAlignment = Alignment.CenterHorizontally
                                         ) {
                                             Text(
-                                                text = "SKOR KESEHATAN FINANSIAL",
+                                                text = com.example.ui.util.AppStrings.fhsTitle(appLanguage).uppercase(),
                                                 fontSize = 11.sp,
                                                 fontWeight = FontWeight.Bold,
-                                                color = if (themeDark) Color.LightGray.copy(alpha = 0.8f) else Color.Gray,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
                                                 letterSpacing = 1.sp
                                             )
                                             Spacer(modifier = Modifier.height(14.dp))
-                                            
+
                                             Box(
                                                 contentAlignment = Alignment.Center,
                                                 modifier = Modifier.size(110.dp)
                                             ) {
-                                                // Dial outline
                                                 val animatedSweepAngle by androidx.compose.animation.core.animateFloatAsState(
                                                     targetValue = 260f * (insights.financialHealthScore / 100f).coerceIn(0f, 1f),
-                                                    animationSpec = androidx.compose.animation.core.tween(durationMillis = 1500, easing = androidx.compose.animation.core.FastOutSlowInEasing),
+                                                    animationSpec = MotionTokens.dataProgressSpec,
                                                     label = "scoreSweepAnim"
                                                 )
                                                 androidx.compose.foundation.Canvas(modifier = Modifier.fillMaxSize()) {
                                                     drawArc(
-                                                        color = scoreColor.copy(alpha = if (themeDark) 0.15f else 0.1f),
+                                                        color = scoreColor.copy(alpha = 0.18f),
                                                         startAngle = 140f,
                                                         sweepAngle = 260f,
                                                         useCenter = false,
@@ -1780,35 +1831,34 @@ fun DashboardScreen(
                                                         )
                                                     )
                                                 }
-                                                // Inner score text
                                                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                                     Text(
                                                         text = "${insights.financialHealthScore}",
                                                         fontSize = 30.sp,
                                                         fontWeight = FontWeight.Black,
-                                                        color = if (themeDark) Color.White else Color(0xFF1E1B4B)
+                                                        color = MaterialTheme.colorScheme.onSurface
                                                     )
                                                     Text(
-                                                        text = "skor FHS",
-                                                        fontSize = 9.sp,
+                                                        text = com.example.ui.util.AppStrings.fhsScoreUnit(appLanguage),
+                                                        fontSize = 11.sp,
                                                         fontWeight = FontWeight.Medium,
-                                                        color = if (themeDark) Color.LightGray.copy(alpha = 0.6f) else Color.Gray
+                                                        color = MaterialTheme.colorScheme.onSurfaceVariant
                                                     )
                                                 }
                                             }
-                                            
+
                                             Spacer(modifier = Modifier.height(12.dp))
-                                            
+
                                             Box(
                                                 modifier = Modifier
                                                     .clip(RoundedCornerShape(50))
-                                                    .background(scoreColor.copy(alpha = 0.15f))
-                                                    .border(1.dp, scoreColor.copy(alpha = 0.4f), RoundedCornerShape(50))
+                                                    .background(uangkuColors.cardSurface)
+                                                    .border(1.dp, scoreColor.copy(alpha = 0.5f), RoundedCornerShape(50))
                                                     .padding(horizontal = 12.dp, vertical = 5.dp)
                                             ) {
                                                 Text(
                                                     text = scoreLabel,
-                                                    fontSize = 10.sp,
+                                                    fontSize = 11.sp,
                                                     fontWeight = FontWeight.Bold,
                                                     color = scoreColor
                                                 )
@@ -1816,25 +1866,16 @@ fun DashboardScreen(
                                         }
                                     }
 
-                                    // 2. Holt's Spending Forecast Card
+                                    // 2. Spending Forecast Card
                                     val averageWeeklySpent = insights.totalExpense / 4.0
                                     val isSaving = insights.forecastedNextWeek < averageWeeklySpent
-                                    val trendColor = if (isSaving) {
-                                        if (themeDark) Color(0xFF34D399) else Color(0xFF0F9D58)
-                                    } else {
-                                        if (themeDark) Color(0xFFF87171) else Color(0xFFDB4437)
-                                    }
+                                    val trendColor = if (isSaving) uangkuColors.incomeText else uangkuColors.expenseText
 
                                     Card(
                                         modifier = Modifier.fillMaxWidth().animateContentSize(),
                                         shape = RoundedCornerShape(24.dp),
-                                        colors = CardDefaults.cardColors(
-                                            containerColor = if (themeDark) Color(0xFF1B1527) else Color(0xFFF5F2FB)
-                                        ),
-                                        border = BorderStroke(
-                                            1.dp,
-                                            if (themeDark) Color(0xFF332057) else Color(0xFFE5DEFF)
-                                        )
+                                        colors = CardDefaults.cardColors(containerColor = uangkuColors.aiSurface),
+                                        border = BorderStroke(1.dp, uangkuColors.aiBorder)
                                     ) {
                                         Column(modifier = Modifier.padding(16.dp)) {
                                             Row(
@@ -1851,60 +1892,57 @@ fun DashboardScreen(
                                                     )
                                                     Spacer(modifier = Modifier.width(6.dp))
                                                     Text(
-                                                        text = "PREDIKSI TREN PEKAN DEPAN",
+                                                        text = com.example.ui.util.AppStrings.forecastTitle(appLanguage).uppercase(),
                                                         fontSize = 11.sp,
                                                         fontWeight = FontWeight.Bold,
-                                                        color = if (themeDark) Color.LightGray.copy(alpha = 0.8f) else Color.Gray,
+                                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                                                         letterSpacing = 0.5.sp
                                                     )
                                                 }
-                                                
+
                                                 Box(
                                                     modifier = Modifier
-                                                        .clip(RoundedCornerShape(4.dp))
-                                                        .background(if (themeDark) Color(0xFF2E1C4E) else Color(0xFFEDE5F8))
-                                                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                                                        .clip(RoundedCornerShape(6.dp))
+                                                        .background(uangkuColors.aiContainer)
+                                                        .padding(horizontal = 8.dp, vertical = 3.dp)
                                                 ) {
                                                     Text(
                                                         text = "Holt's Model",
-                                                        fontSize = 8.sp,
+                                                        fontSize = 11.sp,
                                                         fontWeight = FontWeight.Bold,
-                                                        color = if (themeDark) Color(0xFFC084FC) else Color(0xFF6D28D9)
+                                                        color = uangkuColors.onAiContainer
                                                     )
                                                 }
                                             }
-                                            
+
                                             Spacer(modifier = Modifier.height(10.dp))
-                                            
+
                                             Text(
                                                 text = rp.format(insights.forecastedNextWeek),
                                                 fontSize = 22.sp,
                                                 fontWeight = FontWeight.Black,
-                                                color = if (themeDark) Color.White else Color(0xFF1E1B4B)
+                                                color = MaterialTheme.colorScheme.onSurface
                                             )
-                                            
+
                                             Spacer(modifier = Modifier.height(6.dp))
-                                            
+
                                             Text(
-                                                text = if (isSaving) {
-                                                    "✨ Pola penghematan bermutu tinggi. Model memprediksi tingkat sirkulasi belanja menurun dibanding pekan sebelumnya."
-                                                } else {
-                                                    "🔴 Terdeteksi kenaikan belanja. Algoritme memproyeksikan peningkatan sisa. Batasi belanja sekunder Anda."
-                                                },
-                                                fontSize = 11.sp,
-                                                color = if (themeDark) Color.LightGray.copy(alpha = 0.7f) else Color.DarkGray,
-                                                lineHeight = 15.sp
+                                                text = if (isSaving) com.example.ui.util.AppStrings.forecastSavingDesc(appLanguage)
+                                                       else com.example.ui.util.AppStrings.forecastOverspendDesc(appLanguage),
+                                                fontSize = 12.sp,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                lineHeight = 16.sp
                                             )
                                         }
                                     }
 
-                                    // 3. Stats Metric Grid (2x2 Grid using Rows)
+                                    // 3. Stats Metric Grid
                                     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                                         Text(
-                                            text = "METRIK LAJU & PROYEKSI",
+                                            text = com.example.ui.util.AppStrings.metricsSectionTitle(appLanguage).uppercase(),
                                             fontSize = 11.sp,
                                             fontWeight = FontWeight.Bold,
-                                            color = if (themeDark) Color.LightGray.copy(alpha = 0.8f) else Color.Gray,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                                             letterSpacing = 0.5.sp
                                         )
 
@@ -1914,40 +1952,36 @@ fun DashboardScreen(
                                         ) {
                                             Box(modifier = Modifier.weight(1f)) {
                                                 Card(
-                                                    modifier = Modifier.fillMaxWidth().height(92.dp),
+                                                    modifier = Modifier.fillMaxWidth().height(98.dp),
                                                     shape = RoundedCornerShape(16.dp),
-                                                    colors = CardDefaults.cardColors(
-                                                        containerColor = if (themeDark) Color(0xFF141120) else Color(0xFFFAFAFE)
-                                                    ),
-                                                    border = BorderStroke(1.dp, if (themeDark) Color(0xFF2A2045) else Color(0xFFECE6F5))
+                                                    colors = CardDefaults.cardColors(containerColor = uangkuColors.elevatedSubSurface),
+                                                    border = BorderStroke(1.dp, uangkuColors.cardBorder)
                                                 ) {
                                                     Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.SpaceBetween) {
                                                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                                                            Text("DAILY BURN RATE", fontSize = 8.5.sp, fontWeight = FontWeight.Bold, color = if (themeDark) Color.LightGray.copy(alpha = 0.6f) else Color.Gray)
-                                                            Icon(Icons.Default.TrendingDown, null, tint = if (themeDark) Color(0xFFC084FC) else Color(0xFF6D28D9), modifier = Modifier.size(13.dp))
+                                                            Text(com.example.ui.util.AppStrings.dailyBurnRateTitle(appLanguage).uppercase(), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+                                                            Icon(Icons.Default.TrendingDown, null, tint = uangkuColors.aiAccent, modifier = Modifier.size(14.dp))
                                                         }
-                                                        Text(rp.format(insights.dailyBurnRate), fontSize = 14.sp, fontWeight = FontWeight.Black, color = if (themeDark) Color.White else Color(0xFF1E1B4B))
-                                                        Text("Laju belanja per hari", fontSize = 8.5.sp, color = if (themeDark) Color.LightGray.copy(alpha = 0.5f) else Color.Gray)
+                                                        Text(rp.format(insights.dailyBurnRate), fontSize = 14.sp, fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.onSurface, maxLines = 1)
+                                                        Text(com.example.ui.util.AppStrings.dailyBurnRateDesc(appLanguage), fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
                                                     }
                                                 }
                                             }
 
                                             Box(modifier = Modifier.weight(1f)) {
                                                 Card(
-                                                    modifier = Modifier.fillMaxWidth().height(92.dp),
+                                                    modifier = Modifier.fillMaxWidth().height(98.dp),
                                                     shape = RoundedCornerShape(16.dp),
-                                                    colors = CardDefaults.cardColors(
-                                                        containerColor = if (themeDark) Color(0xFF141120) else Color(0xFFFAFAFE)
-                                                    ),
-                                                    border = BorderStroke(1.dp, if (themeDark) Color(0xFF2A2045) else Color(0xFFECE6F5))
+                                                    colors = CardDefaults.cardColors(containerColor = uangkuColors.elevatedSubSurface),
+                                                    border = BorderStroke(1.dp, uangkuColors.cardBorder)
                                                 ) {
                                                     Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.SpaceBetween) {
                                                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                                                            Text("PROYEKSI BULAN", fontSize = 8.5.sp, fontWeight = FontWeight.Bold, color = if (themeDark) Color.LightGray.copy(alpha = 0.6f) else Color.Gray)
-                                                            Icon(Icons.Default.CalendarToday, null, tint = if (themeDark) Color(0xFFC084FC) else Color(0xFF6D28D9), modifier = Modifier.size(13.dp))
+                                                            Text(com.example.ui.util.AppStrings.monthlyProjectionTitle(appLanguage).uppercase(), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+                                                            Icon(Icons.Default.CalendarToday, null, tint = uangkuColors.aiAccent, modifier = Modifier.size(14.dp))
                                                         }
-                                                        Text(rp.format(insights.projectedSpendRemainingMonth), fontSize = 14.sp, fontWeight = FontWeight.Black, color = if (themeDark) Color.White else Color(0xFF1E1B4B))
-                                                        Text("Est. kebutuhan sisa hari", fontSize = 8.5.sp, color = if (themeDark) Color.LightGray.copy(alpha = 0.5f) else Color.Gray)
+                                                        Text(rp.format(insights.projectedSpendRemainingMonth), fontSize = 14.sp, fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.onSurface, maxLines = 1)
+                                                        Text(com.example.ui.util.AppStrings.monthlyProjectionDesc(appLanguage), fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
                                                     }
                                                 }
                                             }
@@ -1961,40 +1995,36 @@ fun DashboardScreen(
                                                 val remainingBalance = insights.estimatedBalanceEndOfMonth
                                                 val isPositive = remainingBalance >= 0
                                                 Card(
-                                                    modifier = Modifier.fillMaxWidth().height(92.dp),
+                                                    modifier = Modifier.fillMaxWidth().height(98.dp),
                                                     shape = RoundedCornerShape(16.dp),
-                                                    colors = CardDefaults.cardColors(
-                                                        containerColor = if (themeDark) Color(0xFF141120) else Color(0xFFFAFAFE)
-                                                    ),
-                                                    border = BorderStroke(1.dp, if (themeDark) Color(0xFF2A2045) else Color(0xFFECE6F5))
+                                                    colors = CardDefaults.cardColors(containerColor = uangkuColors.elevatedSubSurface),
+                                                    border = BorderStroke(1.dp, uangkuColors.cardBorder)
                                                 ) {
                                                     Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.SpaceBetween) {
                                                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                                                            Text("ESTIMASI SALDO", fontSize = 8.5.sp, fontWeight = FontWeight.Bold, color = if (themeDark) Color.LightGray.copy(alpha = 0.6f) else Color.Gray)
-                                                            Icon(Icons.Default.AccountBalanceWallet, null, tint = if (isPositive) Color(0xFF34D399) else Color(0xFFF87171), modifier = Modifier.size(13.dp))
+                                                            Text(com.example.ui.util.AppStrings.estimatedBalanceTitle(appLanguage).uppercase(), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+                                                            Icon(Icons.Default.AccountBalanceWallet, null, tint = if (isPositive) uangkuColors.incomeText else uangkuColors.expenseText, modifier = Modifier.size(14.dp))
                                                         }
-                                                        Text(rp.format(remainingBalance), fontSize = 14.sp, fontWeight = FontWeight.Black, color = if (themeDark) Color.White else Color(0xFF1E1B4B))
-                                                        Text(if (isPositive) "Potensi surplus saldo" else "Resiko defisit kas akhir", fontSize = 8.5.sp, color = if (themeDark) Color.LightGray.copy(alpha = 0.5f) else Color.Gray)
+                                                        Text(rp.format(remainingBalance), fontSize = 14.sp, fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.onSurface, maxLines = 1)
+                                                        Text(if (isPositive) com.example.ui.util.AppStrings.projectedSurplusDesc(appLanguage) else com.example.ui.util.AppStrings.projectedDeficitDesc(appLanguage), fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
                                                     }
                                                 }
                                             }
 
                                             Box(modifier = Modifier.weight(1f)) {
                                                 Card(
-                                                    modifier = Modifier.fillMaxWidth().height(92.dp),
+                                                    modifier = Modifier.fillMaxWidth().height(98.dp),
                                                     shape = RoundedCornerShape(16.dp),
-                                                    colors = CardDefaults.cardColors(
-                                                        containerColor = if (themeDark) Color(0xFF141120) else Color(0xFFFAFAFE)
-                                                    ),
-                                                    border = BorderStroke(1.dp, if (themeDark) Color(0xFF2A2045) else Color(0xFFECE6F5))
+                                                    colors = CardDefaults.cardColors(containerColor = uangkuColors.elevatedSubSurface),
+                                                    border = BorderStroke(1.dp, uangkuColors.cardBorder)
                                                 ) {
                                                     Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.SpaceBetween) {
                                                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                                                            Text("SEKTOR UTAMA", fontSize = 8.5.sp, fontWeight = FontWeight.Bold, color = if (themeDark) Color.LightGray.copy(alpha = 0.6f) else Color.Gray)
-                                                            Icon(Icons.Default.CreditCard, null, tint = if (themeDark) Color(0xFFC084FC) else Color(0xFF6D28D9), modifier = Modifier.size(13.dp))
+                                                            Text(com.example.ui.util.AppStrings.topSectorTitle(appLanguage).uppercase(), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+                                                            Icon(Icons.Default.CreditCard, null, tint = uangkuColors.aiAccent, modifier = Modifier.size(14.dp))
                                                         }
-                                                        Text(insights.topCategory, fontSize = 14.sp, fontWeight = FontWeight.Black, color = if (themeDark) Color.White else Color(0xFF1E1B4B), maxLines = 1)
-                                                        Text("${String.format("%.1f", insights.topCategoryPercentage)}% dari seluruh belanja", fontSize = 8.5.sp, color = if (themeDark) Color.LightGray.copy(alpha = 0.5f) else Color.Gray, maxLines = 1)
+                                                        Text(com.example.ui.util.AppStrings.translateCategory(insights.topCategory, appLanguage), fontSize = 14.sp, fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.onSurface, maxLines = 1)
+                                                        Text(com.example.ui.util.AppStrings.topSectorPortionDesc(appLanguage, String.format("%.1f", insights.topCategoryPercentage)), fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
                                                     }
                                                 }
                                             }
@@ -2006,20 +2036,15 @@ fun DashboardScreen(
                                         Card(
                                             modifier = Modifier.fillMaxWidth(),
                                             shape = RoundedCornerShape(20.dp),
-                                            colors = CardDefaults.cardColors(
-                                                containerColor = if (themeDark) Color(0xFF1B1527) else Color(0xFFF5F2FB)
-                                            ),
-                                            border = BorderStroke(
-                                                1.dp,
-                                                if (themeDark) Color(0xFF332057) else Color(0xFFE5DEFF)
-                                            )
+                                            colors = CardDefaults.cardColors(containerColor = uangkuColors.aiSurface),
+                                            border = BorderStroke(1.dp, uangkuColors.aiBorder)
                                         ) {
                                             Column(modifier = Modifier.padding(16.dp)) {
                                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                                     Icon(
                                                         imageVector = Icons.Default.ListAlt,
                                                         contentDescription = null,
-                                                        tint = if (themeDark) Color(0xFFC084FC) else Color(0xFF6D28D9),
+                                                        tint = uangkuColors.aiAccent,
                                                         modifier = Modifier.size(16.dp)
                                                     )
                                                     Spacer(modifier = Modifier.width(6.dp))
@@ -2027,13 +2052,13 @@ fun DashboardScreen(
                                                         text = "SEGMENTASI PERILAKU (K-Means)",
                                                         fontSize = 11.sp,
                                                         fontWeight = FontWeight.Bold,
-                                                        color = if (themeDark) Color.LightGray.copy(alpha = 0.8f) else Color.Gray,
+                                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                                                         letterSpacing = 0.5.sp
                                                     )
                                                 }
-                                                
+
                                                 Spacer(modifier = Modifier.height(12.dp))
-                                                
+
                                                 insights.kMeansClusterSummaries.forEach { summaryStr ->
                                                     var parsedSuccessfully = false
                                                     var cleanLabel = ""
@@ -2049,70 +2074,68 @@ fun DashboardScreen(
                                                     }
 
                                                     if (parsedSuccessfully) {
-                                                        val iconEmoji = when {
-                                                            cleanLabel.contains("Mikro") -> "🛒"
-                                                            cleanLabel.contains("Lifestyle") -> "🍿"
-                                                            else -> "💳"
+                                                        val clusterIcon = when {
+                                                            cleanLabel.contains("Mikro") -> Icons.Default.ShoppingCart
+                                                            cleanLabel.contains("Lifestyle") -> Icons.Default.Movie
+                                                            else -> Icons.Default.CreditCard
                                                         }
 
                                                         Row(
                                                             modifier = Modifier
                                                                 .fillMaxWidth()
                                                                 .padding(vertical = 4.dp)
-                                                                .background(
-                                                                    if (themeDark) Color(0xFF130F1F) else Color(0xFFFAF8FD),
-                                                                    RoundedCornerShape(12.dp)
-                                                                )
-                                                                .border(
-                                                                    1.dp,
-                                                                    if (themeDark) Color(0xFF281C44) else Color(0xFFEDE4F8),
-                                                                    RoundedCornerShape(12.dp)
-                                                                )
+                                                                .background(uangkuColors.elevatedSubSurface, RoundedCornerShape(12.dp))
+                                                                .border(1.dp, uangkuColors.cardBorder, RoundedCornerShape(12.dp))
                                                                 .padding(10.dp),
                                                             verticalAlignment = Alignment.CenterVertically
                                                         ) {
                                                             Box(
                                                                 modifier = Modifier
-                                                                    .size(32.dp)
-                                                                    .background(if (themeDark) Color(0xFF23143E) else Color(0xFFF1E8FD), CircleShape),
+                                                                    .size(34.dp)
+                                                                    .background(uangkuColors.aiContainer, CircleShape),
                                                                 contentAlignment = Alignment.Center
                                                             ) {
-                                                                Text(iconEmoji, fontSize = 14.sp)
+                                                                Icon(
+                                                                    imageVector = clusterIcon,
+                                                                    contentDescription = null,
+                                                                    tint = uangkuColors.onAiContainer,
+                                                                    modifier = Modifier.size(18.dp)
+                                                                )
                                                             }
                                                             Spacer(modifier = Modifier.width(10.dp))
                                                             Column(modifier = Modifier.weight(1f)) {
                                                                 Text(
                                                                     text = cleanLabel,
-                                                                    fontSize = 11.5.sp,
+                                                                    fontSize = 12.sp,
                                                                     fontWeight = FontWeight.Bold,
-                                                                    color = if (themeDark) Color.White else Color(0xFF1E1B4B)
+                                                                    color = MaterialTheme.colorScheme.onSurface
                                                                 )
                                                                 Text(
                                                                     text = detailsPart,
-                                                                    fontSize = 9.sp,
-                                                                    color = if (themeDark) Color.LightGray.copy(alpha = 0.6f) else Color.Gray,
-                                                                    lineHeight = 11.sp
+                                                                    fontSize = 11.sp,
+                                                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                                    lineHeight = 14.sp
                                                                 )
                                                             }
                                                             Box(
                                                                 modifier = Modifier
                                                                     .clip(RoundedCornerShape(6.dp))
-                                                                    .background(if (themeDark) Color(0xFFC084FC).copy(alpha = 0.15f) else Color(0xFF6D28D9).copy(alpha = 0.1f))
-                                                                    .padding(horizontal = 6.dp, vertical = 3.dp)
+                                                                    .background(uangkuColors.aiContainer)
+                                                                    .padding(horizontal = 8.dp, vertical = 3.dp)
                                                             ) {
                                                                 Text(
                                                                     text = countPart,
-                                                                    fontSize = 8.5.sp,
+                                                                    fontSize = 11.sp,
                                                                     fontWeight = FontWeight.Bold,
-                                                                    color = if (themeDark) Color(0xFFC084FC) else Color(0xFF6D28D9)
+                                                                    color = uangkuColors.onAiContainer
                                                                 )
                                                             }
                                                         }
                                                     } else {
                                                         Text(
                                                             text = summaryStr,
-                                                            fontSize = 10.sp,
-                                                            color = if (themeDark) Color.LightGray else Color.DarkGray,
+                                                            fontSize = 11.sp,
+                                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                                                             modifier = Modifier.padding(vertical = 4.dp)
                                                         )
                                                     }
@@ -2127,12 +2150,12 @@ fun DashboardScreen(
                                             text = "STRATEGI & REKOMENDASI INTERAKTIF",
                                             fontSize = 11.sp,
                                             fontWeight = FontWeight.Bold,
-                                            color = if (themeDark) Color.LightGray.copy(alpha = 0.8f) else Color.Gray,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                                             letterSpacing = 0.5.sp
                                         )
-                                        
+
                                         insights.recommendations.forEach { recommendation ->
-                                            val recEmoji = when {
+                                            val recMarker = when {
                                                 recommendation.contains("🔴") -> "🔴"
                                                 recommendation.contains("⚠️") -> "⚠️"
                                                 recommendation.contains("✅") -> "✅"
@@ -2141,42 +2164,48 @@ fun DashboardScreen(
                                                 recommendation.contains("📉") -> "📉"
                                                 else -> "💡"
                                             }
-                                            
+
                                             var cleanRec = recommendation.trim()
-                                            if (recEmoji != "💡") {
-                                                cleanRec = cleanRec.substringAfter(recEmoji).trim()
+                                            if (recMarker != "💡") {
+                                                cleanRec = cleanRec.substringAfter(recMarker).trim()
                                             }
-                                            
-                                            val (bgColor, borderColor, textCol) = when (recEmoji) {
+
+                                            val (bgColor, borderColor, accentTextCol, onBgColor) = when (recMarker) {
                                                 "🔴" -> listOf(
-                                                    if (themeDark) Color(0xFF2D0613) else Color(0xFFFFF1F2),
-                                                    if (themeDark) Color(0xFF881337) else Color(0xFFFECDD3),
-                                                    if (themeDark) Color(0xFFFDA4AF) else Color(0xFF9F1239)
+                                                    uangkuColors.expenseContainer,
+                                                    uangkuColors.expenseText.copy(alpha = 0.4f),
+                                                    uangkuColors.expenseText,
+                                                    uangkuColors.onExpenseContainer
                                                 )
                                                 "⚠️" -> listOf(
-                                                    if (themeDark) Color(0xFF2E1B05) else Color(0xFFFFFBEB),
-                                                    if (themeDark) Color(0xFF78350F) else Color(0xFFFDE68A),
-                                                    if (themeDark) Color(0xFFFCD34D) else Color(0xFF92400E)
+                                                    uangkuColors.warningContainer,
+                                                    uangkuColors.warningText.copy(alpha = 0.4f),
+                                                    uangkuColors.warningText,
+                                                    uangkuColors.onWarningContainer
                                                 )
                                                 "✅", "✨" -> listOf(
-                                                    if (themeDark) Color(0xFF022C22) else Color(0xFFF0FDF4),
-                                                    if (themeDark) Color(0xFF065F46) else Color(0xFFBBF7D0),
-                                                    if (themeDark) Color(0xFF34D399) else Color(0xFF15803D)
+                                                    uangkuColors.incomeContainer,
+                                                    uangkuColors.incomeText.copy(alpha = 0.4f),
+                                                    uangkuColors.incomeText,
+                                                    uangkuColors.onIncomeContainer
                                                 )
                                                 "📈" -> listOf(
-                                                    if (themeDark) Color(0xFF1E152F) else Color(0xFFF5F3FF),
-                                                    if (themeDark) Color(0xFF4A1D96) else Color(0xFFDDD6FE),
-                                                    if (themeDark) Color(0xFFA78BFA) else Color(0xFF6D28D9)
+                                                    uangkuColors.aiContainer,
+                                                    uangkuColors.aiBorder,
+                                                    uangkuColors.aiAccent,
+                                                    uangkuColors.onAiContainer
                                                 )
                                                 "📉" -> listOf(
-                                                    if (themeDark) Color(0xFF0F172A) else Color(0xFFEFF6FF),
-                                                    if (themeDark) Color(0xFF1E3A8A) else Color(0xFFBFDBFE),
-                                                    if (themeDark) Color(0xFF60A5FA) else Color(0xFF1D4ED8)
+                                                    MaterialTheme.colorScheme.primaryContainer,
+                                                    MaterialTheme.colorScheme.primary.copy(alpha = 0.35f),
+                                                    MaterialTheme.colorScheme.primary,
+                                                    MaterialTheme.colorScheme.onPrimaryContainer
                                                 )
                                                 else -> listOf(
-                                                    if (themeDark) Color(0xFF151324) else Color(0xFFFAF9FD),
-                                                    if (themeDark) Color(0xFF2D234A) else Color(0xFFEDE4F9),
-                                                    if (themeDark) Color(0xFFC084FC) else Color(0xFF6D28D9)
+                                                    uangkuColors.aiSurface,
+                                                    uangkuColors.aiBorder,
+                                                    uangkuColors.aiAccent,
+                                                    uangkuColors.onAiContainer
                                                 )
                                             }
 
@@ -2191,22 +2220,34 @@ fun DashboardScreen(
                                                     verticalAlignment = Alignment.Top,
                                                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                                                 ) {
-                                                    Text(text = recEmoji, fontSize = 14.sp)
+                                                    val recIcon = when (recMarker) {
+                                                        "🔴" -> Icons.Default.Info
+                                                        "⚠️" -> Icons.Default.NotificationsActive
+                                                        "✅", "✨" -> Icons.Default.Check
+                                                        "📈" -> Icons.AutoMirrored.Filled.TrendingUp
+                                                        "📉" -> Icons.AutoMirrored.Filled.TrendingDown
+                                                        else -> Icons.Default.Lightbulb
+                                                    }
+                                                    Icon(
+                                                        imageVector = recIcon,
+                                                        contentDescription = null,
+                                                        tint = accentTextCol,
+                                                        modifier = Modifier.size(16.dp).padding(top = 2.dp)
+                                                    )
                                                     Text(
                                                         text = parseMarkdownLine(
                                                             cleanRec,
-                                                            defaultColor = if (themeDark) Color(0xFFE2E8F0) else Color(0xFF334155),
-                                                            boldColor = textCol
+                                                            defaultColor = onBgColor,
+                                                            boldColor = onBgColor
                                                         ),
-                                                        fontSize = 11.sp,
-                                                        lineHeight = 15.sp
+                                                        fontSize = 12.sp,
+                                                        lineHeight = 16.sp,
+                                                        color = onBgColor
                                                     )
                                                 }
                                             }
                                         }
                                     }
-
-                                    // Laporan Tekstual Lengkap v2 removed per user request
                                 }
                                 if (false) {
                                     val expenses = remember(transactions) { transactions.filter { it.type == "EXPENSE" }.sortedBy { it.timestamp } }
@@ -2707,10 +2748,15 @@ fun DashboardScreen(
                                                          .padding(10.dp),
                                                          verticalAlignment = Alignment.CenterVertically
                                                      ) {
-                                                         Text("✨", fontSize = 12.sp)
+                                                         Icon(
+                                                             imageVector = Icons.Default.Check,
+                                                             contentDescription = null,
+                                                             tint = if (themeDark) Color(0xFF34D399) else Color(0xFF15803D),
+                                                             modifier = Modifier.size(14.dp)
+                                                         )
                                                          Spacer(modifier = Modifier.width(8.dp))
                                                          Text(
-                                                             "Hebat! Tidak terdeteksi adanya anomali pengeluaran ekstrem dalam riwayat belanja Anda.",
+                                                             "Tidak terdeteksi anomali pengeluaran ekstrem dalam riwayat belanja Anda.",
                                                              fontSize = 9.5.sp,
                                                              color = if (themeDark) Color(0xFF34D399) else Color(0xFF15803D),
                                                              lineHeight = 13.sp
@@ -2764,14 +2810,15 @@ fun DashboardScreen(
                         onClick = { showMlReportDialog = false },
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(46.dp)
+                            .height(48.dp)
                             .testTag("ml_report_dialog_close_button"),
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = if (themeDark) Color(0xFF6D28D9) else Color(0xFF5B21B6)
+                            containerColor = MaterialTheme.colorScheme.primary,
+                            contentColor = MaterialTheme.colorScheme.onPrimary
                         ),
                         shape = RoundedCornerShape(14.dp)
                     ) {
-                        Text("Tutup Laporan", fontWeight = FontWeight.Bold, color = Color.White, fontSize = 13.sp)
+                        Text("Tutup Laporan", fontWeight = FontWeight.Bold, fontSize = 13.sp)
                     }
                 }
             }
@@ -2788,7 +2835,8 @@ fun TransactionItemRow(
     isUsd: Boolean = false,
     formatAmount: ((Double) -> String)? = null
 ) {
-    val themeDark = androidx.compose.foundation.isSystemInDarkTheme()
+    val uangkuColors = LocalUangkuColors.current
+    val themeDark = uangkuColors.isDark
     val currencyFormat = remember(isUsd) {
         if (isUsd) {
             NumberFormat.getCurrencyInstance(Locale.US).apply {
@@ -2816,13 +2864,13 @@ fun TransactionItemRow(
                 Box(
                     modifier = Modifier
                         .size(52.dp)
-                        .background(Color(0xFFEF4444).copy(alpha = 0.15f), CircleShape),
+                        .background(uangkuColors.expenseContainer, CircleShape),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         imageVector = Icons.Default.Delete,
                         contentDescription = null,
-                        tint = Color(0xFFEF4444),
+                        tint = uangkuColors.expenseText,
                         modifier = Modifier.size(26.dp)
                     )
                 }
@@ -2849,8 +2897,8 @@ fun TransactionItemRow(
                         showEditDialog = false
                     },
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFFEF4444),
-                        contentColor = Color.White
+                        containerColor = MaterialTheme.colorScheme.error,
+                        contentColor = MaterialTheme.colorScheme.onError
                     ),
                     shape = RoundedCornerShape(20.dp),
                     modifier = Modifier.testTag("confirm_delete_button")
@@ -2899,67 +2947,25 @@ fun TransactionItemRow(
                         fontWeight = FontWeight.Bold
                     )
 
-                    // Segmented capsule toggler
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(44.dp)
-                            .background(
-                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                                shape = RoundedCornerShape(22.dp)
-                            )
-                            .padding(4.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .fillMaxHeight()
-                                .clip(RoundedCornerShape(18.dp))
-                                .background(
-                                    color = if (type == "EXPENSE") MaterialTheme.colorScheme.errorContainer else Color.Transparent
-                                )
-                                .clickable { type = "EXPENSE" },
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = "Pengeluaran",
-                                color = if (type == "EXPENSE") MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.onSurfaceVariant,
-                                style = MaterialTheme.typography.bodyMedium,
-                                fontWeight = FontWeight.Bold,
-                                maxLines = 1
-                            )
-                        }
-
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .fillMaxHeight()
-                                .clip(RoundedCornerShape(18.dp))
-                                .background(
-                                    color = if (type == "INCOME") MaterialTheme.colorScheme.primaryContainer else Color.Transparent
-                                )
-                                .clickable { type = "INCOME" },
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = "Pemasukan",
-                                color = if (type == "INCOME") MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
-                                style = MaterialTheme.typography.bodyMedium,
-                                fontWeight = FontWeight.Bold,
-                                maxLines = 1
-                            )
-                        }
-                    }
+                    ExpressiveSegmentedSelector(
+                        options = listOf(
+                            ExpressiveSegmentOption("EXPENSE", "Pengeluaran"),
+                            ExpressiveSegmentOption("INCOME", "Pemasukan")
+                        ),
+                        selectedKey = type,
+                        onSelect = { type = it },
+                        activeColor = if (type == "EXPENSE") uangkuColors.expenseContainer else uangkuColors.incomeContainer,
+                        onActiveColor = if (type == "EXPENSE") uangkuColors.onExpenseContainer else uangkuColors.onIncomeContainer
+                    )
 
                     OutlinedTextField(
                         value = title,
                         onValueChange = { title = it },
                         label = { Text("Keterangan") },
                         modifier = Modifier.fillMaxWidth(),
-                        colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = if (themeDark) androidx.compose.ui.graphics.Color(0xFFC084FC) else androidx.compose.ui.graphics.Color(0xFF6D28D9),
-                            unfocusedBorderColor = if (themeDark) androidx.compose.ui.graphics.Color.White.copy(alpha = 0.15f) else androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.15f)
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = MaterialTheme.colorScheme.primary,
+                            unfocusedBorderColor = MaterialTheme.colorScheme.outline
                         )
                     )
 
@@ -2977,16 +2983,16 @@ fun TransactionItemRow(
                         visualTransformation = RupiahVisualTransformation(isUsd = isUsd),
                         shape = RoundedCornerShape(24.dp),
                         modifier = Modifier.fillMaxWidth(),
-                        colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = if (themeDark) androidx.compose.ui.graphics.Color(0xFFC084FC) else androidx.compose.ui.graphics.Color(0xFF6D28D9),
-                            unfocusedBorderColor = if (themeDark) androidx.compose.ui.graphics.Color.White.copy(alpha = 0.15f) else androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.15f)
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = MaterialTheme.colorScheme.primary,
+                            unfocusedBorderColor = MaterialTheme.colorScheme.outline
                         )
                     )
 
                     Text("Kategori:", fontWeight = FontWeight.Bold, fontSize = 12.sp)
                     val catRows = listOf("Makanan", "Belanja", "Transportasi", "Gaji", "Investasi", "Sewa", "Lainnya")
                     Row(
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
                         modifier = Modifier
                             .fillMaxWidth()
                             .horizontalScroll(rememberScrollState())
@@ -2994,19 +3000,13 @@ fun TransactionItemRow(
                     ) {
                         catRows.forEach { cat ->
                             val isSelected = category == cat
-                            Box(
-                                modifier = Modifier
-                                    .background(
-                                        color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
-                                        shape = RoundedCornerShape(10.dp)
-                                    )
-                                    .clickable { category = cat }
-                                    .padding(horizontal = 10.dp, vertical = 6.dp)
+                            ExpressiveMorphChip(
+                                selected = isSelected,
+                                onClick = { category = cat }
                             ) {
                                 Text(
                                     text = cat,
-                                    fontSize = 11.sp,
-                                    color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    fontSize = 12.sp,
                                     fontWeight = FontWeight.Bold
                                 )
                             }
@@ -3065,15 +3065,12 @@ fun TransactionItemRow(
 
     val alphaAnim by animateFloatAsState(
         targetValue = animatedAlpha,
-        animationSpec = tween(durationMillis = 350),
+        animationSpec = MotionTokens.effectsFloat,
         label = "alpha"
     )
     val offsetYAnim by animateDpAsState(
         targetValue = animatedOffsetY,
-        animationSpec = spring(
-            dampingRatio = androidx.compose.animation.core.Spring.DampingRatioLowBouncy,
-            stiffness = androidx.compose.animation.core.Spring.StiffnessMedium
-        ),
+        animationSpec = MotionTokens.spatialSpringDp,
         label = "offset"
     )
 
@@ -3091,9 +3088,9 @@ fun TransactionItemRow(
             }
             .clickable { showEditDialog = true }
             .testTag("transaction_item_${tx.id}"),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        shape = RoundedCornerShape(16.dp),
-        border = CardDefaults.outlinedCardBorder()
+        colors = CardDefaults.cardColors(containerColor = uangkuColors.cardSurface),
+        shape = RoundedCornerShape(24.dp),
+        border = BorderStroke(1.dp, uangkuColors.cardBorder)
     ) {
         Row(
             modifier = Modifier
@@ -3106,17 +3103,11 @@ fun TransactionItemRow(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.weight(1f)
             ) {
-                // Colored status indicator icon
-                val isDarkTheme = MaterialTheme.colorScheme.surface.let { it.red * 0.299 + it.green * 0.587 + it.blue * 0.114 < 0.5f }
                 Box(
                     modifier = Modifier
                         .size(42.dp)
                         .background(
-                            color = if (tx.type == "INCOME") {
-                                if (isDarkTheme) Color(0xFF0F2D1E) else Color(0xFFD1FAE5)
-                            } else {
-                                if (isDarkTheme) Color(0xFF3E121E) else Color(0xFFFFE4E6)
-                            },
+                            color = if (tx.type == "INCOME") uangkuColors.incomeContainer else uangkuColors.expenseContainer,
                             shape = CircleShape
                         ),
                     contentAlignment = Alignment.Center
@@ -3124,11 +3115,7 @@ fun TransactionItemRow(
                     Icon(
                         imageVector = if (tx.type == "INCOME") Icons.Default.ArrowUpward else Icons.Default.ArrowDownward,
                         contentDescription = tx.type,
-                        tint = if (tx.type == "INCOME") {
-                            if (isDarkTheme) Color(0xFF34D399) else Color(0xFF059669)
-                        } else {
-                            if (isDarkTheme) Color(0xFFFB7185) else Color(0xFFE11D48)
-                        },
+                        tint = if (tx.type == "INCOME") uangkuColors.incomeText else uangkuColors.expenseText,
                         modifier = Modifier.size(18.dp)
                     )
                 }
@@ -3170,24 +3157,24 @@ fun TransactionItemRow(
                 val valueStr = (if (tx.type == "INCOME") "+" else "-") + formattedAmount
                 Text(
                     text = valueStr,
-                    style = MaterialTheme.typography.bodyLarge,
+                    style = MaterialTheme.typography.bodyLarge.tabular(),
                     fontWeight = FontWeight.Black,
-                    color = if (tx.type == "INCOME") Color(0xFF00875A) else MaterialTheme.colorScheme.error
+                    color = if (tx.type == "INCOME") uangkuColors.incomeText else uangkuColors.expenseText
                 )
 
                 if (tx.bankSource != null) {
                     Box(
                         modifier = Modifier
                             .padding(top = 4.dp)
-                            .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f), RoundedCornerShape(4.dp))
-                            .padding(horizontal = 4.dp, vertical = 2.dp)
+                            .background(MaterialTheme.colorScheme.primaryContainer, RoundedCornerShape(6.dp))
+                            .padding(horizontal = 6.dp, vertical = 2.dp)
                     ) {
                         Text(
                             text = tx.bankSource,
-                            style = MaterialTheme.typography.bodySmall,
-                            fontSize = 8.sp,
+                            style = MaterialTheme.typography.labelSmall,
+                            fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.primary
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
                         )
                     }
                 }
@@ -3205,15 +3192,16 @@ fun RecurringBillItemCard(
     onDelete: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val cardBg = if (themeDark) Color(0xFF1C0A15) else Color(0xFFFCE4EC)
-    val cardBorderColor = if (themeDark) Color(0xFF38142C) else Color(0xFFF8BBD0)
+    val uangkuColors = LocalUangkuColors.current
+    val cardBg = uangkuColors.cardSurface
+    val cardBorderColor = uangkuColors.cardBorder
 
-    val iconBg = if (themeDark) Color(0xFF500F31) else Color(0xFFF48FB1)
-    val iconTint = if (themeDark) Color(0xFFF06292) else Color(0xFF880E4F)
+    val iconBg = MaterialTheme.colorScheme.secondaryContainer
+    val iconTint = MaterialTheme.colorScheme.onSecondaryContainer
 
-    val categoryColor = if (themeDark) Color(0xFFF06292) else Color(0xFFC2185B)
-    val amountColor = if (themeDark) Color.White else Color(0xFF212121)
-    val subtextColor = if (themeDark) Color.LightGray else Color.DarkGray
+    val categoryColor = MaterialTheme.colorScheme.primary
+    val amountColor = MaterialTheme.colorScheme.onSurface
+    val subtextColor = MaterialTheme.colorScheme.onSurfaceVariant
 
     Card(
         modifier = modifier
@@ -3221,7 +3209,7 @@ fun RecurringBillItemCard(
             .testTag("recurring_bill_item_${bill.id}"),
         colors = CardDefaults.cardColors(containerColor = cardBg),
         shape = RoundedCornerShape(24.dp),
-        border = androidx.compose.foundation.BorderStroke(1.dp, cardBorderColor)
+        border = BorderStroke(1.dp, cardBorderColor)
     ) {
         Column(
             modifier = Modifier
@@ -3239,32 +3227,27 @@ fun RecurringBillItemCard(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.weight(1f)
                 ) {
-                    // Icon
                     Box(
                         modifier = Modifier
                             .size(44.dp)
                             .background(iconBg, CircleShape),
                         contentAlignment = Alignment.Center
                     ) {
-                        val emoji = when {
-                            bill.title.contains("Spotify", ignoreCase = true) -> "🎵"
-                            bill.title.contains("Netflix", ignoreCase = true) -> "🍿"
-                            bill.title.contains("YouTube", ignoreCase = true) -> "📺"
-                            bill.title.contains("WiFi", ignoreCase = true) || bill.title.contains("Indihome", ignoreCase = true) -> "🌐"
-                            bill.title.contains("Listrik", ignoreCase = true) || bill.title.contains("Token", ignoreCase = true) -> "⚡"
-                            bill.title.contains("Sewa", ignoreCase = true) || bill.title.contains("Kos", ignoreCase = true) -> "🏠"
-                            else -> "💳"
+                        val billIcon = when {
+                            bill.title.contains("Spotify", ignoreCase = true) -> Icons.Default.MusicNote
+                            bill.title.contains("Netflix", ignoreCase = true) -> Icons.Default.Movie
+                            bill.title.contains("YouTube", ignoreCase = true) -> Icons.Default.PlayCircle
+                            bill.title.contains("WiFi", ignoreCase = true) || bill.title.contains("Indihome", ignoreCase = true) -> Icons.Default.Wifi
+                            bill.title.contains("Listrik", ignoreCase = true) || bill.title.contains("Token", ignoreCase = true) -> Icons.Default.Bolt
+                            bill.title.contains("Sewa", ignoreCase = true) || bill.title.contains("Kos", ignoreCase = true) -> Icons.Default.Home
+                            else -> Icons.Default.CreditCard
                         }
-                        if (emoji == "💳") {
-                            Icon(
-                                imageVector = Icons.Default.CreditCard,
-                                contentDescription = "Bill",
-                                tint = iconTint,
-                                modifier = Modifier.size(20.dp)
-                            )
-                        } else {
-                            Text(text = emoji, fontSize = 20.sp)
-                        }
+                        Icon(
+                            imageVector = billIcon,
+                            contentDescription = bill.title,
+                            tint = iconTint,
+                            modifier = Modifier.size(20.dp)
+                        )
                     }
 
                     Spacer(modifier = Modifier.width(12.dp))
@@ -3286,7 +3269,6 @@ fun RecurringBillItemCard(
                     }
                 }
 
-                // Amount Column on the Right
                 Column(
                     horizontalAlignment = Alignment.End,
                     modifier = Modifier.padding(start = 8.dp)
@@ -3310,7 +3292,7 @@ fun RecurringBillItemCard(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(1.dp)
-                    .background(cardBorderColor.copy(alpha = 0.5f))
+                    .background(cardBorderColor)
             )
 
             // BOTTOM ROW: Tempo Info & Action Buttons
@@ -3319,7 +3301,6 @@ fun RecurringBillItemCard(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                // Tempo / Due Date with Calendar Icon
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -3339,34 +3320,31 @@ fun RecurringBillItemCard(
                     )
                 }
 
-                // Action Buttons
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    // Delete Button
                     IconButton(
                         onClick = onDelete,
-                        modifier = Modifier.size(36.dp)
+                        modifier = Modifier.size(48.dp)
                     ) {
                         Icon(
                             imageVector = Icons.Default.Delete,
                             contentDescription = "Hapus",
-                            tint = if (themeDark) Color(0xFFEF9A9A) else Color(0xFFD32F2F),
+                            tint = MaterialTheme.colorScheme.error,
                             modifier = Modifier.size(20.dp)
                         )
                     }
 
-                    // Pay Button (as a compact button)
                     Button(
                         onClick = onPay,
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = if (themeDark) Color(0xFFE26090) else Color(0xFFC2185B),
-                            contentColor = Color.White
+                            containerColor = MaterialTheme.colorScheme.primary,
+                            contentColor = MaterialTheme.colorScheme.onPrimary
                         ),
-                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp),
+                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp),
                         shape = RoundedCornerShape(12.dp),
-                        modifier = Modifier.height(34.dp)
+                        modifier = Modifier.heightIn(min = 48.dp)
                     ) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
@@ -3375,14 +3353,12 @@ fun RecurringBillItemCard(
                             Icon(
                                 imageVector = Icons.Default.Check,
                                 contentDescription = null,
-                                modifier = Modifier.size(14.dp),
-                                tint = Color.White
+                                modifier = Modifier.size(16.dp)
                             )
                             Text(
                                 text = "Bayar",
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color.White
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold
                             )
                         }
                     }
@@ -3414,9 +3390,13 @@ fun FourMonthsSummaryDialog(
     themeDark: Boolean,
     onDismiss: () -> Unit
 ) {
+    val uangkuColors = LocalUangkuColors.current
     val isIncome = type == "INCOME"
-    val accentColor = if (isIncome) Color(0xFF10B981) else Color(0xFFEF4444)
-    val accentBg = if (isIncome) Color(0xFF10B981).copy(alpha = 0.15f) else Color(0xFFEF4444).copy(alpha = 0.15f)
+    val accentColor = if (isIncome) uangkuColors.incomeText else uangkuColors.expenseText
+    val accentBg = if (isIncome) uangkuColors.incomeContainer else uangkuColors.expenseContainer
+    val onAccentBg = if (isIncome) uangkuColors.onIncomeContainer else uangkuColors.onExpenseContainer
+    val buttonContainerColor = MaterialTheme.colorScheme.primary
+    val buttonContentColor = MaterialTheme.colorScheme.onPrimary
     val transactions by viewModel.allTransactions.collectAsStateWithLifecycle()
 
     val summaries = remember(transactions, type) {
@@ -3446,8 +3426,9 @@ fun FourMonthsSummaryDialog(
     ) {
         Surface(
             shape = RoundedCornerShape(32.dp),
-            color = if (themeDark) Color(0xFF1E293B) else Color.White,
-            contentColor = if (themeDark) Color.White else Color(0xFF0F172A),
+            color = uangkuColors.cardSurface,
+            contentColor = MaterialTheme.colorScheme.onSurface,
+            border = BorderStroke(1.dp, uangkuColors.cardBorder),
             tonalElevation = 8.dp,
             modifier = Modifier
                 .fillMaxWidth(0.95f)
@@ -3467,7 +3448,8 @@ fun FourMonthsSummaryDialog(
                 ) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        modifier = Modifier.weight(1f)
                     ) {
                         Box(
                             modifier = Modifier
@@ -3478,7 +3460,7 @@ fun FourMonthsSummaryDialog(
                             Icon(
                                 imageVector = if (isIncome) Icons.Default.ArrowUpward else Icons.Default.ArrowDownward,
                                 contentDescription = null,
-                                tint = accentColor,
+                                tint = onAccentBg,
                                 modifier = Modifier.size(24.dp)
                             )
                         }
@@ -3487,12 +3469,12 @@ fun FourMonthsSummaryDialog(
                                 text = if (isIncome) "Ringkasan Pemasukan" else "Ringkasan Pengeluaran",
                                 style = MaterialTheme.typography.titleLarge,
                                 fontWeight = FontWeight.Bold,
-                                color = if (themeDark) Color.White else Color(0xFF0F172A)
+                                color = MaterialTheme.colorScheme.onSurface
                             )
                             Text(
                                 text = "4 Bulan Terakhir • Reset Tiap Awal Bulan",
                                 style = MaterialTheme.typography.bodySmall,
-                                color = if (themeDark) Color(0xFF94A3B8) else Color(0xFF64748B),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 fontWeight = FontWeight.Medium
                             )
                         }
@@ -3500,13 +3482,13 @@ fun FourMonthsSummaryDialog(
                     IconButton(
                         onClick = onDismiss,
                         modifier = Modifier
-                            .size(36.dp)
+                            .size(48.dp)
                             .testTag("close_summary_dialog_button")
                     ) {
                         Icon(
                             Icons.Default.Close,
                             contentDescription = "Tutup",
-                            tint = if (themeDark) Color.White.copy(alpha = 0.8f) else Color(0xFF64748B)
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
@@ -3525,19 +3507,12 @@ fun FourMonthsSummaryDialog(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        // Total 4 Bulan Bento Card
                         Box(
                             modifier = Modifier
                                 .weight(1f)
                                 .clip(RoundedCornerShape(24.dp))
-                                .background(
-                                    if (themeDark) Color(0xFF0F172A) else Color(0xFFF8FAFC)
-                                )
-                                .border(
-                                    1.dp,
-                                    if (themeDark) Color.White.copy(alpha = 0.08f) else Color.Black.copy(alpha = 0.06f),
-                                    RoundedCornerShape(24.dp)
-                                )
+                                .background(uangkuColors.elevatedSubSurface)
+                                .border(1.dp, uangkuColors.cardBorder, RoundedCornerShape(24.dp))
                                 .padding(14.dp)
                         ) {
                             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -3545,10 +3520,11 @@ fun FourMonthsSummaryDialog(
                                     text = "Total 4 Bulan",
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.Medium,
-                                    color = if (themeDark) Color(0xFF94A3B8) else Color(0xFF64748B)
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                                 Text(
                                     text = viewModel.formatCurrency(total4Months),
+                                    style = MaterialTheme.typography.titleMedium.tabular(),
                                     fontSize = 16.sp,
                                     fontWeight = FontWeight.Black,
                                     color = accentColor,
@@ -3557,19 +3533,12 @@ fun FourMonthsSummaryDialog(
                             }
                         }
 
-                        // Rata-rata Bulanan Bento Card
                         Box(
                             modifier = Modifier
                                 .weight(1f)
                                 .clip(RoundedCornerShape(24.dp))
-                                .background(
-                                    if (themeDark) Color(0xFF0F172A) else Color(0xFFF8FAFC)
-                                )
-                                .border(
-                                    1.dp,
-                                    if (themeDark) Color.White.copy(alpha = 0.08f) else Color.Black.copy(alpha = 0.06f),
-                                    RoundedCornerShape(24.dp)
-                                )
+                                .background(uangkuColors.elevatedSubSurface)
+                                .border(1.dp, uangkuColors.cardBorder, RoundedCornerShape(24.dp))
                                 .padding(14.dp)
                         ) {
                             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -3577,13 +3546,14 @@ fun FourMonthsSummaryDialog(
                                     text = "Rata-rata / Bulan",
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.Medium,
-                                    color = if (themeDark) Color(0xFF94A3B8) else Color(0xFF64748B)
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                                 Text(
                                     text = viewModel.formatCurrency(avg4Months),
+                                    style = MaterialTheme.typography.titleMedium.tabular(),
                                     fontSize = 16.sp,
                                     fontWeight = FontWeight.Black,
-                                    color = if (themeDark) Color.White else Color(0xFF0F172A),
+                                    color = MaterialTheme.colorScheme.onSurface,
                                     maxLines = 1
                                 )
                             }
@@ -3594,19 +3564,12 @@ fun FourMonthsSummaryDialog(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        // Bulan Tertinggi Bento Card
                         Box(
                             modifier = Modifier
                                 .weight(1f)
                                 .clip(RoundedCornerShape(24.dp))
-                                .background(
-                                    if (themeDark) Color(0xFF0F172A) else Color(0xFFF8FAFC)
-                                )
-                                .border(
-                                    1.dp,
-                                    if (themeDark) Color.White.copy(alpha = 0.08f) else Color.Black.copy(alpha = 0.06f),
-                                    RoundedCornerShape(24.dp)
-                                )
+                                .background(uangkuColors.elevatedSubSurface)
+                                .border(1.dp, uangkuColors.cardBorder, RoundedCornerShape(24.dp))
                                 .padding(14.dp)
                         ) {
                             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -3614,36 +3577,29 @@ fun FourMonthsSummaryDialog(
                                     text = "Puncak Tertinggi",
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.Medium,
-                                    color = if (themeDark) Color(0xFF94A3B8) else Color(0xFF64748B)
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                                 Text(
                                     text = maxMonth?.shortMonthName ?: "-",
                                     fontSize = 15.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = if (themeDark) Color.White else Color(0xFF0F172A)
+                                    color = MaterialTheme.colorScheme.onSurface
                                 )
                                 Text(
                                     text = viewModel.formatCurrency(maxMonth?.totalAmount ?: 0.0),
                                     fontSize = 11.sp,
-                                    color = if (themeDark) Color(0xFF94A3B8) else Color(0xFF64748B),
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     maxLines = 1
                                 )
                             }
                         }
 
-                        // Kategori Utama Bento Card
                         Box(
                             modifier = Modifier
                                 .weight(1f)
                                 .clip(RoundedCornerShape(24.dp))
-                                .background(
-                                    if (themeDark) Color(0xFF0F172A) else Color(0xFFF8FAFC)
-                                )
-                                .border(
-                                    1.dp,
-                                    if (themeDark) Color.White.copy(alpha = 0.08f) else Color.Black.copy(alpha = 0.06f),
-                                    RoundedCornerShape(24.dp)
-                                )
+                                .background(uangkuColors.elevatedSubSurface)
+                                .border(1.dp, uangkuColors.cardBorder, RoundedCornerShape(24.dp))
                                 .padding(14.dp)
                         ) {
                             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -3651,19 +3607,19 @@ fun FourMonthsSummaryDialog(
                                     text = if (isIncome) "Sumber Terbesar" else "Kategori Terbesar",
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.Medium,
-                                    color = if (themeDark) Color(0xFF94A3B8) else Color(0xFF64748B)
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                                 Text(
                                     text = topCatOverall?.key ?: "Belum ada",
                                     fontSize = 15.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = if (themeDark) Color.White else Color(0xFF0F172A),
+                                    color = MaterialTheme.colorScheme.onSurface,
                                     maxLines = 1
                                 )
                                 Text(
                                     text = if (topCatOverall != null) viewModel.formatCurrency(topCatOverall.value) else "-",
                                     fontSize = 11.sp,
-                                    color = if (themeDark) Color(0xFF94A3B8) else Color(0xFF64748B),
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     maxLines = 1
                                 )
                             }
@@ -3675,14 +3631,8 @@ fun FourMonthsSummaryDialog(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(28.dp))
-                            .background(
-                                if (themeDark) Color(0xFF0F172A) else Color(0xFFF8FAFC)
-                            )
-                            .border(
-                                1.dp,
-                                if (themeDark) Color.White.copy(alpha = 0.08f) else Color.Black.copy(alpha = 0.06f),
-                                RoundedCornerShape(28.dp)
-                            )
+                            .background(uangkuColors.elevatedSubSurface)
+                            .border(1.dp, uangkuColors.cardBorder, RoundedCornerShape(28.dp))
                             .padding(16.dp)
                     ) {
                         Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -3695,16 +3645,15 @@ fun FourMonthsSummaryDialog(
                                     text = "Grafik Perbandingan 4 Bulan",
                                     style = MaterialTheme.typography.titleSmall,
                                     fontWeight = FontWeight.Bold,
-                                    color = if (themeDark) Color.White else Color(0xFF0F172A)
+                                    color = MaterialTheme.colorScheme.onSurface
                                 )
                                 Text(
                                     text = "Ketuk untuk pilih bulan",
                                     fontSize = 11.sp,
-                                    color = if (themeDark) Color(0xFF94A3B8) else Color(0xFF64748B)
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
 
-                            // 4 Bars Container
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -3737,9 +3686,9 @@ fun FourMonthsSummaryDialog(
                                                     monthItem.totalAmount.toLong().toString()
                                                 }
                                             } else "0",
-                                            fontSize = 10.sp,
+                                            fontSize = 11.sp,
                                             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                            color = if (isSelected) accentColor else if (themeDark) Color(0xFF94A3B8) else Color(0xFF64748B),
+                                            color = if (isSelected) accentColor else MaterialTheme.colorScheme.onSurfaceVariant,
                                             maxLines = 1
                                         )
 
@@ -3751,19 +3700,7 @@ fun FourMonthsSummaryDialog(
                                                 .height((100 * heightFraction).dp)
                                                 .clip(RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp, bottomStart = 6.dp, bottomEnd = 6.dp))
                                                 .background(
-                                                    if (isSelected) {
-                                                        Brush.verticalGradient(
-                                                            colors = listOf(
-                                                                accentColor,
-                                                                accentColor.copy(alpha = 0.65f)
-                                                            )
-                                                        )
-                                                    } else {
-                                                        Brush.verticalGradient(
-                                                            colors = if (themeDark) listOf(Color(0xFF334155), Color(0xFF1E293B))
-                                                            else listOf(Color(0xFFCBD5E1), Color(0xFFE2E8F0))
-                                                        )
-                                                    }
+                                                    if (isSelected) accentColor else uangkuColors.cardBorder
                                                 )
                                         )
 
@@ -3777,7 +3714,7 @@ fun FourMonthsSummaryDialog(
                                                 text = monthItem.shortMonthName,
                                                 fontSize = 12.sp,
                                                 fontWeight = if (isSelected) FontWeight.Black else FontWeight.Medium,
-                                                color = if (isSelected) accentColor else if (themeDark) Color(0xFFE2E8F0) else Color(0xFF475569),
+                                                color = if (isSelected) onAccentBg else MaterialTheme.colorScheme.onSurfaceVariant,
                                                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                                             )
                                         }
@@ -3800,12 +3737,12 @@ fun FourMonthsSummaryDialog(
                                         text = currentSelectedMonth.monthName,
                                         style = MaterialTheme.typography.titleMedium,
                                         fontWeight = FontWeight.Bold,
-                                        color = if (themeDark) Color.White else Color(0xFF0F172A)
+                                        color = MaterialTheme.colorScheme.onSurface
                                     )
                                     Text(
                                         text = "${currentSelectedMonth.transactionCount} transaksi • Total: ${viewModel.formatCurrency(currentSelectedMonth.totalAmount)}",
                                         style = MaterialTheme.typography.bodySmall,
-                                        color = if (themeDark) Color(0xFF94A3B8) else Color(0xFF64748B)
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                 }
 
@@ -3818,7 +3755,7 @@ fun FourMonthsSummaryDialog(
                                             text = "Bulan Ini",
                                             fontSize = 11.sp,
                                             fontWeight = FontWeight.Bold,
-                                            color = accentColor,
+                                            color = onAccentBg,
                                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                                         )
                                     }
@@ -3830,9 +3767,8 @@ fun FourMonthsSummaryDialog(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .clip(RoundedCornerShape(24.dp))
-                                        .background(
-                                            if (themeDark) Color(0xFF0F172A) else Color(0xFFF8FAFC)
-                                        )
+                                        .background(uangkuColors.elevatedSubSurface)
+                                        .border(1.dp, uangkuColors.cardBorder, RoundedCornerShape(24.dp))
                                         .padding(32.dp),
                                     contentAlignment = Alignment.Center
                                 ) {
@@ -3843,14 +3779,14 @@ fun FourMonthsSummaryDialog(
                                         Icon(
                                             Icons.Default.CalendarToday,
                                             contentDescription = null,
-                                            tint = if (themeDark) Color(0xFF64748B) else Color(0xFF94A3B8),
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                             modifier = Modifier.size(36.dp)
                                         )
                                         Text(
                                             text = "Belum ada transaksi ${if (isIncome) "pemasukan" else "pengeluaran"} di bulan ini",
                                             fontSize = 13.sp,
                                             fontWeight = FontWeight.Medium,
-                                            color = if (themeDark) Color(0xFF94A3B8) else Color(0xFF64748B),
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                                             textAlign = TextAlign.Center
                                         )
                                     }
@@ -3862,14 +3798,8 @@ fun FourMonthsSummaryDialog(
                                         modifier = Modifier
                                             .fillMaxWidth()
                                             .clip(RoundedCornerShape(20.dp))
-                                            .background(
-                                                if (themeDark) Color(0xFF0F172A) else Color(0xFFF8FAFC)
-                                            )
-                                            .border(
-                                                1.dp,
-                                                if (themeDark) Color.White.copy(alpha = 0.08f) else Color.Black.copy(alpha = 0.06f),
-                                                RoundedCornerShape(20.dp)
-                                            )
+                                            .background(uangkuColors.elevatedSubSurface)
+                                            .border(1.dp, uangkuColors.cardBorder, RoundedCornerShape(20.dp))
                                             .padding(14.dp)
                                     ) {
                                         Row(
@@ -3891,7 +3821,7 @@ fun FourMonthsSummaryDialog(
                                                     Icon(
                                                         imageVector = if (isIncome) Icons.Default.ArrowUpward else Icons.Default.ArrowDownward,
                                                         contentDescription = null,
-                                                        tint = accentColor,
+                                                        tint = onAccentBg,
                                                         modifier = Modifier.size(18.dp)
                                                     )
                                                 }
@@ -3900,7 +3830,7 @@ fun FourMonthsSummaryDialog(
                                                         text = tx.getCleanTitle(),
                                                         fontSize = 14.sp,
                                                         fontWeight = FontWeight.Bold,
-                                                        color = if (themeDark) Color.White else Color(0xFF0F172A),
+                                                        color = MaterialTheme.colorScheme.onSurface,
                                                         maxLines = 1
                                                     )
                                                     Row(
@@ -3916,12 +3846,12 @@ fun FourMonthsSummaryDialog(
                                                         Text(
                                                             text = "•",
                                                             fontSize = 11.sp,
-                                                            color = if (themeDark) Color(0xFF64748B) else Color(0xFF94A3B8)
+                                                            color = MaterialTheme.colorScheme.onSurfaceVariant
                                                         )
                                                         Text(
                                                             text = txDateFormat.format(Date(tx.timestamp)),
                                                             fontSize = 11.sp,
-                                                            color = if (themeDark) Color(0xFF94A3B8) else Color(0xFF64748B)
+                                                            color = MaterialTheme.colorScheme.onSurfaceVariant
                                                         )
                                                     }
                                                 }
@@ -3929,6 +3859,7 @@ fun FourMonthsSummaryDialog(
 
                                             Text(
                                                 text = "${if (isIncome) "+" else "-"}${viewModel.formatCurrency(tx.amount)}",
+                                                style = MaterialTheme.typography.bodyMedium.tabular(),
                                                 fontSize = 14.sp,
                                                 fontWeight = FontWeight.Black,
                                                 color = accentColor
@@ -3948,8 +3879,8 @@ fun FourMonthsSummaryDialog(
                     onClick = onDismiss,
                     shape = RoundedCornerShape(20.dp),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = accentColor,
-                        contentColor = Color.White
+                        containerColor = buttonContainerColor,
+                        contentColor = buttonContentColor
                     ),
                     modifier = Modifier
                         .fillMaxWidth()

@@ -1,28 +1,56 @@
 package com.example.ui.screens
 
 import android.widget.Toast
-import androidx.compose.animation.*
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Fingerprint
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.TrendingUp
-import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Star
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material.icons.filled.TrendingUp
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Switch
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
@@ -30,7 +58,13 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.ui.FinanceViewModel
+import com.example.ui.components.ExpressiveSegmentOption
+import com.example.ui.components.ExpressiveSegmentedSelector
+import com.example.ui.theme.ExpressiveShapeTokens
+import com.example.ui.theme.LocalUangkuColors
+import com.example.ui.theme.MotionTokens
 
 @Composable
 fun OnboardingScreen(
@@ -38,28 +72,22 @@ fun OnboardingScreen(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+    val appLanguage by viewModel.appLanguage.collectAsStateWithLifecycle()
     var step by remember { mutableStateOf(0) }
-    
+
     // Step 1: Username State
     var userNameInput by remember { mutableStateOf("") }
-    
+
     // Step 2: Security States
     var pinEnabled by remember { mutableStateOf(false) }
     var pinValue by remember { mutableStateOf("") }
 
-    // Theme Check
-    val themeDark = MaterialTheme.colorScheme.surface.let { it.red * 0.299 + it.green * 0.587 + it.blue * 0.114 < 0.5f }
-
-    // Emerald Luxe Background Gradient
-    val backgroundBrush = Brush.verticalGradient(
-        colors = if (themeDark) listOf(Color(0xFF022C1A), Color(0xFF0B1310))
-                 else listOf(Color(0xFFE6F4EA), Color(0xFFF8FAF9))
-    )
+    val uangkuColors = LocalUangkuColors.current
 
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(backgroundBrush)
+            .background(MaterialTheme.colorScheme.background)
             .safeDrawingPadding()
             .padding(16.dp),
         contentAlignment = Alignment.Center
@@ -67,71 +95,111 @@ fun OnboardingScreen(
         // Bento Card Container
         Box(
             modifier = Modifier
+                .widthIn(max = 520.dp)
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(32.dp))
-                .background(
-                    if (themeDark) Color(0xFF15221D).copy(alpha = 0.8f) 
-                    else Color.White.copy(alpha = 0.9f)
-                )
+                .clip(RoundedCornerShape(ExpressiveShapeTokens.HeroCorner))
+                .background(MaterialTheme.colorScheme.surfaceContainerLow)
                 .border(
                     1.dp,
-                    if (themeDark) Color(0xFF064E3B) else Color(0xFFA7F3D0),
-                    RoundedCornerShape(32.dp)
+                    MaterialTheme.colorScheme.outlineVariant,
+                    RoundedCornerShape(ExpressiveShapeTokens.HeroCorner)
                 )
+                .verticalScroll(rememberScrollState())
                 .padding(24.dp)
         ) {
             Column(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(24.dp)
+                verticalArrangement = Arrangement.spacedBy(18.dp)
             ) {
+                // Step Progress & Language Switcher Header
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Animated Step Dots
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        for (idx in 0..2) {
+                            val active = idx == step
+                            val pillWidth by animateDpAsState(
+                                targetValue = if (active) 28.dp else 10.dp,
+                                animationSpec = MotionTokens.spatialSpringDp,
+                                label = "step_dot_w_$idx"
+                            )
+                            val pillColor by animateColorAsState(
+                                targetValue = if (idx <= step) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant,
+                                animationSpec = MotionTokens.colorTransition,
+                                label = "step_dot_c_$idx"
+                            )
+                            Box(
+                                modifier = Modifier
+                                    .width(pillWidth)
+                                    .height(8.dp)
+                                    .clip(CircleShape)
+                                    .background(pillColor)
+                            )
+                        }
+                    }
+
+                    Box(modifier = Modifier.width(136.dp)) {
+                        ExpressiveSegmentedSelector(
+                            options = listOf(
+                                ExpressiveSegmentOption(key = "id", label = "ID"),
+                                ExpressiveSegmentOption(key = "en", label = "EN")
+                            ),
+                            selectedKey = if (appLanguage.equals("en", ignoreCase = true)) "en" else "id",
+                            onSelect = { viewModel.setLanguage(it) }
+                        )
+                    }
+                }
+
                 // STEP 0: WELCOME INTRO
                 AnimatedVisibility(
                     visible = step == 0,
-                    enter = fadeIn() + slideInVertically(initialOffsetY = { 40 }),
-                    exit = fadeOut() + slideOutVertically(targetOffsetY = { -40 })
+                    enter = fadeIn(MotionTokens.effectsFloat) + slideInVertically(initialOffsetY = { 32 }),
+                    exit = fadeOut(MotionTokens.fastEffectsFloat) + slideOutVertically(targetOffsetY = { -24 })
                 ) {
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(24.dp)
+                        verticalArrangement = Arrangement.spacedBy(20.dp)
                     ) {
                         // Hero Icon Bento
                         Box(
                             modifier = Modifier
-                                .size(120.dp)
-                                .clip(RoundedCornerShape(32.dp))
-                                .background(
-                                    Brush.linearGradient(
-                                        colors = listOf(Color(0xFF0F5132), Color(0xFF10B981))
-                                    )
-                                ),
+                                .size(110.dp)
+                                .clip(RoundedCornerShape(ExpressiveShapeTokens.HeroCorner))
+                                .background(MaterialTheme.colorScheme.primaryContainer),
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
                                 imageVector = Icons.Default.TrendingUp,
                                 contentDescription = "Wallet Icon",
-                                modifier = Modifier.size(56.dp),
-                                tint = Color.White
+                                modifier = Modifier.size(52.dp),
+                                tint = MaterialTheme.colorScheme.onPrimaryContainer
                             )
                         }
 
                         Column(
                             horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
                             Text(
-                                text = "Welcome to Uangku",
+                                text = com.example.ui.util.AppStrings.onboardingWelcomeTitle(appLanguage),
                                 style = MaterialTheme.typography.headlineLarge,
                                 fontWeight = FontWeight.Black,
                                 color = MaterialTheme.colorScheme.onSurface,
                                 textAlign = TextAlign.Center
                             )
                             Text(
-                                text = "Aplikasi manajemen keuangan pribadi yang cerdas, aman, dan sepenuhnya tersimpan di perangkat Anda.",
+                                text = com.example.ui.util.AppStrings.onboardingWelcomeDesc(appLanguage),
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 textAlign = TextAlign.Center,
-                                modifier = Modifier.padding(horizontal = 16.dp)
+                                modifier = Modifier.padding(horizontal = 8.dp)
                             )
                         }
 
@@ -140,12 +208,12 @@ fun OnboardingScreen(
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Badge(icon = Icons.Default.Security, text = "Secure", themeDark = themeDark)
-                            Badge(icon = Icons.Default.Star, text = "Smart", themeDark = themeDark)
-                            Badge(icon = Icons.Default.CheckCircle, text = "Offline", themeDark = themeDark)
+                            Badge(icon = Icons.Default.Security, text = com.example.ui.util.AppStrings.badgeSecure(appLanguage), themeDark = uangkuColors.isDark)
+                            Badge(icon = Icons.Default.Star, text = com.example.ui.util.AppStrings.badgeSmart(appLanguage), themeDark = uangkuColors.isDark)
+                            Badge(icon = Icons.Default.CheckCircle, text = com.example.ui.util.AppStrings.badgeOffline(appLanguage), themeDark = uangkuColors.isDark)
                         }
 
-                        Spacer(modifier = Modifier.height(16.dp))
+                        Spacer(modifier = Modifier.height(6.dp))
 
                         Button(
                             onClick = { step = 1 },
@@ -153,13 +221,18 @@ fun OnboardingScreen(
                                 .fillMaxWidth()
                                 .height(56.dp)
                                 .testTag("onboarding_start_button"),
-                            shape = RoundedCornerShape(24.dp),
+                            shape = RoundedCornerShape(ExpressiveShapeTokens.HeroCorner),
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = if (themeDark) Color(0xFF10B981) else Color(0xFF0F5132),
-                                contentColor = Color.White
+                                containerColor = MaterialTheme.colorScheme.primary,
+                                contentColor = MaterialTheme.colorScheme.onPrimary
                             )
                         ) {
-                            Text("Get Started", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                            Text(
+                                text = com.example.ui.util.AppStrings.onboardingGetStarted(appLanguage),
+                                style = MaterialTheme.typography.labelLarge,
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold
+                            )
                         }
                     }
                 }
@@ -167,45 +240,42 @@ fun OnboardingScreen(
                 // STEP 1: CONFIGURE USERNAME
                 AnimatedVisibility(
                     visible = step == 1,
-                    enter = fadeIn() + slideInVertically(initialOffsetY = { 40 }),
-                    exit = fadeOut() + slideOutVertically(targetOffsetY = { -40 })
+                    enter = fadeIn(MotionTokens.effectsFloat) + slideInVertically(initialOffsetY = { 32 }),
+                    exit = fadeOut(MotionTokens.fastEffectsFloat) + slideOutVertically(targetOffsetY = { -24 })
                 ) {
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(24.dp)
+                        verticalArrangement = Arrangement.spacedBy(20.dp)
                     ) {
                         Box(
                             modifier = Modifier
-                                .size(100.dp)
-                                .clip(RoundedCornerShape(32.dp))
-                                .background(
-                                    Brush.linearGradient(
-                                        colors = listOf(Color(0xFFD97706), Color(0xFFF59E0B))
-                                    )
-                                ),
+                                .size(96.dp)
+                                .clip(RoundedCornerShape(ExpressiveShapeTokens.HeroCorner))
+                                .background(uangkuColors.elevatedSubSurface)
+                                .border(1.dp, uangkuColors.cardBorder, RoundedCornerShape(ExpressiveShapeTokens.HeroCorner)),
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Person,
                                 contentDescription = "Profile Setup",
-                                modifier = Modifier.size(48.dp),
-                                tint = Color.White
+                                modifier = Modifier.size(46.dp),
+                                tint = MaterialTheme.colorScheme.primary
                             )
                         }
 
                         Column(
                             horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
                             Text(
-                                text = "What should we call you?",
+                                text = com.example.ui.util.AppStrings.onboardingNameTitle(appLanguage),
                                 style = MaterialTheme.typography.headlineSmall,
                                 fontWeight = FontWeight.Black,
                                 color = MaterialTheme.colorScheme.onSurface,
                                 textAlign = TextAlign.Center
                             )
                             Text(
-                                text = "This name will be used to personalize your dashboard and reports.",
+                                text = com.example.ui.util.AppStrings.onboardingNameDesc(appLanguage),
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 textAlign = TextAlign.Center,
@@ -216,41 +286,46 @@ fun OnboardingScreen(
                         OutlinedTextField(
                             value = userNameInput,
                             onValueChange = { userNameInput = it },
-                            label = { Text("Nickname") },
-                            placeholder = { Text("e.g. Lintar Arya") },
+                            label = { Text(com.example.ui.util.AppStrings.nicknameLabel(appLanguage)) },
+                            placeholder = { Text(com.example.ui.util.AppStrings.onboardingNamePlaceholder(appLanguage)) },
                             singleLine = true,
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .testTag("onboarding_username_input"),
-                            shape = RoundedCornerShape(24.dp),
+                            shape = RoundedCornerShape(ExpressiveShapeTokens.BentoCorner),
                             colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = Color(0xFF10B981),
-                                unfocusedBorderColor = if (themeDark) Color(0xFF064E3B) else Color(0xFFA7F3D0)
+                                focusedBorderColor = MaterialTheme.colorScheme.primary,
+                                unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant
                             )
                         )
 
-                        Spacer(modifier = Modifier.height(16.dp))
+                        Spacer(modifier = Modifier.height(6.dp))
 
                         Button(
                             onClick = {
                                 if (userNameInput.isNotBlank()) {
                                     step = 2
                                 } else {
-                                    Toast.makeText(context, "Please enter your nickname.", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(context, com.example.ui.util.AppStrings.onboardingNameEmptyToast(appLanguage), Toast.LENGTH_SHORT).show()
                                 }
                             },
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(56.dp)
                                 .testTag("onboarding_next_button"),
-                            shape = RoundedCornerShape(24.dp),
+                            shape = RoundedCornerShape(ExpressiveShapeTokens.HeroCorner),
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = if (themeDark) Color(0xFF10B981) else Color(0xFF0F5132),
-                                contentColor = Color.White
+                                containerColor = MaterialTheme.colorScheme.primary,
+                                contentColor = MaterialTheme.colorScheme.onPrimary
                             ),
                             enabled = userNameInput.isNotBlank()
                         ) {
-                            Text("Continue", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                            Text(
+                                text = com.example.ui.util.AppStrings.onboardingContinue(appLanguage),
+                                style = MaterialTheme.typography.labelLarge,
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold
+                            )
                         }
                     }
                 }
@@ -258,26 +333,26 @@ fun OnboardingScreen(
                 // STEP 2: CONFIGURE SECURITY
                 AnimatedVisibility(
                     visible = step == 2,
-                    enter = fadeIn() + slideInVertically(initialOffsetY = { 40 }),
-                    exit = fadeOut() + slideOutVertically(targetOffsetY = { -40 })
+                    enter = fadeIn(MotionTokens.effectsFloat) + slideInVertically(initialOffsetY = { 32 }),
+                    exit = fadeOut(MotionTokens.fastEffectsFloat) + slideOutVertically(targetOffsetY = { -24 })
                 ) {
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(24.dp)
+                        verticalArrangement = Arrangement.spacedBy(20.dp)
                     ) {
                         Column(
                             horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
                             Text(
-                                text = "Secure Your Vault",
+                                text = com.example.ui.util.AppStrings.onboardingSecurityTitle(appLanguage),
                                 style = MaterialTheme.typography.headlineSmall,
                                 fontWeight = FontWeight.Black,
                                 color = MaterialTheme.colorScheme.onSurface,
                                 textAlign = TextAlign.Center
                             )
                             Text(
-                                text = "Add a 4-digit PIN for extra security. You can enable biometric login later in settings.",
+                                text = com.example.ui.util.AppStrings.onboardingSecurityDesc(appLanguage),
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 textAlign = TextAlign.Center,
@@ -285,13 +360,13 @@ fun OnboardingScreen(
                             )
                         }
 
-                        // Glassmorphism/Bento Switch Card
+                        // Bento Switch Card
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clip(RoundedCornerShape(32.dp))
-                                .background(if (themeDark) Color(0xFF064E3B).copy(alpha = 0.3f) else Color(0xFFE6F4EA).copy(alpha = 0.5f))
-                                .border(1.dp, if (themeDark) Color(0xFF064E3B) else Color(0xFFA7F3D0), RoundedCornerShape(32.dp))
+                                .clip(RoundedCornerShape(ExpressiveShapeTokens.BentoCorner))
+                                .background(MaterialTheme.colorScheme.surfaceContainer)
+                                .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(ExpressiveShapeTokens.BentoCorner))
                                 .padding(20.dp)
                         ) {
                             Column(
@@ -310,28 +385,33 @@ fun OnboardingScreen(
                                         Box(
                                             modifier = Modifier
                                                 .size(40.dp)
-                                                .background(if (themeDark) Color(0xFF10B981).copy(alpha = 0.2f) else Color(0xFF059669).copy(alpha = 0.1f), CircleShape),
+                                                .background(MaterialTheme.colorScheme.primaryContainer, CircleShape),
                                             contentAlignment = Alignment.Center
                                         ) {
                                             Icon(
                                                 imageVector = Icons.Default.Lock,
                                                 contentDescription = "PIN Lock",
-                                                tint = if (themeDark) Color(0xFF34D399) else Color(0xFF059669)
+                                                tint = MaterialTheme.colorScheme.onPrimaryContainer
                                             )
                                         }
                                         Column {
-                                            Text("Enable PIN Lock", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurface)
-                                            Text("Optional extra security", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                            Text(
+                                                text = com.example.ui.util.AppStrings.onboardingEnablePin(appLanguage),
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 15.sp,
+                                                color = MaterialTheme.colorScheme.onSurface
+                                            )
+                                            Text(
+                                                text = com.example.ui.util.AppStrings.onboardingPinOptional(appLanguage),
+                                                fontSize = 11.sp,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
                                         }
                                     }
                                     Switch(
                                         checked = pinEnabled,
                                         onCheckedChange = { pinEnabled = it },
-                                        modifier = Modifier.testTag("onboarding_pin_switch"),
-                                        colors = SwitchDefaults.colors(
-                                            checkedThumbColor = Color.White,
-                                            checkedTrackColor = if (themeDark) Color(0xFF10B981) else Color(0xFF059669)
-                                        )
+                                        modifier = Modifier.testTag("onboarding_pin_switch")
                                     )
                                 }
 
@@ -340,37 +420,42 @@ fun OnboardingScreen(
                                         OutlinedTextField(
                                             value = pinValue,
                                             onValueChange = { input ->
-                                                if (input.length <= 4 && input.all { it.isDigit() }) {
-                                                    pinValue = input
+                                                val clean = input.filter { it.isDigit() }
+                                                if (clean.length <= 4) {
+                                                    pinValue = clean
                                                 }
                                             },
-                                            label = { Text("4-Digit PIN") },
-                                            placeholder = { Text("e.g. 1234") },
+                                            label = { Text(com.example.ui.util.AppStrings.onboardingPinLabel(appLanguage)) },
+                                            placeholder = { Text(com.example.ui.util.AppStrings.onboardingPinPlaceholder(appLanguage)) },
                                             singleLine = true,
                                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                                             modifier = Modifier
                                                 .fillMaxWidth()
                                                 .testTag("onboarding_pin_input"),
-                                            shape = RoundedCornerShape(24.dp),
+                                            shape = RoundedCornerShape(ExpressiveShapeTokens.BentoCorner),
                                             colors = OutlinedTextFieldDefaults.colors(
-                                                focusedBorderColor = Color(0xFF10B981),
-                                                unfocusedBorderColor = if (themeDark) Color(0xFF064E3B) else Color(0xFFA7F3D0)
+                                                focusedBorderColor = MaterialTheme.colorScheme.primary,
+                                                unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant
                                             )
                                         )
                                         if (pinValue.length < 4 && pinValue.isNotEmpty()) {
-                                            Text("PIN must be 4 digits long.", color = MaterialTheme.colorScheme.error, fontSize = 11.sp)
+                                            Text(
+                                                text = com.example.ui.util.AppStrings.onboardingPinValidation(appLanguage),
+                                                color = MaterialTheme.colorScheme.error,
+                                                fontSize = 11.sp
+                                            )
                                         }
                                     }
                                 }
                             }
                         }
 
-                        Spacer(modifier = Modifier.height(16.dp))
+                        Spacer(modifier = Modifier.height(6.dp))
 
                         Button(
                             onClick = {
                                 if (pinEnabled && pinValue.length != 4) {
-                                    Toast.makeText(context, "Please enter a 4-digit PIN or disable PIN lock.", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(context, com.example.ui.util.AppStrings.onboardingPinIncompleteToast(appLanguage), Toast.LENGTH_SHORT).show()
                                 } else {
                                     viewModel.setOnboardingCompleted(
                                         name = userNameInput.trim(),
@@ -378,21 +463,26 @@ fun OnboardingScreen(
                                         pin = pinValue,
                                         biomEnabled = false
                                     )
-                                    Toast.makeText(context, "Welcome to Uangku, ${userNameInput.trim()}!", Toast.LENGTH_LONG).show()
+                                    Toast.makeText(context, com.example.ui.util.AppStrings.onboardingWelcomeToast(appLanguage, userNameInput.trim()), Toast.LENGTH_LONG).show()
                                 }
                             },
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(56.dp)
                                 .testTag("onboarding_finish_button"),
-                            shape = RoundedCornerShape(24.dp),
+                            shape = RoundedCornerShape(ExpressiveShapeTokens.HeroCorner),
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = if (themeDark) Color(0xFF10B981) else Color(0xFF0F5132),
-                                contentColor = Color.White
+                                containerColor = MaterialTheme.colorScheme.primary,
+                                contentColor = MaterialTheme.colorScheme.onPrimary
                             ),
                             enabled = !pinEnabled || pinValue.length == 4
                         ) {
-                            Text("Complete Setup", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                            Text(
+                                text = com.example.ui.util.AppStrings.onboardingComplete(appLanguage),
+                                style = MaterialTheme.typography.labelLarge,
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold
+                            )
                         }
                     }
                 }
@@ -403,17 +493,18 @@ fun OnboardingScreen(
 
 @Composable
 fun Badge(icon: androidx.compose.ui.graphics.vector.ImageVector, text: String, themeDark: Boolean) {
+    val uangkuColors = LocalUangkuColors.current
     Row(
         modifier = Modifier
             .background(
-                if (themeDark) Color(0xFF064E3B) else Color(0xFFE6F4EA),
-                RoundedCornerShape(12.dp)
+                uangkuColors.incomeContainer,
+                RoundedCornerShape(ExpressiveShapeTokens.PillRestingCorner)
             )
             .padding(horizontal = 10.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(4.dp)
     ) {
-        Icon(icon, contentDescription = null, tint = if (themeDark) Color(0xFF34D399) else Color(0xFF059669), modifier = Modifier.size(12.dp))
-        Text(text, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = if (themeDark) Color(0xFFA7F3D0) else Color(0xFF043820))
+        Icon(icon, contentDescription = null, tint = uangkuColors.onIncomeContainer, modifier = Modifier.size(14.dp))
+        Text(text, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = uangkuColors.onIncomeContainer)
     }
 }

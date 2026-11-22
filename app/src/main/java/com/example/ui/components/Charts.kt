@@ -1,10 +1,13 @@
 package com.example.ui.components
 
 import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.tween
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import com.example.ui.theme.LocalUangkuColors
+import com.example.ui.theme.MotionTokens
+import com.example.ui.theme.tabular
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -152,21 +155,24 @@ fun MonthlyBarComparisonChart(
     LaunchedEffect(monthlyDataList) {
         scaleProgress.animateTo(
             targetValue = 1f,
-            animationSpec = tween(durationMillis = 1000)
+            animationSpec = MotionTokens.dataProgressSpec
         )
     }
 
-    val incomeColor = Color(0xFF2ECC71) 
-    val expenseColor = Color(0xFFE74C3C) 
+    val uangkuColors = LocalUangkuColors.current
+    val gridLineColor = MaterialTheme.colorScheme.outlineVariant
+    val incomeColor = uangkuColors.incomeText
+    val expenseColor = uangkuColors.expenseText
 
     Card(
         modifier = modifier
             .fillMaxWidth()
             .testTag("monthly_bar_chart_card"),
-        shape = RoundedCornerShape(24.dp),
+        shape = RoundedCornerShape(32.dp),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
-        )
+            containerColor = uangkuColors.cardSurface
+        ),
+        border = BorderStroke(1.dp, uangkuColors.cardBorder)
     ) {
         Column(
             modifier = Modifier.padding(20.dp),
@@ -186,8 +192,8 @@ fun MonthlyBarComparisonChart(
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier
-                        .padding(top = 4.dp)
-                        .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f), RoundedCornerShape(8.dp))
+                        .padding(top = 6.dp)
+                        .background(uangkuColors.elevatedSubSurface, RoundedCornerShape(12.dp))
                         .padding(horizontal = 10.dp, vertical = 6.dp)
                 ) {
                     Text(
@@ -195,18 +201,30 @@ fun MonthlyBarComparisonChart(
                         style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
                         color = MaterialTheme.colorScheme.onSurface
                     )
+                    Box(
+                        modifier = Modifier
+                            .size(6.dp)
+                            .background(incomeColor, CircleShape)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
                     Text(
-                        text = "🟢 $incStr ",
+                        text = "+$incStr",
                         style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
                         color = incomeColor
                     )
                     Text(
                         text = "  •  ",
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f)
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                    Box(
+                        modifier = Modifier
+                            .size(6.dp)
+                            .background(expenseColor, CircleShape)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
                     Text(
-                        text = "🔴 $expStr",
+                        text = "-$expStr",
                         style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
                         color = expenseColor
                     )
@@ -239,11 +257,11 @@ fun MonthlyBarComparisonChart(
                     val rawMax = monthlyDataList.maxOfOrNull { maxOf(it.income, it.expense) } ?: 0f
                     val displayMax = if (rawMax == 0f) 1000000f else rawMax
 
-                    Text(text = formatCompactChartCurrency(displayMax, isUsd), style = MaterialTheme.typography.labelSmall, fontSize = 8.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f))
-                    Text(text = formatCompactChartCurrency(displayMax * 0.75f, isUsd), style = MaterialTheme.typography.labelSmall, fontSize = 8.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f))
-                    Text(text = formatCompactChartCurrency(displayMax * 0.5f, isUsd), style = MaterialTheme.typography.labelSmall, fontSize = 8.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f))
-                    Text(text = formatCompactChartCurrency(displayMax * 0.25f, isUsd), style = MaterialTheme.typography.labelSmall, fontSize = 8.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f))
-                    Text(text = if (isUsd) "$0" else "Rp0", style = MaterialTheme.typography.labelSmall, fontSize = 8.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f))
+                    Text(text = formatCompactChartCurrency(displayMax, isUsd), style = MaterialTheme.typography.labelSmall, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(text = formatCompactChartCurrency(displayMax * 0.75f, isUsd), style = MaterialTheme.typography.labelSmall, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(text = formatCompactChartCurrency(displayMax * 0.5f, isUsd), style = MaterialTheme.typography.labelSmall, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(text = formatCompactChartCurrency(displayMax * 0.25f, isUsd), style = MaterialTheme.typography.labelSmall, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(text = if (isUsd) "$0" else "Rp0", style = MaterialTheme.typography.labelSmall, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
 
                 // 2. Right Grid & Chart Area
@@ -264,7 +282,7 @@ fun MonthlyBarComparisonChart(
                         for (i in 0 until lineCount) {
                             val y = i * stepHeight
                             drawLine(
-                                color = Color.Gray.copy(alpha = 0.15f),
+                                color = gridLineColor.copy(alpha = 0.5f),
                                 start = Offset(0f, y),
                                 end = Offset(size.width, y),
                                 strokeWidth = 2f,
@@ -323,11 +341,7 @@ fun MonthlyBarComparisonChart(
                                                     .fillMaxWidth()
                                                     .fillMaxHeight(animatedIncomeHeight)
                                                     .clip(RoundedCornerShape(4.dp))
-                                                    .background(
-                                                        Brush.verticalGradient(
-                                                            colors = listOf(incomeColor, incomeColor.copy(alpha = 0.7f))
-                                                        )
-                                                    )
+                                                    .background(incomeColor)
                                             )
                                         }
                                     }
@@ -349,11 +363,7 @@ fun MonthlyBarComparisonChart(
                                                     .fillMaxWidth()
                                                     .fillMaxHeight(animatedExpenseHeight)
                                                     .clip(RoundedCornerShape(4.dp))
-                                                    .background(
-                                                        Brush.verticalGradient(
-                                                            colors = listOf(expenseColor, expenseColor.copy(alpha = 0.7f))
-                                                        )
-                                                    )
+                                                    .background(expenseColor)
                                             )
                                         }
                                     }
@@ -460,23 +470,25 @@ fun TransactionCategoryDonutChart(
     // Currency Formatter
     val totalExpenseStr = formatChartCurrency(totalExpense, formatAmount, isUsd)
 
-    // Animated sweep
+    // Animated sweep (T-004: strictly non-bouncy data spec)
     val transitionProgress = remember { Animatable(0f) }
     LaunchedEffect(slices) {
         transitionProgress.animateTo(
             targetValue = 1f,
-            animationSpec = tween(durationMillis = 1000)
+            animationSpec = MotionTokens.dataProgressSpec
         )
     }
 
+    val uangkuColors = LocalUangkuColors.current
     Card(
         modifier = modifier
             .fillMaxWidth()
             .testTag("category_donut_chart_card"),
-        shape = RoundedCornerShape(24.dp),
+        shape = RoundedCornerShape(32.dp),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
-        )
+            containerColor = uangkuColors.cardSurface
+        ),
+        border = BorderStroke(1.dp, uangkuColors.cardBorder)
     ) {
         Column(
             modifier = Modifier.padding(20.dp),
@@ -496,16 +508,17 @@ fun TransactionCategoryDonutChart(
                     modifier = Modifier
                         .size(180.dp)
                         .background(
-                            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.5f),
+                            color = uangkuColors.elevatedSubSurface,
                             shape = CircleShape
-                        ),
+                        )
+                        .border(1.dp, uangkuColors.cardBorder, CircleShape),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = "Rp0",
+                        text = if (isUsd) "$0" else "Rp0",
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = MaterialTheme.colorScheme.onSurface
                     )
                 }
                 Spacer(modifier = Modifier.height(16.dp))
@@ -549,9 +562,9 @@ fun TransactionCategoryDonutChart(
                         ) {
                             Text(
                                 text = "Total",
-                                style = MaterialTheme.typography.bodySmall,
+                                style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                fontSize = 10.sp
+                                fontSize = 11.sp
                             )
                             Text(
                                 text = if (formatAmount != null) {
@@ -657,15 +670,17 @@ fun TransactionWeeklyTrendLineChart(
     val expenses = transactions.filter { it.type == "EXPENSE" }.sortedBy { it.timestamp }
     val lastSevenTxs = expenses.takeLast(7)
 
+    val uangkuColors = LocalUangkuColors.current
     if (lastSevenTxs.isEmpty()) {
         Card(
             modifier = modifier
                 .fillMaxWidth()
                 .testTag("weekly_trend_chart_card"),
-            shape = RoundedCornerShape(24.dp),
+            shape = RoundedCornerShape(32.dp),
             colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
-            )
+                containerColor = uangkuColors.cardSurface
+            ),
+            border = BorderStroke(1.dp, uangkuColors.cardBorder)
         ) {
             Column(
                 modifier = Modifier.padding(20.dp),
@@ -692,7 +707,7 @@ fun TransactionWeeklyTrendLineChart(
                     Text(
                         text = "Belum ada transaksi pengeluaran untuk ditampilkan.",
                         style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         textAlign = TextAlign.Center
                     )
                 }
@@ -718,21 +733,23 @@ fun TransactionWeeklyTrendLineChart(
     LaunchedEffect(lastSevenTxs) {
         lineProgress.animateTo(
             targetValue = 1f,
-            animationSpec = tween(durationMillis = 1000)
+            animationSpec = MotionTokens.dataProgressSpec
         )
     }
 
     val primaryColor = MaterialTheme.colorScheme.primary
+    val trendGridColor = MaterialTheme.colorScheme.outlineVariant
     val selectedTx = if (selectedIndex in lastSevenTxs.indices) lastSevenTxs[selectedIndex] else null
 
     Card(
         modifier = modifier
             .fillMaxWidth()
             .testTag("weekly_trend_chart_card"),
-        shape = RoundedCornerShape(24.dp),
+        shape = RoundedCornerShape(32.dp),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
-        )
+            containerColor = uangkuColors.cardSurface
+        ),
+        border = BorderStroke(1.dp, uangkuColors.cardBorder)
     ) {
         Column(
             modifier = Modifier.padding(20.dp),
@@ -780,7 +797,7 @@ fun TransactionWeeklyTrendLineChart(
                         text = "-$amountStr",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Black,
-                        color = MaterialTheme.colorScheme.error
+                        color = uangkuColors.expenseText
                     )
                 }
             }
@@ -804,9 +821,9 @@ fun TransactionWeeklyTrendLineChart(
                     verticalArrangement = Arrangement.SpaceBetween,
                     horizontalAlignment = Alignment.End
                 ) {
-                    Text(text = formatCompactChartCurrency(displayMax, isUsd), style = MaterialTheme.typography.labelSmall, fontSize = 8.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f))
-                    Text(text = formatCompactChartCurrency(displayMin + displayRange * 0.5f, isUsd), style = MaterialTheme.typography.labelSmall, fontSize = 8.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f))
-                    Text(text = formatCompactChartCurrency(displayMin, isUsd), style = MaterialTheme.typography.labelSmall, fontSize = 8.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f))
+                    Text(text = formatCompactChartCurrency(displayMax, isUsd), style = MaterialTheme.typography.labelSmall, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(text = formatCompactChartCurrency(displayMin + displayRange * 0.5f, isUsd), style = MaterialTheme.typography.labelSmall, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(text = formatCompactChartCurrency(displayMin, isUsd), style = MaterialTheme.typography.labelSmall, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
 
                 Spacer(modifier = Modifier.width(8.dp))
@@ -834,7 +851,7 @@ fun TransactionWeeklyTrendLineChart(
                             val gridY = listOf(0f, height * 0.5f, height)
                             gridY.forEach { y ->
                                 drawLine(
-                                    color = Color.Gray.copy(alpha = 0.12f),
+                                    color = trendGridColor.copy(alpha = 0.45f),
                                     start = Offset(0f, y),
                                     end = Offset(width, y),
                                     strokeWidth = 2f,
@@ -901,12 +918,7 @@ fun TransactionWeeklyTrendLineChart(
                                 }
                                 drawPath(
                                     path = fillPath,
-                                    brush = Brush.verticalGradient(
-                                        colors = listOf(
-                                            primaryColor.copy(alpha = 0.35f),
-                                            Color.Transparent
-                                        )
-                                    )
+                                    color = primaryColor.copy(alpha = 0.12f)
                                 )
                             }
 
@@ -990,9 +1002,9 @@ fun TransactionWeeklyTrendLineChart(
                                 Text(
                                     text = dateLabel,
                                     style = MaterialTheme.typography.labelSmall,
-                                    fontSize = 8.5.sp,
+                                    fontSize = 11.sp,
                                     fontWeight = if (isSelected) FontWeight.Black else FontWeight.Bold,
-                                    color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                                    color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                                     maxLines = 1
                                 )
                             }

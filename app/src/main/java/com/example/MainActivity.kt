@@ -6,13 +6,20 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricPrompt
-import androidx.compose.animation.*
-import androidx.compose.animation.core.*
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.expandHorizontally
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkHorizontally
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -27,9 +34,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
@@ -43,6 +55,8 @@ import com.example.ui.screens.DashboardScreen
 import com.example.ui.screens.OnboardingScreen
 import com.example.ui.screens.SettingsScreen
 import com.example.ui.screens.TransactionsScreen
+import com.example.ui.theme.ExpressiveShapeTokens
+import com.example.ui.theme.MotionTokens
 import com.example.ui.theme.MyApplicationTheme
 import com.example.ui.util.AppStrings
 
@@ -53,10 +67,10 @@ class MainActivity : FragmentActivity() {
         setContent {
             val viewModel: FinanceViewModel = viewModel()
             val systemDark = isSystemInDarkTheme()
-            
+
             // Update system default theme on startup to ensure VM and UI are synchronized
             viewModel.updateSystemThemeDefault(systemDark)
-            
+
             LaunchedEffect(Unit) {
                 if (android.os.Build.VERSION.SDK_INT >= 33) {
                     val permission = "android.permission.POST_NOTIFICATIONS"
@@ -71,16 +85,16 @@ class MainActivity : FragmentActivity() {
                 viewModel.checkAndTriggerBillReminders(this@MainActivity)
                 viewModel.loadSavingChallengesAndBadges()
             }
-            
+
             val themeDarkOverride by viewModel.themeDark.collectAsStateWithLifecycle()
             val dynamicColorEnabled by viewModel.dynamicColor.collectAsStateWithLifecycle()
             val useDarkTheme = themeDarkOverride
-            
+
             MyApplicationTheme(darkTheme = useDarkTheme, dynamicColor = dynamicColorEnabled) {
                 val isOnboarded by viewModel.isOnboarded.collectAsStateWithLifecycle()
                 val isLocked by viewModel.isLocked.collectAsStateWithLifecycle()
                 val initialRoute = intent?.getStringExtra("EXTRA_NAVIGATE_TO") ?: intent?.getStringExtra("NAVIGATE_TO")
-                
+
                 if (!isOnboarded) {
                     OnboardingScreen(viewModel = viewModel)
                 } else if (isLocked) {
@@ -165,138 +179,264 @@ fun MainScreenContent(
         else -> SubScreen.Dashboard
     }
     var activeScreen by remember { mutableStateOf<SubScreen>(initialSubScreen) }
-    val themeDark by viewModel.themeDark.collectAsStateWithLifecycle()
     val appLanguage by viewModel.appLanguage.collectAsStateWithLifecycle()
+    val haptic = LocalHapticFeedback.current
+    val screenList = remember {
+        listOf(
+            SubScreen.Dashboard,
+            SubScreen.Transactions,
+            SubScreen.Budgets,
+            SubScreen.Settings
+        )
+    }
 
-    Box(
+    // Handle back button on sub-screens to return to Dashboard per guidelines
+    androidx.activity.compose.BackHandler(enabled = activeScreen != SubScreen.Dashboard) {
+        activeScreen = SubScreen.Dashboard
+    }
+
+    BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
             .testTag("main_authenticated_container")
     ) {
-        // Screen Content
-        AnimatedContent(
-            targetState = activeScreen,
-            transitionSpec = {
-                val routes = listOf(SubScreen.Dashboard.route, SubScreen.Transactions.route, SubScreen.Budgets.route, SubScreen.Settings.route)
-                val isForward = routes.indexOf(targetState.route) > routes.indexOf(initialState.route)
-                
-                if (isForward) {
-                    (slideInHorizontally(initialOffsetX = { it }) + fadeIn(animationSpec = tween(300))) togetherWith
-                        slideOutHorizontally(targetOffsetX = { -it }) + fadeOut(animationSpec = tween(300))
-                } else {
-                    (slideInHorizontally(initialOffsetX = { -it }) + fadeIn(animationSpec = tween(300))) togetherWith
-                        slideOutHorizontally(targetOffsetX = { it }) + fadeOut(animationSpec = tween(300))
-                }
-            },
-            modifier = Modifier.fillMaxSize()
-        ) { currentScreen ->
-            when (currentScreen) {
-                SubScreen.Dashboard -> DashboardScreen(
-                    viewModel = viewModel,
-                    onNavigateToTransactions = { activeScreen = SubScreen.Transactions }
-                )
-                SubScreen.Transactions -> TransactionsScreen(viewModel = viewModel)
-                SubScreen.Budgets -> BudgetScreen(viewModel = viewModel)
-                SubScreen.Settings -> SettingsScreen(viewModel = viewModel)
-            }
-        }
+        val isWideLayout = maxWidth >= 600.dp
 
-        // Solid Elevated Navigation Bar (No Glassmorphism)
-        Box(
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .fillMaxWidth()
-                .navigationBarsPadding()
-                .padding(horizontal = 16.dp, vertical = 10.dp)
-                .testTag("floating_navigation_bar")
-        ) {
-            Surface(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(32.dp),
-                color = if (themeDark) Color(0xFF1E293B) else Color(0xFFFFFFFF),
-                tonalElevation = 6.dp,
-                shadowElevation = 8.dp,
-                border = BorderStroke(
-                    1.dp,
-                    if (themeDark) Color(0xFF334155) else Color(0xFFE2E8F0)
-                )
-            ) {
-                Row(
+        if (isWideLayout) {
+            Row(modifier = Modifier.fillMaxSize()) {
+                // M3 Expressive Side NavigationRail on Tablet / Foldable / Landscape
+                Surface(
+                    color = MaterialTheme.colorScheme.surfaceContainerLow,
+                    tonalElevation = 2.dp,
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 8.dp, vertical = 8.dp),
-                    horizontalArrangement = Arrangement.SpaceAround,
-                    verticalAlignment = Alignment.CenterVertically
+                        .fillMaxHeight()
+                        .testTag("floating_navigation_bar")
                 ) {
-                    val screenList = listOf(
-                        SubScreen.Dashboard,
-                        SubScreen.Transactions,
-                        SubScreen.Budgets,
-                        SubScreen.Settings
-                    )
-
-                    screenList.forEach { screen ->
-                        val isSelected = activeScreen == screen
-
-                        val pillBackground by animateColorAsState(
-                            targetValue = if (isSelected) {
-                                if (themeDark) Color(0xFF064E3B)
-                                else Color(0xFFD1FAE5)
-                            } else Color.Transparent,
-                            animationSpec = tween(250),
-                            label = "pill_bg"
-                        )
-
-                        val contentColor by animateColorAsState(
-                            targetValue = if (isSelected) {
-                                if (themeDark) Color(0xFF34D399) else Color(0xFF047857)
-                            } else {
-                                if (themeDark) Color(0xFF94A3B8) else Color(0xFF64748B)
-                            },
-                            animationSpec = tween(250),
-                            label = "content_color"
-                        )
-
-                        val screenTitle = screen.getTitle(appLanguage)
-
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.Center,
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(24.dp))
-                                .background(pillBackground)
-                                .clickable(
-                                    interactionSource = remember { MutableInteractionSource() },
-                                    indication = androidx.compose.material3.ripple(),
-                                    onClick = { activeScreen = screen }
-                                )
-                                .padding(
-                                    horizontal = if (isSelected) 16.dp else 12.dp,
-                                    vertical = 10.dp
-                                )
-                        ) {
-                            Icon(
-                                imageVector = screen.icon,
-                                contentDescription = screenTitle,
-                                tint = contentColor,
+                    NavigationRail(
+                        containerColor = Color.Transparent,
+                        modifier = Modifier
+                            .statusBarsPadding()
+                            .navigationBarsPadding()
+                            .padding(horizontal = 6.dp, vertical = 12.dp)
+                    ) {
+                        Spacer(modifier = Modifier.height(12.dp))
+                        screenList.forEach { screen ->
+                            val isSelected = activeScreen == screen
+                            val title = screen.getTitle(appLanguage)
+                            NavigationRailItem(
+                                selected = isSelected,
+                                onClick = {
+                                    if (!isSelected) {
+                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                        activeScreen = screen
+                                    }
+                                },
+                                icon = {
+                                    Icon(
+                                        imageVector = screen.icon,
+                                        contentDescription = title,
+                                        modifier = Modifier.size(22.dp)
+                                    )
+                                },
+                                label = {
+                                    Text(
+                                        text = title,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                },
+                                colors = NavigationRailItemDefaults.colors(
+                                    selectedIconColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                                    selectedTextColor = MaterialTheme.colorScheme.primary,
+                                    indicatorColor = MaterialTheme.colorScheme.primaryContainer,
+                                    unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                ),
                                 modifier = Modifier
-                                    .size(24.dp)
-                                    .animateContentSize()
+                                    .padding(vertical = 4.dp)
+                                    .testTag("nav_tab_${screen.route}")
+                            )
+                        }
+                    }
+                }
+
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxHeight(),
+                    contentAlignment = Alignment.TopCenter
+                ) {
+                    AnimatedContent(
+                        targetState = activeScreen,
+                        transitionSpec = { MotionTokens.topLevelTransition },
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .widthIn(max = 960.dp),
+                        label = "wide_screen_content"
+                    ) { currentScreen ->
+                        when (currentScreen) {
+                            SubScreen.Dashboard -> DashboardScreen(
+                                viewModel = viewModel,
+                                onNavigateToTransactions = { activeScreen = SubScreen.Transactions }
+                            )
+                            SubScreen.Transactions -> TransactionsScreen(viewModel = viewModel)
+                            SubScreen.Budgets -> BudgetScreen(viewModel = viewModel)
+                            SubScreen.Settings -> SettingsScreen(viewModel = viewModel)
+                        }
+                    }
+                }
+            }
+        } else {
+            // Compact Portrait Phone: Fullscreen content + Floating Expressive Toolbar
+            AnimatedContent(
+                targetState = activeScreen,
+                transitionSpec = { MotionTokens.topLevelTransition },
+                modifier = Modifier.fillMaxSize(),
+                label = "compact_screen_content"
+            ) { currentScreen ->
+                when (currentScreen) {
+                    SubScreen.Dashboard -> DashboardScreen(
+                        viewModel = viewModel,
+                        onNavigateToTransactions = { activeScreen = SubScreen.Transactions }
+                    )
+                    SubScreen.Transactions -> TransactionsScreen(viewModel = viewModel)
+                    SubScreen.Budgets -> BudgetScreen(viewModel = viewModel)
+                    SubScreen.Settings -> SettingsScreen(viewModel = viewModel)
+                }
+            }
+
+            // Material 3 Expressive Floating Toolbar Dock
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .navigationBarsPadding()
+                    .padding(horizontal = 16.dp, vertical = 10.dp)
+                    .testTag("floating_navigation_bar"),
+                contentAlignment = Alignment.Center
+            ) {
+                Surface(
+                    modifier = Modifier.widthIn(max = 460.dp),
+                    shape = RoundedCornerShape(32.dp),
+                    color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    tonalElevation = 6.dp,
+                    shadowElevation = 10.dp,
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 8.dp, vertical = 6.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        screenList.forEach { screen ->
+                            val isSelected = activeScreen == screen
+                            val screenTitle = screen.getTitle(appLanguage)
+                            val interactionSource = remember { MutableInteractionSource() }
+                            val isPressed by interactionSource.collectIsPressedAsState()
+
+                            val pillCorner by animateDpAsState(
+                                targetValue = when {
+                                    isPressed -> ExpressiveShapeTokens.PillPressedCorner
+                                    isSelected -> ExpressiveShapeTokens.PillSelectedCorner
+                                    else -> ExpressiveShapeTokens.PillRestingCorner
+                                },
+                                animationSpec = MotionTokens.spatialSpringDp,
+                                label = "nav_corner_${screen.route}"
                             )
 
-                            AnimatedVisibility(
-                                visible = isSelected,
-                                enter = expandHorizontally(spring(stiffness = Spring.StiffnessMedium)) + fadeIn(),
-                                exit = shrinkHorizontally(spring(stiffness = Spring.StiffnessMedium)) + fadeOut()
+                            val pillScale by animateFloatAsState(
+                                targetValue = if (isPressed) 0.94f else 1f,
+                                animationSpec = MotionTokens.spatialSnappyFloat,
+                                label = "nav_scale_${screen.route}"
+                            )
+
+                            val pillBackground by animateColorAsState(
+                                targetValue = if (isSelected) {
+                                    MaterialTheme.colorScheme.primaryContainer
+                                } else Color.Transparent,
+                                animationSpec = MotionTokens.colorTransition,
+                                label = "nav_bg_${screen.route}"
+                            )
+
+                            val contentColor by animateColorAsState(
+                                targetValue = if (isSelected) {
+                                    MaterialTheme.colorScheme.onPrimaryContainer
+                                } else {
+                                    MaterialTheme.colorScheme.onSurfaceVariant
+                                },
+                                animationSpec = MotionTokens.colorTransition,
+                                label = "nav_fg_${screen.route}"
+                            )
+
+                            val pillShape = RoundedCornerShape(pillCorner)
+
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.Center,
+                                modifier = Modifier
+                                    .defaultMinSize(minWidth = 52.dp, minHeight = 48.dp)
+                                    .heightIn(min = 48.dp)
+                                    .graphicsLayer {
+                                        scaleX = pillScale
+                                        scaleY = pillScale
+                                    }
+                                    .clip(pillShape)
+                                    .testTag("nav_tab_${screen.route}")
+                                    .background(pillBackground)
+                                    .clickable(
+                                        interactionSource = interactionSource,
+                                        indication = ripple(),
+                                        role = Role.Tab,
+                                        onClick = {
+                                            if (!isSelected) {
+                                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                                activeScreen = screen
+                                            }
+                                        }
+                                    )
+                                    .padding(
+                                        horizontal = if (isSelected) 16.dp else 12.dp,
+                                        vertical = 8.dp
+                                    )
                             ) {
-                                Text(
-                                    text = screenTitle,
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = contentColor,
-                                    modifier = Modifier.padding(start = 6.dp),
-                                    maxLines = 1
+                                Icon(
+                                    imageVector = screen.icon,
+                                    contentDescription = screenTitle,
+                                    tint = contentColor,
+                                    modifier = Modifier.size(22.dp)
                                 )
+
+                                AnimatedVisibility(
+                                    visible = isSelected,
+                                    enter = expandHorizontally(MotionTokens.spatialSpringDp.let {
+                                        androidx.compose.animation.core.spring(
+                                            dampingRatio = androidx.compose.animation.core.Spring.DampingRatioLowBouncy,
+                                            stiffness = androidx.compose.animation.core.Spring.StiffnessMedium
+                                        )
+                                    }) + fadeIn(MotionTokens.effectsFloat),
+                                    exit = shrinkHorizontally(
+                                        androidx.compose.animation.core.spring(
+                                            dampingRatio = androidx.compose.animation.core.Spring.DampingRatioNoBouncy,
+                                            stiffness = androidx.compose.animation.core.Spring.StiffnessHigh
+                                        )
+                                    ) + fadeOut(MotionTokens.fastEffectsFloat)
+                                ) {
+                                    Text(
+                                        text = screenTitle,
+                                        style = MaterialTheme.typography.labelLarge,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = contentColor,
+                                        modifier = Modifier.padding(start = 7.dp),
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
                             }
                         }
                     }
@@ -305,3 +445,4 @@ fun MainScreenContent(
         }
     }
 }
+

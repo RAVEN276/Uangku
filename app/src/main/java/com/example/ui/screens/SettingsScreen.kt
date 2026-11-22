@@ -7,6 +7,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -14,9 +15,11 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -59,7 +62,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Brush
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.ui.platform.LocalContext
@@ -70,10 +73,22 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.tween
+import com.example.ui.theme.MotionTokens
 import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.Language
-import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Palette
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Warning
+import androidx.compose.runtime.DisposableEffect
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.example.service.MyNotificationListenerService
+import com.example.ui.components.ExpressiveSegmentOption
+import com.example.ui.components.ExpressiveSegmentedSelector
+import com.example.ui.theme.ExpressiveShapeTokens
+import com.example.ui.theme.LocalUangkuColors
+import com.example.ui.theme.tabular
 import com.example.ui.util.AppStrings
 import com.example.ui.FinanceViewModel
 
@@ -108,66 +123,84 @@ fun SettingsScreen(
     var showPdfReportDialog by remember { mutableStateOf(false) }
     var pdfReportText by remember { mutableStateOf("") }
 
-    Scaffold(
-        modifier = modifier.fillMaxSize(),
-        containerColor = Color.Transparent
-    ) { innerPadding ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(
-                    Brush.verticalGradient(
-                        colors = if (themeDark) listOf(Color(0xFF0F172A), Color(0xFF020617))
-                                 else listOf(Color(0xFFF8FAFC), Color(0xFFE2E8F0))
-                    )
-                )
-                .padding(innerPadding)
-        ) {
-            Column(
-                modifier = Modifier.fillMaxSize()
+    val uangkuColors = LocalUangkuColors.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+    var hasNotificationAccess by remember {
+        mutableStateOf(MyNotificationListenerService.isNotificationServiceEnabled(context))
+    }
+
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                hasNotificationAccess = MyNotificationListenerService.isNotificationServiceEnabled(context)
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
+
+    BoxWithConstraints(modifier = modifier.fillMaxSize()) {
+        val isCompactWidth = maxWidth < 600.dp
+
+        Scaffold(
+            modifier = Modifier.fillMaxSize(),
+            containerColor = Color.Transparent
+        ) { innerPadding ->
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(MaterialTheme.colorScheme.background)
+                    .padding(innerPadding),
+                contentAlignment = Alignment.TopCenter
             ) {
-                // SPATIAL HEADER
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(bottomStart = 32.dp, bottomEnd = 32.dp))
-                        .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.92f))
-                        .border(
-                            1.dp,
-                            MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
-                            RoundedCornerShape(bottomStart = 32.dp, bottomEnd = 32.dp)
-                        )
-                        .padding(top = 48.dp, bottom = 24.dp, start = 24.dp, end = 24.dp)
-                ) {
-                    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                        Text(
-                            text = AppStrings.settingsTitle(appLanguage),
-                            style = MaterialTheme.typography.headlineLarge,
-                            fontWeight = FontWeight.Black,
-                            color = MaterialTheme.colorScheme.onSurface,
-                            letterSpacing = (-1).sp
-                        )
-                        Text(
-                            text = AppStrings.settingsSubtitle(appLanguage),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-                
-                // Content Below Header
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(horizontal = 16.dp)
-                        .verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                        .widthIn(max = 900.dp)
                 ) {
-                    Spacer(modifier = Modifier.height(8.dp))
+                    // SPATIAL HEADER
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(bottomStart = ExpressiveShapeTokens.HeroCorner, bottomEnd = ExpressiveShapeTokens.HeroCorner))
+                            .background(MaterialTheme.colorScheme.surfaceContainerLow)
+                            .border(
+                                1.dp,
+                                MaterialTheme.colorScheme.outlineVariant,
+                                RoundedCornerShape(bottomStart = ExpressiveShapeTokens.HeroCorner, bottomEnd = ExpressiveShapeTokens.HeroCorner)
+                            )
+                            .padding(top = 36.dp, bottom = 20.dp, start = 20.dp, end = 20.dp)
+                    ) {
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text(
+                                text = AppStrings.settingsTitle(appLanguage),
+                                style = MaterialTheme.typography.headlineLarge,
+                                fontWeight = FontWeight.Black,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = AppStrings.settingsSubtitle(appLanguage),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+
+                    // Content Below Header
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(horizontal = 16.dp)
+                            .verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        Spacer(modifier = Modifier.height(8.dp))
 
             // --- PROFIL PENGGUNA SECTION ---
             Text(
-                text = "Profil Pengguna",
+                text = AppStrings.userProfileTitle(appLanguage),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onSurface,
@@ -176,14 +209,14 @@ fun SettingsScreen(
 
             Card(
                 modifier = Modifier.fillMaxWidth().testTag("user_profile_card"),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                shape = RoundedCornerShape(20.dp),
-                border = CardDefaults.outlinedCardBorder()
+                colors = CardDefaults.cardColors(containerColor = uangkuColors.cardSurface),
+                shape = RoundedCornerShape(32.dp),
+                border = BorderStroke(1.dp, uangkuColors.cardBorder)
             ) {
                 Column(modifier = Modifier.padding(4.dp)) {
                     SecuritySettingRow(
-                        title = "Nama Panggilan",
-                        subtitle = "Nama Anda yang dicantumkan di halaman Utama: $currentName",
+                        title = AppStrings.nicknameTitle(appLanguage),
+                        subtitle = AppStrings.nicknameSubtitle(appLanguage, currentName),
                         icon = {
                             Icon(
                                 imageVector = Icons.Default.Person,
@@ -204,7 +237,7 @@ fun SettingsScreen(
 
             // --- DEPART SHEET SECTION: EXPORTS OF REPORTS ---
             Text(
-                text = "Ekspor Laporan Keuangan",
+                text = AppStrings.exportReportTitle(appLanguage),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onSurface,
@@ -213,13 +246,13 @@ fun SettingsScreen(
 
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                shape = RoundedCornerShape(20.dp),
-                border = CardDefaults.outlinedCardBorder()
+                colors = CardDefaults.cardColors(containerColor = uangkuColors.cardSurface),
+                shape = RoundedCornerShape(32.dp),
+                border = BorderStroke(1.dp, uangkuColors.cardBorder)
             ) {
                 Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                     Text(
-                        text = "Unduh laporan keuangan bulanan lengkap Anda langsung dalam format spreadsheet ataupun PDF siap cetak.",
+                        text = AppStrings.exportReportDesc(appLanguage),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -236,13 +269,17 @@ fun SettingsScreen(
                             },
                             modifier = Modifier
                                 .weight(1f)
+                                .heightIn(min = 48.dp)
                                 .testTag("export_pdf_button"),
-                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.primary,
+                                contentColor = MaterialTheme.colorScheme.onPrimary
+                            ),
                             shape = RoundedCornerShape(12.dp)
                         ) {
                             Icon(imageVector = Icons.Default.PictureAsPdf, contentDescription = "PDF")
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text("Simpan PDF", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            Text(AppStrings.savePdf(appLanguage), fontSize = 12.sp, fontWeight = FontWeight.Bold)
                         }
 
                         // CSV Excel export click
@@ -257,12 +294,13 @@ fun SettingsScreen(
                             },
                             modifier = Modifier
                                 .weight(1f)
+                                .heightIn(min = 48.dp)
                                 .testTag("export_excel_button"),
                             shape = RoundedCornerShape(12.dp)
                         ) {
                             Icon(imageVector = Icons.AutoMirrored.Filled.ListAlt, contentDescription = "Excel", tint = MaterialTheme.colorScheme.primary)
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text("Ekspor Excel", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            Text(AppStrings.exportExcel(appLanguage), fontSize = 12.sp, fontWeight = FontWeight.Bold)
                         }
                     }
                 }
@@ -270,7 +308,7 @@ fun SettingsScreen(
 
             // --- ACCOUNT SECURITY & BIOMETRIC SECTION ---
             Text(
-                text = "Keamanan & Akses Biometrik",
+                text = AppStrings.securityTitle(appLanguage),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onSurface,
@@ -279,15 +317,15 @@ fun SettingsScreen(
 
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                shape = RoundedCornerShape(20.dp),
-                border = CardDefaults.outlinedCardBorder()
+                colors = CardDefaults.cardColors(containerColor = uangkuColors.cardSurface),
+                shape = RoundedCornerShape(32.dp),
+                border = BorderStroke(1.dp, uangkuColors.cardBorder)
             ) {
                 Column(modifier = Modifier.padding(4.dp)) {
                     // PIN Lock toggle
                     SecuritySettingRow(
-                        title = "Aktifkan Kunci PIN Keamanan",
-                        subtitle = "Wajibkan entry PIN 4-digit saat startup aplikasi.",
+                        title = AppStrings.pinLockTitleSettings(appLanguage),
+                        subtitle = AppStrings.pinLockSubtitleSettings(appLanguage),
                         icon = {
                             Icon(
                                 imageVector = Icons.Default.Lock,
@@ -306,8 +344,8 @@ fun SettingsScreen(
 
                     // Biometrics switch
                     SecuritySettingRow(
-                        title = "Autentikasi Biometrik (Sidik Jari)",
-                        subtitle = "Aktifkan autentikasi sidik jari di halaman login saat membuka aplikasi.",
+                        title = AppStrings.biometricTitleSettings(appLanguage),
+                        subtitle = AppStrings.biometricSubtitleSettings(appLanguage),
                         icon = {
                             Icon(
                                 imageVector = Icons.Default.Fingerprint,
@@ -329,8 +367,8 @@ fun SettingsScreen(
                     // Pin changes
                     if (isPinEnabled) {
                         SecuritySettingRow(
-                            title = "Ubah Kode PIN Pengaman",
-                            subtitle = "Ubah 4 digit kode PIN Anda. PIN saat ini: $currentPin",
+                            title = AppStrings.changePinTitleSettings(appLanguage),
+                            subtitle = AppStrings.changePinSubtitleSettings(appLanguage, currentPin),
                             icon = {
                                 Icon(
                                     imageVector = Icons.Default.Lock,
@@ -351,8 +389,8 @@ fun SettingsScreen(
                     // App locking
                     if (isPinEnabled) {
                         SecuritySettingRow(
-                            title = "Kunci Aplikasi Sekarang",
-                            subtitle = "Keluar secara aman untuk memverifikasi halaman autentikasi biometric PIN anda.",
+                            title = AppStrings.lockAppTitleSettings(appLanguage),
+                            subtitle = AppStrings.lockAppSubtitleSettings(appLanguage),
                             icon = {
                                 Icon(
                                     imageVector = Icons.AutoMirrored.Filled.ExitToApp,
@@ -362,7 +400,7 @@ fun SettingsScreen(
                             },
                             onClick = { viewModel.lockApp() },
                             trailing = {
-                                Text("Keluar", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
+                                Text(AppStrings.lockNowAction(appLanguage), color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
                             }
                         )
                     }
@@ -371,7 +409,7 @@ fun SettingsScreen(
 
             // --- DETEKTOR NOTIFIKASI BANK SECTION ---
             Text(
-                text = "Detektor Notifikasi Bank",
+                text = AppStrings.bankDetectorTitle(appLanguage),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onSurface,
@@ -380,14 +418,61 @@ fun SettingsScreen(
 
             Card(
                 modifier = Modifier.fillMaxWidth().testTag("bank_notif_settings_card"),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = uangkuColors.cardSurface),
+                shape = RoundedCornerShape(32.dp),
                 border = CardDefaults.outlinedCardBorder()
             ) {
                 Column(modifier = Modifier.padding(4.dp)) {
+                    // Live System Permission & Filter Status Header Pill
+                    val statusBg = when {
+                        !bankNotificationEnabled -> uangkuColors.elevatedSubSurface
+                        hasNotificationAccess -> uangkuColors.incomeContainer
+                        else -> uangkuColors.warningContainer
+                    }
+                    val statusFg = when {
+                        !bankNotificationEnabled -> MaterialTheme.colorScheme.onSurfaceVariant
+                        hasNotificationAccess -> uangkuColors.onIncomeContainer
+                        else -> uangkuColors.onWarningContainer
+                    }
+                    val statusLabel = when {
+                        !bankNotificationEnabled -> AppStrings.detectorStatusPaused(appLanguage)
+                        hasNotificationAccess -> AppStrings.detectorStatusActive(appLanguage)
+                        else -> AppStrings.detectorStatusNeedsPermission(appLanguage)
+                    }
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(statusBg)
+                                .padding(horizontal = 12.dp, vertical = 6.dp)
+                                .testTag("bank_notif_status_pill")
+                        ) {
+                            Icon(
+                                imageVector = if (hasNotificationAccess && bankNotificationEnabled) Icons.Default.CheckCircle else Icons.Default.Warning,
+                                contentDescription = statusLabel,
+                                tint = statusFg,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Text(
+                                text = statusLabel,
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = statusFg
+                            )
+                        }
+                    }
+
                     SecuritySettingRow(
-                        title = "Aktifkan Detektor Notifikasi",
-                        subtitle = "Otomatis membaca dan mencatat pengeluaran masuk/keluar dari notifikasi bank & e-wallet.",
+                        title = AppStrings.enableBankDetectorTitle(appLanguage),
+                        subtitle = AppStrings.enableBankDetectorSubtitle(appLanguage),
                         icon = {
                             Icon(
                                 imageVector = Icons.Default.NotificationsActive,
@@ -412,13 +497,13 @@ fun SettingsScreen(
                     )
 
                     SecuritySettingRow(
-                        title = "Pengaturan Akses Izin Sistem",
-                        subtitle = "Buka pengaturan sistem Android untuk mengizinkan atau mencabut akses membaca notifikasi.",
+                        title = AppStrings.systemPermissionTitle(appLanguage),
+                        subtitle = AppStrings.systemPermissionSubtitle(appLanguage),
                         icon = {
                             Icon(
                                 imageVector = Icons.Default.Sync,
                                 contentDescription = "System Notification Permission Settings",
-                                tint = MaterialTheme.colorScheme.secondary
+                                tint = MaterialTheme.colorScheme.primary
                             )
                         },
                         onClick = {
@@ -436,12 +521,27 @@ fun SettingsScreen(
                             )
                         }
                     )
+
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 8.dp)
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(uangkuColors.elevatedSubSurface)
+                            .padding(12.dp)
+                    ) {
+                        Text(
+                            text = AppStrings.supportedFinancialAppsLabel(appLanguage),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
             }
 
             // --- MATA UANG & KURS GLOBAL SECTION ---
             Text(
-                text = "Mata Uang & Kurs Global",
+                text = AppStrings.currencySection(appLanguage),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onSurface,
@@ -450,104 +550,62 @@ fun SettingsScreen(
 
             Card(
                 modifier = Modifier.fillMaxWidth().testTag("currency_settings_card"),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                shape = RoundedCornerShape(20.dp),
-                border = CardDefaults.outlinedCardBorder()
+                colors = CardDefaults.cardColors(containerColor = uangkuColors.cardSurface),
+                shape = RoundedCornerShape(ExpressiveShapeTokens.BentoCorner),
+                border = BorderStroke(1.dp, uangkuColors.cardBorder)
             ) {
                 Column(
                     modifier = Modifier.padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
                     Text(
-                        text = "Pilih mata uang utama aplikasi. Seluruh nominal transaksi, grafik, dan laporan akan otomatis dikonversi sesuai kurs pilihan Anda.",
+                        text = AppStrings.currencySubtitle(appLanguage),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
 
-                    // Segmented Selector for Currency (IDR vs USD)
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(48.dp)
-                            .background(
-                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
-                                shape = RoundedCornerShape(24.dp)
-                            )
-                            .padding(4.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        // IDR Option
-                        val isIdr = selectedCurrency == "IDR"
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .fillMaxHeight()
-                                .clip(RoundedCornerShape(20.dp))
-                                .background(
-                                    if (isIdr) MaterialTheme.colorScheme.primary else Color.Transparent
-                                )
-                                .clickable {
-                                    viewModel.setCurrency("IDR")
-                                    Toast.makeText(context, "Mata uang diubah ke Rupiah (IDR)", Toast.LENGTH_SHORT).show()
-                                },
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = "🇮🇩 IDR (Rp)",
-                                color = if (isIdr) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
-                                style = MaterialTheme.typography.bodyMedium,
-                                fontWeight = FontWeight.Bold
-                            )
+                    // M3E Segmented Selector for Currency (IDR vs USD)
+                    ExpressiveSegmentedSelector(
+                        options = listOf(
+                            ExpressiveSegmentOption(key = "IDR", label = "IDR (Rp)"),
+                            ExpressiveSegmentOption(key = "USD", label = "USD ($)")
+                        ),
+                        selectedKey = selectedCurrency,
+                        onSelect = { newCurr ->
+                            viewModel.setCurrency(newCurr)
+                            val msg = if (newCurr == "IDR") "Mata uang diubah ke Rupiah (IDR)" else "Mata uang diubah ke Dollar AS (USD)"
+                            Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
                         }
-
-                        // USD Option
-                        val isUsd = selectedCurrency == "USD"
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .fillMaxHeight()
-                                .clip(RoundedCornerShape(20.dp))
-                                .background(
-                                    if (isUsd) MaterialTheme.colorScheme.primary else Color.Transparent
-                                )
-                                .clickable {
-                                    viewModel.setCurrency("USD")
-                                    Toast.makeText(context, "Mata uang diubah ke Dollar AS (USD)", Toast.LENGTH_SHORT).show()
-                                },
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = "🇺🇸 USD ($)",
-                                color = if (isUsd) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
-                                style = MaterialTheme.typography.bodyMedium,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                    }
+                    )
 
                     // Exchange Rate Info Banner
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
                             .background(
-                                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f),
-                                shape = RoundedCornerShape(14.dp)
+                                color = uangkuColors.elevatedSubSurface,
+                                shape = RoundedCornerShape(ExpressiveShapeTokens.BentoInnerCorner)
                             )
-                            .padding(horizontal = 12.dp, vertical = 10.dp),
+                            .border(
+                                1.dp,
+                                uangkuColors.cardBorder,
+                                RoundedCornerShape(ExpressiveShapeTokens.BentoInnerCorner)
+                            )
+                            .padding(horizontal = 14.dp, vertical = 12.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column {
                             Text(
-                                text = "Kurs Acuan Dollar",
+                                text = AppStrings.benchmarkRate(appLanguage),
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                             Text(
                                 text = "1 USD = Rp ${String.format("%,d", usdToIdrRate.toInt()).replace(',', '.')}",
-                                style = MaterialTheme.typography.bodyMedium,
+                                style = MaterialTheme.typography.bodyMedium.tabular(),
                                 fontWeight = FontWeight.Black,
-                                color = MaterialTheme.colorScheme.primary
+                                color = MaterialTheme.colorScheme.onSurface
                             )
                         }
 
@@ -556,9 +614,9 @@ fun SettingsScreen(
                                 rateInputValue = usdToIdrRate.toInt().toString()
                                 showRateDialog = true
                             },
-                            shape = RoundedCornerShape(12.dp)
+                            shape = RoundedCornerShape(ExpressiveShapeTokens.PillRestingCorner)
                         ) {
-                            Text("Sesuaikan Kurs", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            Text(AppStrings.adjustRate(appLanguage), fontSize = 12.sp, fontWeight = FontWeight.Bold)
                         }
                     }
                 }
@@ -575,11 +633,62 @@ fun SettingsScreen(
 
             Card(
                 modifier = Modifier.fillMaxWidth().testTag("appearance_card"),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                shape = RoundedCornerShape(20.dp),
-                border = CardDefaults.outlinedCardBorder()
+                colors = CardDefaults.cardColors(containerColor = uangkuColors.cardSurface),
+                shape = RoundedCornerShape(ExpressiveShapeTokens.BentoCorner),
+                border = BorderStroke(1.dp, uangkuColors.cardBorder)
             ) {
                 Column(modifier = Modifier.padding(4.dp)) {
+                    // Live Material 3 Expressive Palette Preview Bento Banner
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp, vertical = 12.dp)
+                            .clip(RoundedCornerShape(ExpressiveShapeTokens.BentoInnerCorner))
+                            .background(MaterialTheme.colorScheme.surfaceContainer)
+                            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(ExpressiveShapeTokens.BentoInnerCorner))
+                            .padding(14.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(
+                            modifier = Modifier.weight(1f),
+                            verticalArrangement = Arrangement.spacedBy(3.dp)
+                        ) {
+                            Text(
+                                text = if (uangkuColors.isDynamic) {
+                                    AppStrings.themeModeDynamic(appLanguage)
+                                } else {
+                                    AppStrings.themeModeExpressive(appLanguage)
+                                },
+                                style = MaterialTheme.typography.labelLarge,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            Text(
+                                text = AppStrings.themePreviewSubtitle(appLanguage, uangkuColors.isDynamic),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            listOf(
+                                MaterialTheme.colorScheme.primary,
+                                MaterialTheme.colorScheme.secondary,
+                                MaterialTheme.colorScheme.tertiary,
+                                MaterialTheme.colorScheme.primaryContainer
+                            ).forEach { swatch ->
+                                Box(
+                                    modifier = Modifier
+                                        .size(20.dp)
+                                        .clip(CircleShape)
+                                        .background(swatch)
+                                        .border(1.dp, MaterialTheme.colorScheme.outlineVariant, CircleShape)
+                                )
+                            }
+                        }
+                    }
+
                     // 1. Dark Mode Toggle
                     SecuritySettingRow(
                         title = AppStrings.darkModeTitle(appLanguage),
@@ -606,10 +715,10 @@ fun SettingsScreen(
                             .fillMaxWidth()
                             .padding(horizontal = 16.dp)
                             .height(1.dp)
-                            .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                            .background(MaterialTheme.colorScheme.outlineVariant)
                     )
 
-                    // 2. Language Toggle (English & Indonesia) directly below Dark Mode
+                    // 2. Language Toggle (English & Indonesia)
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -622,7 +731,7 @@ fun SettingsScreen(
                             Box(
                                 modifier = Modifier
                                     .size(36.dp)
-                                    .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f), CircleShape),
+                                    .background(MaterialTheme.colorScheme.surfaceContainerHigh, CircleShape),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(
@@ -653,83 +762,18 @@ fun SettingsScreen(
 
                         Spacer(modifier = Modifier.height(12.dp))
 
-                        // Segmented Language Selector
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(46.dp)
-                                .clip(RoundedCornerShape(24.dp))
-                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
-                                .padding(4.dp),
-                            horizontalArrangement = Arrangement.spacedBy(4.dp)
-                        ) {
-                            val isId = appLanguage.equals("id", ignoreCase = true)
-                            val isEn = appLanguage.equals("en", ignoreCase = true)
-
-                            // Indonesian Language Option
-                            val idBgColor by animateColorAsState(
-                                targetValue = if (isId) MaterialTheme.colorScheme.primary else Color.Transparent,
-                                animationSpec = tween(250),
-                                label = "lang_id_bg"
-                            )
-                            val idTextColor by animateColorAsState(
-                                targetValue = if (isId) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
-                                animationSpec = tween(250),
-                                label = "lang_id_text"
-                            )
-                            Box(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .fillMaxHeight()
-                                    .clip(RoundedCornerShape(20.dp))
-                                    .background(idBgColor)
-                                    .clickable {
-                                        viewModel.setLanguage("id")
-                                        Toast.makeText(context, "Bahasa diubah ke Bahasa Indonesia", Toast.LENGTH_SHORT).show()
-                                    }
-                                    .testTag("language_toggle_indonesia"),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = "🇮🇩 Indonesia",
-                                    color = idTextColor,
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    fontWeight = FontWeight.Bold
-                                )
+                        ExpressiveSegmentedSelector(
+                            options = listOf(
+                                ExpressiveSegmentOption(key = "id", label = "Indonesia", testTag = "language_toggle_indonesia"),
+                                ExpressiveSegmentOption(key = "en", label = "English", testTag = "language_toggle_english")
+                            ),
+                            selectedKey = if (appLanguage.equals("en", ignoreCase = true)) "en" else "id",
+                            onSelect = { newLang ->
+                                viewModel.setLanguage(newLang)
+                                val msg = if (newLang == "id") "Bahasa diubah ke Bahasa Indonesia" else "Language switched to English"
+                                Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
                             }
-
-                            // English Language Option
-                            val enBgColor by animateColorAsState(
-                                targetValue = if (isEn) MaterialTheme.colorScheme.primary else Color.Transparent,
-                                animationSpec = tween(250),
-                                label = "lang_en_bg"
-                            )
-                            val enTextColor by animateColorAsState(
-                                targetValue = if (isEn) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
-                                animationSpec = tween(250),
-                                label = "lang_en_text"
-                            )
-                            Box(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .fillMaxHeight()
-                                    .clip(RoundedCornerShape(20.dp))
-                                    .background(enBgColor)
-                                    .clickable {
-                                        viewModel.setLanguage("en")
-                                        Toast.makeText(context, "Language switched to English", Toast.LENGTH_SHORT).show()
-                                    }
-                                    .testTag("language_toggle_english"),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = "🇬🇧 English",
-                                    color = enTextColor,
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
-                        }
+                        )
                     }
 
                     // 3. Dynamic Color (Material You) for Android 12+
@@ -739,7 +783,7 @@ fun SettingsScreen(
                                 .fillMaxWidth()
                                 .padding(horizontal = 16.dp)
                                 .height(1.dp)
-                                .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                                .background(MaterialTheme.colorScheme.outlineVariant)
                         )
 
                         SecuritySettingRow(
@@ -747,7 +791,7 @@ fun SettingsScreen(
                             subtitle = AppStrings.dynamicColorSubtitle(appLanguage),
                             icon = {
                                 Icon(
-                                    imageVector = Icons.Default.AutoAwesome,
+                                    imageVector = Icons.Default.Palette,
                                     contentDescription = "Dynamic colors",
                                     tint = MaterialTheme.colorScheme.primary
                                 )
@@ -775,9 +819,9 @@ fun SettingsScreen(
 
             Card(
                 modifier = Modifier.fillMaxWidth().testTag("app_info_card"),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                shape = RoundedCornerShape(20.dp),
-                border = CardDefaults.outlinedCardBorder()
+                colors = CardDefaults.cardColors(containerColor = uangkuColors.cardSurface),
+                shape = RoundedCornerShape(32.dp),
+                border = BorderStroke(1.dp, uangkuColors.cardBorder)
             ) {
                 Column(
                     modifier = Modifier.padding(16.dp),
@@ -820,7 +864,7 @@ fun SettingsScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(1.dp)
-                            .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                            .background(MaterialTheme.colorScheme.outlineVariant)
                     )
 
                     Row(
@@ -831,7 +875,7 @@ fun SettingsScreen(
                         Icon(
                             imageVector = Icons.Default.Lock,
                             contentDescription = null,
-                            tint = Color(0xFF10B981),
+                            tint = uangkuColors.incomeText,
                             modifier = Modifier.size(20.dp)
                         )
                         Column {
@@ -851,7 +895,7 @@ fun SettingsScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.navigationBarsPadding().height(140.dp))
+            Spacer(modifier = Modifier.navigationBarsPadding().height(if (isCompactWidth) 108.dp else 32.dp))
         }
     }
 
@@ -866,12 +910,12 @@ fun SettingsScreen(
                     modifier = Modifier.padding(24.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    Text(text = "Ubah Nama Panggilan", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                    Text(text = AppStrings.changeNicknameTitle(appLanguage), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
 
                     OutlinedTextField(
                         value = nameInputValue,
                         onValueChange = { nameInputValue = it },
-                        label = { Text("Nama Panggilan") },
+                        label = { Text(AppStrings.nicknameLabel(appLanguage)) },
                         singleLine = true,
                         shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp),
                         modifier = Modifier
@@ -884,7 +928,7 @@ fun SettingsScreen(
                         horizontalArrangement = Arrangement.End
                     ) {
                         TextButton(onClick = { showNameDialog = false }) {
-                            Text("Batal")
+                            Text(AppStrings.cancel(appLanguage))
                         }
                         Spacer(modifier = Modifier.width(8.dp))
                         Button(
@@ -898,7 +942,7 @@ fun SettingsScreen(
                                 }
                             }
                         ) {
-                            Text("Simpan")
+                            Text(AppStrings.save(appLanguage))
                         }
                     }
                 }
@@ -917,12 +961,12 @@ fun SettingsScreen(
                     modifier = Modifier.padding(24.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    Text(text = "Ganti PIN Aplikasi", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                    Text(text = AppStrings.changeAppPinTitle(appLanguage), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
 
                     OutlinedTextField(
                         value = pinInputValue,
                         onValueChange = { if (it.length <= 4 && it.all { c -> c.isDigit() }) pinInputValue = it },
-                        label = { Text("PIN Baru (4 Digit Angka)") },
+                        label = { Text(AppStrings.newPinPrompt(appLanguage)) },
                         singleLine = true,
                         shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp),
                         modifier = Modifier
@@ -935,7 +979,7 @@ fun SettingsScreen(
                         horizontalArrangement = Arrangement.End
                     ) {
                         TextButton(onClick = { showPinDialog = false }) {
-                            Text("Batal")
+                            Text(AppStrings.cancel(appLanguage))
                         }
                         Spacer(modifier = Modifier.width(8.dp))
                         Button(
@@ -948,7 +992,7 @@ fun SettingsScreen(
                             },
                             enabled = pinInputValue.length == 4
                         ) {
-                            Text("Simpan PIN")
+                            Text(AppStrings.savePin(appLanguage))
                         }
                     }
                 }
@@ -968,13 +1012,13 @@ fun SettingsScreen(
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
                     Text(
-                        text = "Sesuaikan Kurs USD / IDR",
+                        text = AppStrings.adjustRateTitle(appLanguage),
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold
                     )
 
                     Text(
-                        text = "Masukkan nilai kurs 1 Dollar AS (USD) ke Rupiah (IDR) saat ini.",
+                        text = AppStrings.adjustRateSubtitle(appLanguage),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -982,7 +1026,7 @@ fun SettingsScreen(
                     OutlinedTextField(
                         value = rateInputValue,
                         onValueChange = { if (it.all { c -> c.isDigit() }) rateInputValue = it },
-                        label = { Text("Nilai 1 USD dalam Rupiah (Rp)") },
+                        label = { Text(AppStrings.ratePrompt(appLanguage)) },
                         singleLine = true,
                         shape = RoundedCornerShape(24.dp),
                         modifier = Modifier.fillMaxWidth()
@@ -993,7 +1037,7 @@ fun SettingsScreen(
                         horizontalArrangement = Arrangement.End
                     ) {
                         TextButton(onClick = { showRateDialog = false }) {
-                            Text("Batal")
+                            Text(AppStrings.cancel(appLanguage))
                         }
                         Spacer(modifier = Modifier.width(8.dp))
                         Button(
@@ -1008,7 +1052,7 @@ fun SettingsScreen(
                                 }
                             }
                         ) {
-                            Text("Simpan Kurs")
+                            Text(AppStrings.saveRate(appLanguage))
                         }
                     }
                 }
@@ -1023,7 +1067,7 @@ fun SettingsScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(vertical = 32.dp),
-                shape = RoundedCornerShape(24.dp),
+                shape = RoundedCornerShape(32.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
             ) {
                 Column(
@@ -1037,7 +1081,7 @@ fun SettingsScreen(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(text = "Pratinjau PDF Laporan", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                        Text(text = AppStrings.pdfPreviewTitle(appLanguage), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                         IconButton(onClick = { showPdfReportDialog = false }) {
                             Icon(Icons.Default.Share, contentDescription = "Buka PDF", tint = MaterialTheme.colorScheme.primary)
                         }
@@ -1046,14 +1090,14 @@ fun SettingsScreen(
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f), RoundedCornerShape(12.dp))
+                            .background(MaterialTheme.colorScheme.surfaceContainerHigh, RoundedCornerShape(12.dp))
                             .padding(12.dp)
                     ) {
                         Text(
                             text = pdfReportText,
                             fontFamily = FontFamily.Monospace,
                             fontSize = 11.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            color = MaterialTheme.colorScheme.onSurface
                         )
                     }
 
@@ -1067,13 +1111,14 @@ fun SettingsScreen(
                                 Toast.makeText(context, "Dokumen PDF Berhasil dibagikan ke penyimpanan perangkat anda!", Toast.LENGTH_SHORT).show()
                             }
                         ) {
-                            Text("Bagikan PDF")
+                            Text(AppStrings.sharePdf(appLanguage))
                         }
                     }
                 }
             }
         }
     }
+        }
         }
     }
 }
@@ -1091,6 +1136,7 @@ fun SecuritySettingRow(
     Row(
         modifier = modifier
             .fillMaxWidth()
+            .heightIn(min = 52.dp)
             .alpha(if (enabled) 1f else 0.5f)
             .clickable(enabled = enabled && onClick != null) { onClick?.invoke() }
             .padding(16.dp),
@@ -1098,8 +1144,8 @@ fun SecuritySettingRow(
     ) {
         Box(
             modifier = Modifier
-                .size(36.dp)
-                .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f), CircleShape),
+                .size(38.dp)
+                .background(MaterialTheme.colorScheme.surfaceContainerHigh, CircleShape),
             contentAlignment = Alignment.Center
         ) {
             icon()

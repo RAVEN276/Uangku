@@ -120,8 +120,10 @@ object LocalFinanceMLEngine {
         transactions: List<Transaction>,
         userName: String,
         currency: String = "IDR",
-        exchangeRate: Double = 16250.0
+        exchangeRate: Double = 16250.0,
+        lang: String = "id"
     ): MLInsight {
+        val isEnglish = com.example.ui.util.AppStrings.isEn(lang)
         val expenses = transactions.filter { it.type == "EXPENSE" }.sortedBy { it.timestamp }
         val incomes = transactions.filter { it.type == "INCOME" }
         val totalIncomeAmt = incomes.sumOf { it.amount }
@@ -151,21 +153,32 @@ object LocalFinanceMLEngine {
                 totalExpense = 0.0,
                 averageExpense = 0.0,
                 forecastedNextWeek = 0.0,
-                topCategory = "Belum Ada",
+                topCategory = if (isEnglish) "None" else "Belum Ada",
                 topCategoryPercentage = 0.0,
                 anomalies = emptyList(),
-                recommendations = listOf("Tambahkan transaksi pengeluaran pertama Anda agar Asisten Cerdas dapat menganalisis data keuangan Anda secara akurat."),
-                markdownReport = """
-                    ### 📊 Analisis Keuangan Asisten Cerdas
+                recommendations = listOf(
+                    if (isEnglish) "Record your first expense to generate financial analysis and spending insights."
+                    else "Catat pengeluaran pertama Anda agar ringkasan pola belanja dapat dianalisis."
+                ),
+                markdownReport = if (isEnglish) """
+                    ### Financial Analysis
                     
-                    Belum ada data pengeluaran yang tercatat di basis data lokal perangkat Anda untuk dianalisis.
+                    No expense records found yet in your local database.
                     
-                    💡 **Rekomendasi Awal:**
-                    - Catat setiap pengeluaran harian Anda (seperti makanan, transportasi, kebutuhan bulanan).
-                    - Kembali kesini setelah Anda menambahkan transaksi untuk melihat analisis klan, deteksi anomali otomatis, serta proyeksi statistik cerdas kami.
+                    **Getting Started:**
+                    - Record your daily expenses (food, transport, bills, shopping).
+                    - Review this summary anytime to monitor your spending habits and projections.
+                """.trimIndent() else """
+                    ### Analisis Keuangan
+                    
+                    Belum ada catatan pengeluaran pada akun Anda.
+                    
+                    **Langkah Awal:**
+                    - Catat pengeluaran harian Anda (makanan, transportasi, tagihan, belanja).
+                    - Buka kembali halaman ini setelah mencatat transaksi untuk melihat ringkasan pengeluaran dan proyeksi saldo.
                 """.trimIndent(),
-                categoryToReduce = "Tidak Ada",
-                categoryReductionExplanation = "Semua kas atau anggaran Anda seimbang karena belum terdeteksi pengeluaran harian.",
+                categoryToReduce = if (isEnglish) "None" else "Tidak Ada",
+                categoryReductionExplanation = if (isEnglish) "Your balances are in order as no expenses have been recorded yet." else "Semua kas Anda seimbang karena belum ada pengeluaran yang dicatat.",
                 estimatedBalanceEndOfMonth = currentBalance,
                 dailyBurnRate = 0.0,
                 projectedSpendRemainingMonth = 0.0,
@@ -178,19 +191,23 @@ object LocalFinanceMLEngine {
         val avgExp = expenses.map { it.amount }.average()
 
         // 1. ROBUST ANOMALY DETECTION USING INTERQUARTILE RANGE (IQR)
-        // Highly robust against extreme scale variance in comparison with Standard Deviation Z-Scores
         val anomalies = detectOutliersIQR(expenses)
 
         // 2. K-MEANS SPENDING CLUSTERING ALGORITHM
-        // Performs iterative on-device spatial clustering to classify expenses into distinct behavioral groups:
-        // A: Routine/Micro, B: Medium/Lifestyle, C: High Scale/Luxury or Scheduled Big Spends
         val kMeansClusters = performKMeansClustering(expenses)
         val clusterSummaries = kMeansClusters.map { cluster ->
-            "**${cluster.label}** (${cluster.transactions.size} transaksi): Rerata ${rp.format(cluster.meanAmount)} (Total: ${rp.format(cluster.totalAmount)})"
+            val label = if (isEnglish) {
+                when (cluster.label) {
+                    "Transaksi Mikro & Rutin" -> "Routine & Micro Expenses"
+                    "Belanja Lifestyle & Sekunder" -> "Lifestyle & Discretionary"
+                    "Pegeluaran Makro & Utama" -> "Large & Essential Expenses"
+                    else -> cluster.label
+                }
+            } else cluster.label
+            "**$label** (${cluster.transactions.size} ${if (isEnglish) "items" else "transaksi"}): ${if (isEnglish) "Average" else "Rerata"} ${rp.format(cluster.meanAmount)} (${if (isEnglish) "Total" else "Total"}: ${rp.format(cluster.totalAmount)})"
         }
 
-        // 3. TIME-SERIES EXPENSE FORECASTING VIA DOUBLE EXPONENTIAL SMOOTHING (HOLT'S LINEAR TREND)
-        // Model handles both Level (L) and Trend (T) components for accurate sequential projections
+        // 3. TIME-SERIES EXPENSE FORECASTING VIA DOUBLE EXPONENTIAL SMOOTHING
         val forecastedNextWeek = forecastNextWeekHolt(expenses)
 
         // 4. DETAILED END-OF-MONTH BALANCE PROJECTIONS
@@ -199,7 +216,6 @@ object LocalFinanceMLEngine {
         val currentDay = calendar.get(Calendar.DAY_OF_MONTH)
         val remainingDays = (totalDaysInMonth - currentDay).coerceAtLeast(1)
 
-        // Calculate a robust Daily Burn Rate (recent 14 days, falling back gracefully to all history)
         val now = System.currentTimeMillis()
         val periodMs = 14L * 24L * 60L * 60L * 1000L
         val recentPeriodExp = expenses.filter { (now - it.timestamp) <= periodMs }
@@ -228,10 +244,19 @@ object LocalFinanceMLEngine {
 
         val categoryToReduce = topCat
         val categoryToReducePercent = topCatPct
-        val reductionExplanation = if (categoryToReducePercent > 35.0) {
-            "Alokasi dana Anda terkonsentrasi sangat tinggi pada sektor **$categoryToReduce** (${String.format("%.1f", categoryToReducePercent)}%). Mengingat nilainya melampaui batas aman sirkulasi (35%), memangkas separuh pos belanja ini disarankan guna mendiversifikasi sisa tabungan harian."
+        val reductionExplanation = if (isEnglish) {
+            val translatedCat = com.example.ui.util.AppStrings.translateCategory(categoryToReduce, "en")
+            if (categoryToReducePercent > 35.0) {
+                "Spending is heavily concentrated in **$translatedCat** (${String.format("%.1f", categoryToReducePercent)}%). Consider capping this category to preserve your monthly savings."
+            } else {
+                "Well balanced. Spending in **$translatedCat** (${String.format("%.1f", categoryToReducePercent)}%) is within a healthy proportion."
+            }
         } else {
-            "Sangat terkendali! Alokasi di sektor **$categoryToReduce** (${String.format("%.1f", categoryToReducePercent)}%) berada dalam ambang batas wajar. Pertahankan performa ini guna menjamin stabilitas surplus arus kas bulanan Anda."
+            if (categoryToReducePercent > 35.0) {
+                "Pengeluaran terkonsentrasi pada **$categoryToReduce** (${String.format("%.1f", categoryToReducePercent)}%). Disarankan memberi batas anggaran pada kategori ini untuk menjaga tabungan bulanan."
+            } else {
+                "Terkendali dengan baik. Alokasi di kategori **$categoryToReduce** (${String.format("%.1f", categoryToReducePercent)}%) berada dalam ambang batas wajar."
+            }
         }
 
         // 6. CALCULATING FINANCIAL HEALTH SCORE (FHS) OUT OF 100
@@ -244,83 +269,145 @@ object LocalFinanceMLEngine {
             topCategoryPct = topCatPct
         )
 
-        // 7. DEVELOPING HIGHLY TARGETED STRATEGIC RECOMMENDATIONS
+        // 7. STRATEGIC RECOMMENDATIONS
         val recs = mutableListOf<String>()
 
-        // Recommendation 1: Financial Health Categorization
-        when {
-            fhs >= 85 -> recs.add("✅ Pokok Tabungan Terjaga Cemerlang: **Skor Kesehatan $fhs/100** menunjukkan model finansial Anda sangat solid. Rasio tabungan dan batas belanja seimbang demi masa depan.")
-            fhs >= 70 -> recs.add("✅ Pola Arus Kas Sehat & Stabil: **Skor Kesehatan $fhs/100** membuktikan manajemen kas Anda berjalan positif. Sedikit efisiensi sekunder akan meningkatkan skor ke level prima.")
-            fhs >= 50 -> recs.add("⚠️ Waspada Kebocoran Anggaran: **Skor Kesehatan $fhs/100** dinilai moderat. Disarankan melakukan restrukturisasi pos pengeluaran gaya hidup demi mempertahankan sisa likuiditas.")
-            else -> recs.add("🔴 Kritis! Defisit Kas Membuntuti Anda: **Skor Kesehatan $fhs/100** memasuki area bahaya. Laju hoki belanja terlampau agresif dibanding pendapatan masuk. Hentikan pengeluaran komplementer.")
-        }
+        if (isEnglish) {
+            when {
+                fhs >= 85 -> recs.add("Disciplined Spending: **Health score $fhs/100** shows balanced savings and controlled daily expenses.")
+                fhs >= 70 -> recs.add("Stable Cash Flow: **Health score $fhs/100** indicates healthy and sustainable financial management.")
+                fhs >= 50 -> recs.add("Budget Attention: **Health score $fhs/100** is moderate. Review lifestyle expenses to protect monthly savings.")
+                else -> recs.add("Spending Alert: **Health score $fhs/100** is low. Expenses exceed current intake. Consider limiting non-essential purchases.")
+            }
 
-        // Recommendation 2: Anomaly Outliers
-        if (anomalies.isNotEmpty()) {
-            val largestAnomaly = anomalies.maxByOrNull { it.amount }
-            if (largestAnomaly != null) {
-                recs.add("⚠️ Deteksi Lonjakan Ekstrem (Anomali): Transaksi **\"${largestAnomaly.title}\"** sebesar ${rp.format(largestAnomaly.amount)} terhitung sebagai lonjakan deviasi yang tidak wajar. Evaluasi kembali urgensi di balik transaksi ini.")
+            if (anomalies.isNotEmpty()) {
+                val largestAnomaly = anomalies.maxByOrNull { it.amount }
+                if (largestAnomaly != null) {
+                    recs.add("Unusual Expense Detected: Transaction **\"${largestAnomaly.title}\"** of ${rp.format(largestAnomaly.amount)} is higher than your typical transactions.")
+                }
+            } else {
+                recs.add("Consistent Pattern: No unusual or outlier transactions detected in your recent activity.")
+            }
+
+            val topCatEn = com.example.ui.util.AppStrings.translateCategory(topCat, "en")
+            if (topCatPct > 40.0) {
+                recs.add("High Category Concentration: **$topCatEn** accounts for **${String.format("%.1f", topCatPct)}%** of total spending. Setting a category limit is recommended.")
+            } else {
+                recs.add("Healthy Allocation: Spending is evenly distributed across multiple categories.")
+            }
+
+            val recent7DaysMs = 7L * 24L * 60L * 60L * 1000L
+            val recent7DaysExp = expenses.filter { (now - it.timestamp) <= recent7DaysMs }.sumOf { it.amount }
+            val forecastedVariance = forecastedNextWeek - recent7DaysExp
+            if (forecastedVariance > 0) {
+                recs.add("Projected Trend: Next week's spending is projected to increase by **${rp.format(forecastedVariance)}**. Keep an eye on non-essential purchases.")
+            } else {
+                recs.add("Savings Trend: Spending is projected to decrease by **${rp.format(abs(forecastedVariance))}** over the next 7 days.")
             }
         } else {
-            recs.add("✨ Keuangan Bebas Anomali: Model data tidak mendeteksi adanya lompatan transaksi mikro maupun makro yang mencurigakan sepanjang periode pencatatan minggu ini.")
-        }
+            when {
+                fhs >= 85 -> recs.add("Tabungan Terjaga Baik: **Skor kesehatan $fhs/100** menunjukkan rasio tabungan dan belanja harian Anda seimbang.")
+                fhs >= 70 -> recs.add("Arus Kas Stabil: **Skor kesehatan $fhs/100** menunjukkan pengelolaan keuangan yang sehat dan teratur.")
+                fhs >= 50 -> recs.add("Perlu Perhatian: **Skor kesehatan $fhs/100** tergolong sedang. Tinjau kembali pos pengeluaran sekunder agar tabungan tetap terjaga.")
+                else -> recs.add("Peringatan Pengeluaran: **Skor kesehatan $fhs/100** rendah. Pengeluaran tercatat lebih tinggi dari pemasukan. Batasi belanja non-kritis.")
+            }
 
-        // Recommendation 3: Category concentration
-        if (topCatPct > 40.0) {
-            recs.add("🔴 Konsentrasi Anggaran Tidak Sehat: Kelompok kategori **$topCat** menyedot hingga **${String.format("%.1f", topCatPct)}%** dana belanja. Batasi pagu anggaran kategori ini per tanggal berjalan.")
-        } else {
-            recs.add("✨ Diversifikasi Alokasi Anggaran Baik: Distribusi pengeluaran Anda bermigrasi secara seimbang di berbagai lini tanpa adanya dominasi tunggal ekspansif.")
-        }
+            if (anomalies.isNotEmpty()) {
+                val largestAnomaly = anomalies.maxByOrNull { it.amount }
+                if (largestAnomaly != null) {
+                    recs.add("Transaksi Tidak Biasa: Transaksi **\"${largestAnomaly.title}\"** sebesar ${rp.format(largestAnomaly.amount)} tercatat jauh lebih tinggi dari rata-rata transaksi harian.")
+                }
+            } else {
+                recs.add("Transaksi Teratur: Tidak ditemukan lonjakan atau transaksi mencurigakan sepanjang periode ini.")
+            }
 
-        // Recommendation 4: Forecasting Next Week Spending (Holt's dynamic output)
-        val recent7DaysMs = 7L * 24L * 60L * 60L * 1000L
-        val recent7DaysExp = expenses.filter { (now - it.timestamp) <= recent7DaysMs }.sumOf { it.amount }
-        val forecastedVariance = forecastedNextWeek - recent7DaysExp
-        if (forecastedVariance > 0) {
-            recs.add("📈 Prediksi Tren Pengeluaran Naik: Algoritme Holt memprediksi pengeluaran minggu depan meningkat sebesar **${rp.format(forecastedVariance)}**. Tunda rencana pembelian barang hobi.")
-        } else {
-            recs.add("📉 Pola Penghematan Bermutu Tinggi: Tren belanja diprediksi menyusut sebesar **${rp.format(abs(forecastedVariance))}** dalam 7 hari ke depan. Pertahankan ketelitian belanja.")
+            if (topCatPct > 40.0) {
+                recs.add("Konsentrasi Pengeluaran: Kategori **$topCat** menyerap **${String.format("%.1f", topCatPct)}%** dari seluruh belanja Anda. Sebaiknya pasang batas anggaran pada kategori ini.")
+            } else {
+                recs.add("Distribusi Anggaran Baik: Pengeluaran terdistribusi secara seimbang tanpa dominasi tunggal.")
+            }
+
+            val recent7DaysMs = 7L * 24L * 60L * 60L * 1000L
+            val recent7DaysExp = expenses.filter { (now - it.timestamp) <= recent7DaysMs }.sumOf { it.amount }
+            val forecastedVariance = forecastedNextWeek - recent7DaysExp
+            if (forecastedVariance > 0) {
+                recs.add("Tren Belanja: Pengeluaran minggu depan diproyeksikan bertambah **${rp.format(forecastedVariance)}**. Perhatikan pengeluaran tambahan.")
+            } else {
+                recs.add("Pola Penghematan Baik: Pengeluaran diproyeksikan berkurang **${rp.format(abs(forecastedVariance))}** dalam 7 hari ke depan.")
+            }
         }
 
         // 8. GENERATING COMPREHENSIVE MARKDOWN REPORT
         val reportBuilder = StringBuilder()
-        reportBuilder.append("### 🦾 Laporan Asisten Cerdas (ML Analyst v2)\n\n")
-        reportBuilder.append("Analisis parameter keuangan internal diproses secara andal pada perangkat Anda:\n\n")
-        reportBuilder.append("- **Total Belanja**: **${rp.format(totalExp)}**\n")
-        reportBuilder.append("- **Rerata Transaksi**: **${rp.format(avgExp)}** per rincian\n")
-        reportBuilder.append("- **Sektor Dominan**: **$topCat** (${String.format("%.1f", topCatPct)}% dari seluruh aliran kas keluar)\n")
-        reportBuilder.append("- **Rasio Laju Belanja Harian**: **${rp.format(calculatedDailyBurn)}** sehari\n")
-        reportBuilder.append("- **Proyeksi Sisa Bulan Ini**: Menghabiskan sekira **${rp.format(projectedSpendRemaining)}** untuk $remainingDays hari ke depan.\n")
-        reportBuilder.append("- **Estimasi Saldo Akhir Bulan**: **${rp.format(estimatedBalanceEnd)}**\n\n")
+        if (isEnglish) {
+            reportBuilder.append("### Monthly Financial Summary\n\n")
+            reportBuilder.append("Overview of your current monthly spending and projections:\n\n")
+            reportBuilder.append("- **Total Spending**: **${rp.format(totalExp)}**\n")
+            reportBuilder.append("- **Average per Transaction**: **${rp.format(avgExp)}**\n")
+            reportBuilder.append("- **Top Category**: **${com.example.ui.util.AppStrings.translateCategory(topCat, "en")}** (${String.format("%.1f", topCatPct)}% of total)\n")
+            reportBuilder.append("- **Daily Spending Rate**: **${rp.format(calculatedDailyBurn)}** / day\n")
+            reportBuilder.append("- **Projected Spend Remaining**: **${rp.format(projectedSpendRemaining)}** for next $remainingDays days\n")
+            reportBuilder.append("- **Estimated End-of-Month Balance**: **${rp.format(estimatedBalanceEnd)}**\n\n")
 
-        reportBuilder.append("#### Skor Kesehatan Finansial (Financial Health Score)\n")
-        val scoreLabel = when {
-            fhs >= 85 -> "SANGAT PRIMA 🌟"
-            fhs >= 70 -> "SEHAT 👍"
-            fhs >= 50 -> "WASPADA ⚠️"
-            else -> "KRITIS 🚨"
-        }
-        reportBuilder.append("- Nilai Kesehatan Anda: **$fhs / 100** ($scoreLabel)\n")
-        reportBuilder.append("- Rekomendasi Utama: $reductionExplanation\n\n")
-
-        reportBuilder.append("#### Hasil Klastering Perilaku Belanja (K-Means Clustering)\n")
-        kMeansClusters.forEach { cluster ->
-            val icon = when (cluster.label) {
-                "Transaksi Mikro & Rutin" -> "🛒"
-                "Belanja Lifestyle & Sekunder" -> "🍿"
-                "Pegeluaran Makro & Utama" -> "💳"
-                else -> "📦"
+            val scoreLabel = when {
+                fhs >= 85 -> "Excellent"
+                fhs >= 70 -> "Good"
+                fhs >= 50 -> "Moderate"
+                else -> "Attention Needed"
             }
-            reportBuilder.append("- $icon **${cluster.label}**: ${cluster.transactions.size} item, rerata *${rp.format(cluster.meanAmount)}*, akumulasi: *${rp.format(cluster.totalAmount)}*\n")
-        }
-        reportBuilder.append("\n")
+            reportBuilder.append("#### Financial Health Score\n")
+            reportBuilder.append("- Score: **$fhs / 100** ($scoreLabel)\n")
+            reportBuilder.append("- Note: $reductionExplanation\n\n")
 
-        reportBuilder.append("#### 🧠 Rekomendasi Berbasis Data:\n")
-        recs.forEach { rec ->
-            reportBuilder.append("- $rec\n")
-        }
+            reportBuilder.append("#### Spending Breakdown\n")
+            kMeansClusters.forEach { cluster ->
+                val clusterLabelEn = when (cluster.label) {
+                    "Transaksi Mikro & Rutin" -> "Routine & Micro Expenses"
+                    "Belanja Lifestyle & Sekunder" -> "Lifestyle & Discretionary"
+                    "Pegeluaran Makro & Utama" -> "Large & Essential Expenses"
+                    else -> cluster.label
+                }
+                reportBuilder.append("- **$clusterLabelEn**: ${cluster.transactions.size} items, average *${rp.format(cluster.meanAmount)}*, total: *${rp.format(cluster.totalAmount)}*\n")
+            }
+            reportBuilder.append("\n")
 
-        reportBuilder.append("\n_🛡️ Seluruh kalkulasi statistik dikerjakan secara luring menggunakan standardisasi enkripsi memori RAM internal peranti demi menjamin privasi keuangan mutlak Anda._")
+            reportBuilder.append("#### Recommendations:\n")
+            recs.forEach { rec ->
+                reportBuilder.append("- $rec\n")
+            }
+            reportBuilder.append("\n_All financial calculations are processed securely offline on your device._")
+        } else {
+            reportBuilder.append("### Ringkasan Analisis Keuangan\n\n")
+            reportBuilder.append("Rekapitulasi pengeluaran dan proyeksi keuangan Anda:\n\n")
+            reportBuilder.append("- **Total Belanja**: **${rp.format(totalExp)}**\n")
+            reportBuilder.append("- **Rerata Transaksi**: **${rp.format(avgExp)}** per rincian\n")
+            reportBuilder.append("- **Sektor Dominan**: **$topCat** (${String.format("%.1f", topCatPct)}% dari seluruh pengeluaran)\n")
+            reportBuilder.append("- **Rasio Laju Belanja Harian**: **${rp.format(calculatedDailyBurn)}** per hari\n")
+            reportBuilder.append("- **Proyeksi Sisa Bulan Ini**: Sekira **${rp.format(projectedSpendRemaining)}** untuk $remainingDays hari ke depan\n")
+            reportBuilder.append("- **Estimasi Saldo Akhir Bulan**: **${rp.format(estimatedBalanceEnd)}**\n\n")
+
+            val scoreLabel = when {
+                fhs >= 85 -> "Sangat Baik"
+                fhs >= 70 -> "Baik"
+                fhs >= 50 -> "Waspada"
+                else -> "Perlu Perhatian"
+            }
+            reportBuilder.append("#### Skor Kesehatan Finansial\n")
+            reportBuilder.append("- Nilai Kesehatan Anda: **$fhs / 100** ($scoreLabel)\n")
+            reportBuilder.append("- Rekomendasi Utama: $reductionExplanation\n\n")
+
+            reportBuilder.append("#### Hasil Klastering Perilaku Belanja\n")
+            kMeansClusters.forEach { cluster ->
+                reportBuilder.append("- **${cluster.label}**: ${cluster.transactions.size} item, rerata *${rp.format(cluster.meanAmount)}*, akumulasi: *${rp.format(cluster.totalAmount)}*\n")
+            }
+            reportBuilder.append("\n")
+
+            reportBuilder.append("#### Rekomendasi Berbasis Data:\n")
+            recs.forEach { rec ->
+                reportBuilder.append("- $rec\n")
+            }
+            reportBuilder.append("\n_Seluruh kalkulasi diproses secara offline pada perangkat demi menjamin privasi keuangan Anda._")
+        }
 
         return MLInsight(
             totalExpense = totalExp,
